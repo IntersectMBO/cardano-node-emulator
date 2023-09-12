@@ -1,0 +1,44 @@
+cabal-version: 3.0
+name:          cardano-node-emulator
+version:       1.2.0.0
+license:       Apache-2.0
+license-files:
+  LICENSE
+  NOTICE
+
+build-type:    Simple
+
+source-repository head
+  type:     git
+  location: https://github.com/input-output-hk/cardano-node-emulator
+
+common lang
+  default-language:   Haskell2010
+  default-extensions:
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    ExplicitForAll
+    GeneralizedNewtypeDeriving
+    ImportQualifiedPost
+    OverloadedStrings
+    ScopedTypeVariables
+    StandaloneDeriving
+
+  ghc-options:
+    -Wall -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wmissing-import-lists
+    -Wnoncanonical-monad-instances -Wredundant-constraints
+    -Wunused-packages
+
+executable cardano-node-emulator
+  import:         lang
+  hs-source-dirs: app
+  main-is:        Main.hs
+
+  ------------------------
+  -- Non-IOG dependencies
+  ------------------------
+  build-depends:  base >=4.9 && <5

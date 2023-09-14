@@ -76,7 +76,6 @@ library
     , plutus-tx                      >=1.0.0
     , quickcheck-contractmodel       >=0.1.4.0
     , serialise
-    , text-class
     , typed-protocols
 
   ------------------------

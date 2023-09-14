@@ -31,7 +31,7 @@ let
     cardano-node-socket-emulator.ghcOptions = [ "-Werror" ];
     freer-extras.ghcOptions = [ "-Werror" ];
     plutus-ledger.ghcOptions = [ "-Werror" ];
-    plutus-script-utils.doHadghcOptionsdock = [ "-Werror" ];
+    plutus-script-utils.ghcOptions = [ "-Werror" ];
   };
 
 

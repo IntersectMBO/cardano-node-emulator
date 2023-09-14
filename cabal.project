@@ -45,3 +45,13 @@ package cardano-api
   optimization: False
 package cardano-crypto-praos
   flags: -external-libsodium-vrf
+
+
+source-repository-package
+    type: git
+    location: https://github.com/input-output-hk/quickcheck-contractmodel
+    tag: d80efe160d4e3c25b8d93d5964c139e3d7a0d29c
+    --sha256: sha256-7nWh7j4d5bhRpmutyu4Cn8po3kXVLtWY8CgzTrmTwxo=
+    subdir:
+      quickcheck-contractmodel
+      quickcheck-threatmodel

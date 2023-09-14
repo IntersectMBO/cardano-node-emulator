@@ -8,5 +8,6 @@
 
   defaultChangelogPackages = [
     "cardano-node-emulator"
+    "cardano-node-socket-emulator"
   ];
 }

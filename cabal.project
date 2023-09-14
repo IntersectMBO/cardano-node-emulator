@@ -15,7 +15,12 @@ repository cardano-haskell-packages
 index-state:
   , hackage.haskell.org 2023-09-12T00:00:00Z
   , cardano-haskell-packages 2023-09-12T00:00:00Z
-packages: cardano-node-emulator
+
+packages: plutus-ledger
+          plutus-script-utils
+          cardano-node-emulator
+          cardano-node-socket-emulator
+          freer-extras
 
 -- We never, ever, want this.
 write-ghc-environment-files: never

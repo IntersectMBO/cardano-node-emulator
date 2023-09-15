@@ -55,7 +55,3 @@ source-repository-package
     subdir:
       quickcheck-contractmodel
       quickcheck-threatmodel
-
-constraints:
-    plutus-ledger-api ^>=1.5
-    , plutus-core ^>=1.5

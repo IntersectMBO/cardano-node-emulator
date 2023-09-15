@@ -103,7 +103,6 @@ library
     , prettyprinter
     , serialise
     , tagged
-    , text
 
   -- TODO This needs to be changed to 1.35 once cardano-node creates the tag
   ghc-options:      -fprint-potential-instances

@@ -81,10 +81,6 @@ test-suite freer-extras-test
   build-depends:
     , base            >=4.7 && <5
     , containers
-    , contra-tracer
-    , freer-simple
     , hedgehog
-    , lens
-    , semigroups
     , tasty
     , tasty-hedgehog

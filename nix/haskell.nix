@@ -4,7 +4,7 @@
 {
   supportedCompilers = [ "ghc928" ];
 
-  enableCrossCompilation = true;
+  enableCrossCompilation = false;
 
   defaultChangelogPackages = [
     "cardano-node-emulator"

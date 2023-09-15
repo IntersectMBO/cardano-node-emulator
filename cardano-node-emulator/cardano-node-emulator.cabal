@@ -55,12 +55,10 @@ library
   build-depends:
     , cardano-api:{cardano-api, gen}  ^>=8.2
     , cardano-crypto
-    , cardano-ledger-allegra
     , cardano-ledger-alonzo
     , cardano-ledger-api
     , cardano-ledger-babbage
     , cardano-ledger-core
-    , cardano-ledger-mary
     , cardano-ledger-shelley
     , cardano-slotting
     , ouroboros-consensus
@@ -74,21 +72,18 @@ library
   -- Non-IOG dependencies
   ------------------------
   build-depends:
-    , aeson                      >=2
-    , array
-    , base                       >=4.9     && <5
+    , aeson                     >=2
+    , base                      >=4.9     && <5
     , bytestring
-    , cardano-strict-containers
     , containers
     , data-default
-    , either
     , freer-simple
     , hedgehog
     , lens
     , mtl
-    , prettyprinter              >=1.1.0.1
+    , prettyprinter             >=1.1.0.1
     , QuickCheck
-    , quickcheck-contractmodel   >=0.1.5.0
+    , quickcheck-contractmodel  >=0.1.5.0
     , quickcheck-dynamic
     , serialise
     , text
@@ -100,6 +95,7 @@ test-suite cardano-node-emulator-test
   main-is:          Spec.hs
   hs-source-dirs:   test
   default-language: Haskell2010
+  ghc-options:      -Wno-unused-packages
   other-modules:
     Cardano.Node.Emulator.GeneratorsSpec
     Cardano.Node.Emulator.MTLSpec

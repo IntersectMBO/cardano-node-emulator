@@ -50,11 +50,8 @@ library
   --------------------------
   build-depends:
     , cardano-api                    >=8.0
-    , cardano-ledger-allegra
-    , cardano-ledger-alonzo
     , cardano-ledger-byron
     , cardano-ledger-core
-    , cardano-ledger-mary
     , cardano-ledger-shelley
     , cardano-slotting
     , cardano-strict-containers
@@ -71,10 +68,6 @@ library
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
-    , plutus-core                    >=1.0.0
-    , plutus-ledger-api              >=1.0.0
-    , plutus-tx                      >=1.0.0
-    , quickcheck-contractmodel       >=0.1.4.0
     , serialise
     , typed-protocols
 

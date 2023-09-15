@@ -39,7 +39,7 @@ common lang
   -- See Plutus Tx readme for why we need the following flags:
   -- -fobject-code -fno-ignore-interface-pragmas and -fno-omit-interface-pragmas
   ghc-options:
-    -Wall -Wnoncanonical-monad-instances -Wunused-packages
+    -Wall -Wnoncanonical-monad-instances -Wno-unused-packages
     -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wredundant-constraints -Widentities -Wmissing-import-lists
     -fobject-code -fno-ignore-interface-pragmas

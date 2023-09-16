@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia    #-}
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Ledger.Address.Orphans where
 
 import Codec.Serialise (Serialise)

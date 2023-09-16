@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia    #-}
-
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ledger.Scripts.Orphans where
@@ -27,14 +26,14 @@ with the data arguments applied (which can be very big!).
 -}
 
 instance ToJSON Script where
-    -- See note [JSON instances for Script]
-    toJSON (Script p) = JSON.String $ JSON.encodeSerialise (SerialiseViaFlat p)
+  -- See note [JSON instances for Script]
+  toJSON (Script p) = JSON.String $ JSON.encodeSerialise (SerialiseViaFlat p)
 
 instance FromJSON Script where
-    -- See note [JSON instances for Script]
-    parseJSON v = do
-        (SerialiseViaFlat p) <- JSON.decodeSerialise v
-        return $ Script p
+  -- See note [JSON instances for Script]
+  parseJSON v = do
+    (SerialiseViaFlat p) <- JSON.decodeSerialise v
+    return $ Script p
 
 deriving anyclass instance ToJSON DatumHash
 deriving anyclass instance FromJSON DatumHash

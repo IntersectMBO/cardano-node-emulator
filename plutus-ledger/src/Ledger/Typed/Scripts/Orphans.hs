@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveAnyClass #-}
-
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Ledger.Typed.Scripts.Orphans where

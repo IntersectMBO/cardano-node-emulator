@@ -1,8 +1,9 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DerivingVia        #-}
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Ledger.DCert.Orphans where
 
 import Codec.Serialise (Serialise)
@@ -15,4 +16,3 @@ import PlutusLedgerApi.V1.DCert (DCert)
 deriving anyclass instance ToJSON DCert
 deriving anyclass instance FromJSON DCert
 deriving anyclass instance Serialise DCert
-

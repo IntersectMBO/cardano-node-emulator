@@ -1,10 +1,9 @@
-{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DerivingVia        #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE OverloadedStrings  #-}
-
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Ledger.Orphans where
@@ -32,15 +31,15 @@ import Web.HttpApiData (FromHttpApiData (parseUrlPiece), ToHttpApiData (toUrlPie
 -- import Test.QuickCheck.ContractModel.Internal.Common ()
 
 instance ToHttpApiData PrivateKey where
-    toUrlPiece = toUrlPiece . getPrivateKey
+  toUrlPiece = toUrlPiece . getPrivateKey
 
 instance FromHttpApiData PrivateKey where
-    parseUrlPiece a = PrivateKey <$> parseUrlPiece a
+  parseUrlPiece a = PrivateKey <$> parseUrlPiece a
 
 instance ToHttpApiData LedgerBytes where
-    toUrlPiece = JSON.encodeByteString . bytes
+  toUrlPiece = JSON.encodeByteString . bytes
 instance FromHttpApiData LedgerBytes where
-    parseUrlPiece = bimap Text.pack fromBytes . JSON.tryDecode
+  parseUrlPiece = bimap Text.pack fromBytes . JSON.tryDecode
 
 -- | ByteArrayAccess instance for signing support
 instance BA.ByteArrayAccess TxId where
@@ -55,7 +54,8 @@ instance Serialise (C.AddressInEra C.BabbageEra) where
   encode = encode . C.serialiseToRawBytes
   decode = do
     bs <- decode
-    either (fail . show)
+    either
+      (fail . show)
       pure
       $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsBabbageEra) bs
 
@@ -65,19 +65,22 @@ deriving instance Generic C.Quantity
 
 -- 'POSIXTime' instances
 
--- | Custom `FromJSON` instance which allows to parse a JSON number to a
--- 'POSIXTime' value. The parsed JSON value MUST be an 'Integer' or else the
--- parsing fails.
+{- | Custom `FromJSON` instance which allows to parse a JSON number to a
+'POSIXTime' value. The parsed JSON value MUST be an 'Integer' or else the
+parsing fails.
+-}
 instance JSON.FromJSON POSIXTime where
   parseJSON v@(JSON.Number n) =
-      either (\_ -> JSON.prependFailure "parsing POSIXTime failed, " (JSON.typeMismatch "Integer" v))
-             (return . POSIXTime)
-             (floatingOrInteger n :: Either Double Integer)
+    either
+      (\_ -> JSON.prependFailure "parsing POSIXTime failed, " (JSON.typeMismatch "Integer" v))
+      (return . POSIXTime)
+      (floatingOrInteger n :: Either Double Integer)
   parseJSON invalid =
-      JSON.prependFailure "parsing POSIXTime failed, " (JSON.typeMismatch "Number" invalid)
+    JSON.prependFailure "parsing POSIXTime failed, " (JSON.typeMismatch "Number" invalid)
 
--- | Custom 'ToJSON' instance which allows to simply convert a 'POSIXTime'
--- value to a JSON number.
+{- | Custom 'ToJSON' instance which allows to simply convert a 'POSIXTime'
+value to a JSON number.
+-}
 instance JSON.ToJSON POSIXTime where
   toJSON (POSIXTime n) = JSON.Number $ scientific n 0
 

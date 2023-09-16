@@ -1,21 +1,21 @@
-{-# LANGUAGE DerivingVia       #-}
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Ledger.Blockchain (
-    OnChainTx(..),
-    Block,
-    BlockId(..),
-    Blockchain,
-    Context(..),
-    eitherTx,
-    unOnChain,
-    onChainTxIsValid,
-    consumableInputs,
-    outputsProduced,
-    ) where
+  OnChainTx (..),
+  Block,
+  BlockId (..),
+  Blockchain,
+  Context (..),
+  eitherTx,
+  unOnChain,
+  onChainTxIsValid,
+  consumableInputs,
+  outputsProduced,
+) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as JSON
@@ -30,31 +30,38 @@ import Prettyprinter (Pretty (..))
 
 import Cardano.Api qualified as C
 import Ledger.Index.Internal (OnChainTx (..), eitherTx, unOnChain)
-import Ledger.Tx (TxOut, getCardanoTxCollateralInputs, getCardanoTxInputs, getCardanoTxProducedOutputs,
-                  getCardanoTxProducedReturnCollateral)
+import Ledger.Tx (
+  TxOut,
+  getCardanoTxCollateralInputs,
+  getCardanoTxInputs,
+  getCardanoTxProducedOutputs,
+  getCardanoTxProducedReturnCollateral,
+ )
 import PlutusLedgerApi.V1.Scripts
 
 -- | Block identifier (usually a hash)
-newtype BlockId = BlockId { getBlockId :: BS.ByteString }
-    deriving stock (Eq, Ord, Generic)
+newtype BlockId = BlockId {getBlockId :: BS.ByteString}
+  deriving stock (Eq, Ord, Generic)
 
 instance Show BlockId where
-    show = Text.unpack . JSON.encodeByteString . getBlockId
+  show = Text.unpack . JSON.encodeByteString . getBlockId
 
 instance ToJSON BlockId where
-    toJSON = JSON.String . JSON.encodeByteString . getBlockId
+  toJSON = JSON.String . JSON.encodeByteString . getBlockId
 
 instance FromJSON BlockId where
-    parseJSON v = BlockId <$> JSON.decodeByteString v
+  parseJSON v = BlockId <$> JSON.decodeByteString v
 
 instance Pretty BlockId where
-    pretty (BlockId blockId) =
-        "BlockId "
-     <> pretty (fromRight (JSON.encodeByteString blockId) $ decodeUtf8' blockId)
+  pretty (BlockId blockId) =
+    "BlockId "
+      <> pretty (fromRight (JSON.encodeByteString blockId) $ decodeUtf8' blockId)
 
--- | A block on the blockchain. This is just a list of transactions
--- following on from the chain so far.
+{- | A block on the blockchain. This is just a list of transactions
+following on from the chain so far.
+-}
 type Block = [OnChainTx]
+
 -- | A blockchain, which is just a list of blocks, starting with the newest.
 type Blockchain = [Block]
 

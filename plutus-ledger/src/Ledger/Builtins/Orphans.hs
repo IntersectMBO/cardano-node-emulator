@@ -1,9 +1,10 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DerivingVia        #-}
-{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Ledger.Builtins.Orphans where
 
 import PlutusTx.Prelude qualified as PlutusTx
@@ -19,10 +20,10 @@ import PlutusTx qualified as PlutusTx
 import PlutusTx.Builtins.Internal (BuiltinData (..))
 
 instance ToJSON PlutusTx.BuiltinByteString where
-    toJSON = JSON.String . JSON.encodeByteString . PlutusTx.fromBuiltin
+  toJSON = JSON.String . JSON.encodeByteString . PlutusTx.fromBuiltin
 
 instance FromJSON PlutusTx.BuiltinByteString where
-    parseJSON v = PlutusTx.toBuiltin <$> JSON.decodeByteString v
+  parseJSON v = PlutusTx.toBuiltin <$> JSON.decodeByteString v
 
 instance ToJSON PlutusTx.BuiltinData where
   toJSON = toJSON . PlutusTx.builtinDataToData

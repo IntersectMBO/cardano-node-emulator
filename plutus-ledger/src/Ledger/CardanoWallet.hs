@@ -1,37 +1,39 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DerivingVia       #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {- Cardano wallet implementation for the emulator.
 -}
-module Ledger.CardanoWallet(
-    MockWallet(..),
-    -- * Enumerating wallets
-    WalletNumber(..),
-    fromWalletNumber,
-    toWalletNumber,
-    knownMockWallets,
-    knownMockWallet,
-    fromSeed,
-    fromSeed',
-    -- ** Keys
-    mockWalletAddress,
-    paymentPrivateKey,
-    paymentPubKeyHash,
-    paymentPubKey,
-    stakingCredential,
-    stakePubKeyHash,
-    stakePubKey,
-    knownAddresses,
-    knownPaymentKeys,
-    knownPaymentPublicKeys,
-    knownPaymentPrivateKeys
-    ) where
+module Ledger.CardanoWallet (
+  MockWallet (..),
+
+  -- * Enumerating wallets
+  WalletNumber (..),
+  fromWalletNumber,
+  toWalletNumber,
+  knownMockWallets,
+  knownMockWallet,
+  fromSeed,
+  fromSeed',
+
+  -- ** Keys
+  mockWalletAddress,
+  paymentPrivateKey,
+  paymentPubKeyHash,
+  paymentPubKey,
+  stakingCredential,
+  stakePubKeyHash,
+  stakePubKey,
+  knownAddresses,
+  knownPaymentKeys,
+  knownPaymentPublicKeys,
+  knownPaymentPrivateKeys,
+) where
 
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise (serialise)
@@ -48,52 +50,63 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
-import Ledger.Address (CardanoAddress, PaymentPrivateKey (PaymentPrivateKey, unPaymentPrivateKey),
-                       PaymentPubKey (PaymentPubKey, unPaymentPubKey),
-                       PaymentPubKeyHash (PaymentPubKeyHash, unPaymentPubKeyHash),
-                       StakePubKey (StakePubKey, unStakePubKey), StakePubKeyHash (StakePubKeyHash, unStakePubKeyHash),
-                       stakePubKeyHashCredential)
+import Ledger.Address (
+  CardanoAddress,
+  PaymentPrivateKey (PaymentPrivateKey, unPaymentPrivateKey),
+  PaymentPubKey (PaymentPubKey, unPaymentPubKey),
+  PaymentPubKeyHash (PaymentPubKeyHash, unPaymentPubKeyHash),
+  StakePubKey (StakePubKey, unStakePubKey),
+  StakePubKeyHash (StakePubKeyHash, unStakePubKeyHash),
+  stakePubKeyHashCredential,
+ )
 import Ledger.Crypto (PubKey (..))
 import Ledger.Crypto qualified as Crypto
 import Ledger.Test (testnet)
 import Ledger.Tx.CardanoAPI.Internal qualified as Tx
-import PlutusLedgerApi.V1 (Address (Address), Credential (PubKeyCredential), StakingCredential (StakingHash))
+import PlutusLedgerApi.V1 (
+  Address (Address),
+  Credential (PubKeyCredential),
+  StakingCredential (StakingHash),
+ )
 import PlutusLedgerApi.V1.Bytes (LedgerBytes (getLedgerBytes))
 import Servant.API (FromHttpApiData, ToHttpApiData)
 
-newtype MockPrivateKey = MockPrivateKey { unMockPrivateKey :: Crypto.XPrv }
+newtype MockPrivateKey = MockPrivateKey {unMockPrivateKey :: Crypto.XPrv}
 
 instance Show MockPrivateKey where
-    show = T.unpack . encodeByteString . Crypto.unXPrv . unMockPrivateKey
+  show = T.unpack . encodeByteString . Crypto.unXPrv . unMockPrivateKey
 instance Eq MockPrivateKey where
-    (MockPrivateKey l) == (MockPrivateKey r) = Crypto.unXPrv l == Crypto.unXPrv r
+  (MockPrivateKey l) == (MockPrivateKey r) = Crypto.unXPrv l == Crypto.unXPrv r
 instance Ord MockPrivateKey where
-    compare (MockPrivateKey l) (MockPrivateKey r) = compare (Crypto.unXPrv l) (Crypto.unXPrv r)
+  compare (MockPrivateKey l) (MockPrivateKey r) = compare (Crypto.unXPrv l) (Crypto.unXPrv r)
 instance Hashable MockPrivateKey where
-    hashWithSalt i = hashWithSalt i . Crypto.unXPrv . unMockPrivateKey
+  hashWithSalt i = hashWithSalt i . Crypto.unXPrv . unMockPrivateKey
 
 -- | Emulated wallet with a key and a passphrase
-data MockWallet =
-    MockWallet
-        { mwWalletId   :: Crypto.Digest Crypto.Blake2b_160
-        , mwPaymentKey :: MockPrivateKey
-        , mwStakeKey   :: Maybe MockPrivateKey
-        , mwPrintAs    :: Maybe String
-        } deriving Show
+data MockWallet = MockWallet
+  { mwWalletId :: Crypto.Digest Crypto.Blake2b_160
+  , mwPaymentKey :: MockPrivateKey
+  , mwStakeKey :: Maybe MockPrivateKey
+  , mwPrintAs :: Maybe String
+  }
+  deriving (Show)
 
 -- | Wrapper for config files and APIs
-newtype WalletNumber = WalletNumber { getWallet :: Integer }
-    deriving stock (Show, Eq, Ord, Generic)
-    deriving newtype (ToHttpApiData, FromHttpApiData, Num, Enum, Real)
-    deriving anyclass (FromJSON, ToJSON)
+newtype WalletNumber = WalletNumber {getWallet :: Integer}
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving newtype (ToHttpApiData, FromHttpApiData, Num, Enum, Real)
+  deriving anyclass (FromJSON, ToJSON)
 
 -- Workaround for warning "Call of toInteger :: Integer -> Integer can probably be omitted" GHC issue #21679
 instance Integral WalletNumber where
-    quotRem = coerce @(Integer -> Integer -> (Integer, Integer)) @(WalletNumber -> WalletNumber -> (WalletNumber, WalletNumber)) quotRem
-    toInteger = coerce
+  quotRem =
+    coerce @(Integer -> Integer -> (Integer, Integer))
+      @(WalletNumber -> WalletNumber -> (WalletNumber, WalletNumber))
+      quotRem
+  toInteger = coerce
 
 fromWalletNumber :: WalletNumber -> MockWallet
-fromWalletNumber (WalletNumber i) = (fromSeed' (BSL.toStrict $ serialise i)) { mwPrintAs = Just (show i) }
+fromWalletNumber (WalletNumber i) = (fromSeed' (BSL.toStrict $ serialise i)){mwPrintAs = Just (show i)}
 
 fromSeed :: BS.ByteString -> Crypto.Passphrase -> MockWallet
 fromSeed bs passPhrase = fromSeedInternal (flip Crypto.generateFromSeed passPhrase) bs
@@ -102,46 +115,49 @@ fromSeed' :: BS.ByteString -> MockWallet
 fromSeed' = fromSeedInternal Crypto.generateFromSeed'
 
 fromSeedInternal :: (BS.ByteString -> Crypto.XPrv) -> BS.ByteString -> MockWallet
-fromSeedInternal seedGen bs = MockWallet{mwWalletId, mwPaymentKey, mwStakeKey, mwPrintAs = Nothing} where
+fromSeedInternal seedGen bs = MockWallet{mwWalletId, mwPaymentKey, mwStakeKey, mwPrintAs = Nothing}
+  where
     missing = max 0 (32 - BS.length bs)
     bs' = bs <> BS.replicate missing 0
     k = seedGen bs'
     mwWalletId =
-        fromMaybe (error "Ledger.CardanoWallet.fromSeed: digestFromByteString")
-        $ Crypto.digestFromByteString
-        $ Crypto.hashWith Crypto.Blake2b_160
-        $ getLedgerBytes
-        $ getPubKey
-        $ Crypto.toPublicKey k
+      fromMaybe (error "Ledger.CardanoWallet.fromSeed: digestFromByteString") $
+        Crypto.digestFromByteString $
+          Crypto.hashWith Crypto.Blake2b_160 $
+            getLedgerBytes $
+              getPubKey $
+                Crypto.toPublicKey k
     mwPaymentKey = MockPrivateKey k
     mwStakeKey = Nothing
 
 toWalletNumber :: MockWallet -> WalletNumber
-toWalletNumber MockWallet{mwWalletId=w} =
-    maybe (error "Ledger.CardanoWallet.toWalletNumber: not a known wallet")
-          (WalletNumber . toInteger . succ)
-          $ findIndex ((==) w . mwWalletId) knownMockWallets
+toWalletNumber MockWallet{mwWalletId = w} =
+  maybe
+    (error "Ledger.CardanoWallet.toWalletNumber: not a known wallet")
+    (WalletNumber . toInteger . succ)
+    $ findIndex ((==) w . mwWalletId) knownMockWallets
 
--- | The wallets used in mockchain simulations by default. There are
---   ten wallets by default.
+{- | The wallets used in mockchain simulations by default. There are
+  ten wallets by default.
+-}
 knownMockWallets :: [MockWallet]
-knownMockWallets = fromWalletNumber . WalletNumber <$> [1..10]
+knownMockWallets = fromWalletNumber . WalletNumber <$> [1 .. 10]
 
 -- | Get a known wallet from an @Integer@ indexed from 1 to 10.
 knownMockWallet :: Integer -> MockWallet
 knownMockWallet = (knownMockWallets !!) . pred . fromInteger
 
-{- | A mock cardano address for the testnet network.
- -}
+-- | A mock cardano address for the testnet network.
 mockWalletAddress :: MockWallet -> CardanoAddress
 mockWalletAddress =
-    fromRight (error "mock wallet is invalid")
-       . Tx.toCardanoAddressInEra testnet
-       . plutusAddress
-    where
+  fromRight (error "mock wallet is invalid")
+    . Tx.toCardanoAddressInEra testnet
+    . plutusAddress
+  where
     plutusAddress mw =
-        Address (PubKeyCredential $ unPaymentPubKeyHash $ paymentPubKeyHash mw)
-                (StakingHash . PubKeyCredential . unStakePubKeyHash <$> stakePubKeyHash mw)
+      Address
+        (PubKeyCredential $ unPaymentPubKeyHash $ paymentPubKeyHash mw)
+        (StakingHash . PubKeyCredential . unStakePubKeyHash <$> stakePubKeyHash mw)
 
 -- | Mock wallet's private key
 paymentPrivateKey :: MockWallet -> PaymentPrivateKey
@@ -169,11 +185,14 @@ stakingCredential = fmap stakePubKeyHashCredential . stakePubKeyHash
 
 knownPaymentPublicKeys :: [PaymentPubKey]
 knownPaymentPublicKeys =
-    PaymentPubKey . Crypto.toPublicKey . unPaymentPrivateKey <$> knownPaymentPrivateKeys
+  PaymentPubKey . Crypto.toPublicKey . unPaymentPrivateKey <$> knownPaymentPrivateKeys
 
 knownPaymentKeys :: Map.Map PaymentPubKey PaymentPrivateKey
-knownPaymentKeys = Map.fromList $ map
-    (\k -> (PaymentPubKey $ Crypto.toPublicKey $ unPaymentPrivateKey k, k)) knownPaymentPrivateKeys
+knownPaymentKeys =
+  Map.fromList $
+    map
+      (\k -> (PaymentPubKey $ Crypto.toPublicKey $ unPaymentPrivateKey k, k))
+      knownPaymentPrivateKeys
 
 knownPaymentPrivateKeys :: [PaymentPrivateKey]
 knownPaymentPrivateKeys = paymentPrivateKey <$> knownMockWallets

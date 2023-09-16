@@ -1,16 +1,16 @@
-{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE TypeFamilies #-}
 
-module Plutus.Script.Utils.V1.Generators
-    ( alwaysSucceedValidator
-    , alwaysSucceedValidatorVersioned
-    , alwaysSucceedValidatorHash
-    , alwaysSucceedPolicy
-    , alwaysSucceedPolicyVersioned
-    , alwaysSucceedPolicyHash
-    , someTokenValue
-    ) where
+module Plutus.Script.Utils.V1.Generators (
+  alwaysSucceedValidator,
+  alwaysSucceedValidatorVersioned,
+  alwaysSucceedValidatorHash,
+  alwaysSucceedPolicy,
+  alwaysSucceedPolicyVersioned,
+  alwaysSucceedPolicyHash,
+  someTokenValue,
+) where
 
 import Plutus.Script.Utils.Scripts qualified as Ledger
 import PlutusLedgerApi.V1.Value (TokenName, Value)
@@ -21,7 +21,7 @@ import Plutus.Script.Utils.V1.Scripts qualified as Scripts
 
 alwaysSucceedValidator :: Ledger.Validator
 alwaysSucceedValidator =
-    Ledger.mkValidatorScript $$(PlutusTx.compile [|| \_ _ _ -> () ||])
+  Ledger.mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> ()||])
 
 alwaysSucceedValidatorVersioned :: Ledger.Versioned Ledger.Validator
 alwaysSucceedValidatorVersioned = Ledger.Versioned alwaysSucceedValidator Ledger.PlutusV1
@@ -31,7 +31,7 @@ alwaysSucceedValidatorHash = Scripts.validatorHash alwaysSucceedValidator
 
 alwaysSucceedPolicy :: Ledger.MintingPolicy
 alwaysSucceedPolicy =
-    Ledger.mkMintingPolicyScript $$(PlutusTx.compile [|| \_ _ -> () ||])
+  Ledger.mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> ()||])
 
 alwaysSucceedPolicyVersioned :: Ledger.Versioned Ledger.MintingPolicy
 alwaysSucceedPolicyVersioned = Ledger.Versioned alwaysSucceedPolicy Ledger.PlutusV1

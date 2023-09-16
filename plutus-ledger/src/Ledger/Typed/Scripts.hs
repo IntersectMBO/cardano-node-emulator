@@ -1,21 +1,20 @@
-{-# LANGUAGE DerivingStrategies   #-}
-{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Ledger.Typed.Scripts
-  ( module Export
-  , MintingPolicy
-  , Validator
-  , PV1.ConnectionError (..)
-  , mkForwardingMintingPolicy
-  , unsafeMkTypedValidator
+module Ledger.Typed.Scripts (
+  module Export,
+  MintingPolicy,
+  Validator,
+  PV1.ConnectionError (..),
+  mkForwardingMintingPolicy,
+  unsafeMkTypedValidator,
   -- TODO: Don't export Plutus V1 specific code from a module that doesn't mention a plutus version
-  , PV1.ValidatorType
-  , PV1.mkTypedValidator
-  , PV1.mkTypedValidatorParam
-  ) where
+  PV1.ValidatorType,
+  PV1.mkTypedValidator,
+  PV1.mkTypedValidatorParam,
+) where
 
 import Ledger.Typed.Scripts.Orphans as Export ()
 import Plutus.Script.Utils.Scripts (MintingPolicy, Validator)
@@ -41,4 +40,3 @@ unsafeMkTypedValidator vl =
   where
     vh = Untyped.validatorHash vl
     mps = mkForwardingMintingPolicy vl
-

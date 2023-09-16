@@ -1,15 +1,14 @@
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DerivingStrategies   #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE MonoLocalBinds       #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-
 
 module Ledger.Tx.Orphans.V1 where
 
@@ -34,10 +33,10 @@ deriving anyclass instance FromJSONKey LedgerBytes
 deriving anyclass instance ToJSONKey LedgerBytes
 
 instance ToJSON LedgerBytes where
-    toJSON = JSON.String . JSON.encodeByteString . Bytes.bytes
+  toJSON = JSON.String . JSON.encodeByteString . Bytes.bytes
 
 instance FromJSON LedgerBytes where
-    parseJSON v = Bytes.fromBytes <$> JSON.decodeByteString v
+  parseJSON v = Bytes.fromBytes <$> JSON.decodeByteString v
 
 deriving anyclass instance ToJSON RedeemerPtr
 deriving anyclass instance FromJSON RedeemerPtr

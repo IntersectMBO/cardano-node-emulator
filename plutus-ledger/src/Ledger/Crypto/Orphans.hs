@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia    #-}
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Ledger.Crypto.Orphans where
 
 import Ledger.Builtins.Orphans ()

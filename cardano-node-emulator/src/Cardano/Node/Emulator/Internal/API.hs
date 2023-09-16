@@ -1,27 +1,29 @@
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE TypeOperators #-}
+
 -- | If you want to run the node emulator without using the `Contract` monad, this module provides a simple MTL-based interface.
 module Cardano.Node.Emulator.Internal.API (
   -- * Types
-    EmulatorState(EmulatorState)
-      , esChainState
-      , esAddressMap
-      , esDatumMap
-  , EmulatorError(..)
-  , EmulatorLogs
-  , EmulatorMsg(..)
-  , L.LogMessage(..)
-  , MonadEmulator
-  , EmulatorT
-  , EmulatorM
+  EmulatorState (EmulatorState),
+  esChainState,
+  esAddressMap,
+  esDatumMap,
+  EmulatorError (..),
+  EmulatorLogs,
+  EmulatorMsg (..),
+  L.LogMessage (..),
+  MonadEmulator,
+  EmulatorT,
+  EmulatorM,
+
   -- * Running Eff chain effects in MTL
-  , handleChain
-  , processBlock
-  , modifySlot
+  handleChain,
+  processBlock,
+  modifySlot,
 ) where
 
 import Cardano.Node.Emulator.Internal.Node qualified as E
@@ -41,14 +43,22 @@ import Control.Monad.RWS.Class (MonadRWS, ask, get, put, tell)
 import Control.Monad.RWS.Strict (RWST)
 import Data.Map (Map)
 import Data.Sequence (Seq)
-import Ledger (Block, Datum, DatumHash, Slot, ToCardanoError, ValidationErrorInPhase, eitherTx, getCardanoTxData)
+import Ledger (
+  Block,
+  Datum,
+  DatumHash,
+  Slot,
+  ToCardanoError,
+  ValidationErrorInPhase,
+  eitherTx,
+  getCardanoTxData,
+ )
 import Ledger.AddressMap qualified as AM
-
 
 data EmulatorState = EmulatorState
   { _esChainState :: !E.ChainState
   , _esAddressMap :: !AM.AddressMap
-  , _esDatumMap   :: !(Map DatumHash Datum)
+  , _esDatumMap :: !(Map DatumHash Datum)
   }
   deriving (Show)
 
@@ -67,19 +77,20 @@ type MonadEmulator m = (MonadRWS E.Params EmulatorLogs EmulatorState m, MonadErr
 type EmulatorT m = ExceptT EmulatorError (RWST E.Params EmulatorLogs EmulatorState m)
 type EmulatorM = EmulatorT Identity
 
-handleChain :: MonadEmulator m => Eff [E.ChainControlEffect, E.ChainEffect] a -> m a
+handleChain :: (MonadEmulator m) => Eff [E.ChainControlEffect, E.ChainEffect] a -> m a
 handleChain eff = do
   params <- ask
   EmulatorState chainState am dm <- get
-  let ((((a, dm'), am') , newChainState), lg) = raiseEnd eff
-        & interpret (E.handleControlChain params)
-        & interpret (E.handleChain params)
-        & interpret handleChainLogs
-        & runState dm
-        & runState am
-        & runState chainState
-        & F.runWriter
-        & run
+  let ((((a, dm'), am'), newChainState), lg) =
+        raiseEnd eff
+          & interpret (E.handleControlChain params)
+          & interpret (E.handleChain params)
+          & interpret handleChainLogs
+          & runState dm
+          & runState am
+          & runState chainState
+          & F.runWriter
+          & run
   tell lg
   put $ EmulatorState newChainState am' dm'
   pure a
@@ -92,13 +103,16 @@ handleChain eff = do
       => L.LogMsg E.ChainEvent ~> Eff effs
     handleChainLogs (L.LMessage msg@(L.LogMessage _ e)) = do
       F.tell @EmulatorLogs (pure $ ChainEvent <$> msg)
-      E.chainEventOnChainTx e & maybe (pure ()) (\tx -> do
-        void $ modify $ AM.updateAllAddresses tx
-        void $ modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
-        )
+      E.chainEventOnChainTx e
+        & maybe
+          (pure ())
+          ( \tx -> do
+              void $ modify $ AM.updateAllAddresses tx
+              void $ modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
+          )
 
-processBlock :: MonadEmulator m => m Block
+processBlock :: (MonadEmulator m) => m Block
 processBlock = handleChain E.processBlock
 
-modifySlot :: MonadEmulator m => (Slot -> Slot) -> m Slot
+modifySlot :: (MonadEmulator m) => (Slot -> Slot) -> m Slot
 modifySlot f = handleChain $ E.modifySlot f

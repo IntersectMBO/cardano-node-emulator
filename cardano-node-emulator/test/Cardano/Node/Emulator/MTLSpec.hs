@@ -18,40 +18,50 @@ import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (assertFailure, testCase)
 
-import Cardano.Node.Emulator.API (EmulatorError, EmulatorLogs, EmulatorM, emptyEmulatorStateWithInitialDist, nextSlot,
-                                  payToAddress, submitUnbalancedTx)
+import Cardano.Node.Emulator.API (
+  EmulatorError,
+  EmulatorLogs,
+  EmulatorM,
+  emptyEmulatorStateWithInitialDist,
+  nextSlot,
+  payToAddress,
+  submitUnbalancedTx,
+ )
 import Cardano.Node.Emulator.Generators qualified as E
 import Cardano.Node.Emulator.Test (hasValidatedTransactionCountOfTotal, renderLogs)
 
 tests :: TestTree
-tests = testGroup "Cardano.Node.Emulator.MTL"
-  [ checkPredicate "submit empty tx" (\lg _ -> hasValidatedTransactionCountOfTotal 1 1 lg) $ do
-      void $ submitUnbalancedTx mempty w1 [pk1] (CardanoBuildTx E.emptyTxBodyContent)
-      nextSlot
-
-  , checkPredicate "payToAddress" (\lg _ -> hasValidatedTransactionCountOfTotal 1 1 lg) $ do
-      void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
-      nextSlot
-
-  , checkPredicate "payToAddress twice in one slot" (\lg _ -> hasValidatedTransactionCountOfTotal 2 2 lg) $ do
-      void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
-      void $ payToAddress (w2, pk2) w1 (Value.adaValueOf 1)
-      nextSlot
-
-  , checkPredicate "payToAddress in two slots" (\lg _ -> hasValidatedTransactionCountOfTotal 2 2 lg) $ do
-      void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
-      nextSlot
-      void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
-      nextSlot
-
-  , goldenVsString "captures the log of payToAddress"
-      "test/Cardano/Node/Emulator/golden/logs - payToAddress.txt"
-      (pure . Text.encodeUtf8 . LText.fromStrict . renderLogs . snd . run $ do
+tests =
+  testGroup
+    "Cardano.Node.Emulator.MTL"
+    [ checkPredicate "submit empty tx" (\lg _ -> hasValidatedTransactionCountOfTotal 1 1 lg) $ do
+        void $ submitUnbalancedTx mempty w1 [pk1] (CardanoBuildTx E.emptyTxBodyContent)
+        nextSlot
+    , checkPredicate "payToAddress" (\lg _ -> hasValidatedTransactionCountOfTotal 1 1 lg) $ do
+        void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
+        nextSlot
+    , checkPredicate
+        "payToAddress twice in one slot"
+        (\lg _ -> hasValidatedTransactionCountOfTotal 2 2 lg)
+        $ do
+          void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
+          void $ payToAddress (w2, pk2) w1 (Value.adaValueOf 1)
+          nextSlot
+    , checkPredicate "payToAddress in two slots" (\lg _ -> hasValidatedTransactionCountOfTotal 2 2 lg) $ do
         void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
         nextSlot
         void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
-        nextSlot)
-  ]
+        nextSlot
+    , goldenVsString
+        "captures the log of payToAddress"
+        "test/Cardano/Node/Emulator/golden/logs - payToAddress.txt"
+        ( pure . Text.encodeUtf8 . LText.fromStrict . renderLogs . snd . run $ do
+            void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
+            nextSlot
+            void $ payToAddress (w1, pk1) w2 (Value.adaValueOf 1)
+            nextSlot
+        )
+    ]
 
 w1, w2 :: CardanoAddress
 w1 : w2 : _ = E.knownAddresses

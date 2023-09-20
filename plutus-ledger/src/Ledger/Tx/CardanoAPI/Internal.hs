@@ -384,6 +384,17 @@ instance ToJSON (C.TxUpdateProposal C.BabbageEra) where
   toJSON _ = error "ToJSON CardanoBuildTx: TxUpdateProposal not supported"
 instance FromJSON (C.TxUpdateProposal C.BabbageEra) where parseJSON _ = pure C.TxUpdateProposalNone
 
+instance ToJSON (C.TxGovernanceActions C.BabbageEra) where
+  toJSON C.TxGovernanceActionsNone = Aeson.Null
+  toJSON _ = error "ToJSON CardanoBuildTx: TxGovernanceActions not supported"
+instance FromJSON (C.TxGovernanceActions C.BabbageEra) where
+  parseJSON _ = pure C.TxGovernanceActionsNone
+
+instance ToJSON (C.TxVotes C.BabbageEra) where
+  toJSON C.TxVotesNone = Aeson.Null
+  toJSON _ = error "ToJSON CardanoBuildTx: TxVotes not supported"
+instance FromJSON (C.TxVotes C.BabbageEra) where parseJSON _ = pure C.TxVotesNone
+
 deriving instance Generic (C.TxBodyContent C.BuildTx C.BabbageEra)
 deriving instance FromJSON (C.TxBodyContent C.BuildTx C.BabbageEra)
 deriving instance ToJSON (C.TxBodyContent C.BuildTx C.BabbageEra)

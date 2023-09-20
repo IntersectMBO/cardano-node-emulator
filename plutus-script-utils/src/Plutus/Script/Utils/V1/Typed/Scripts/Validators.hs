@@ -65,6 +65,7 @@ import Plutus.Script.Utils.Typed (
 import Plutus.Script.Utils.V1.Scripts qualified as Scripts
 import Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies qualified as MPS
 import PlutusCore.Default (DefaultUni)
+import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusTx (CompiledCode, Lift, liftCode, unsafeApplyCode)
 import Prettyprinter (Pretty (pretty), viaShow, (<+>))
@@ -103,7 +104,7 @@ mkTypedValidatorParam
   -- ^ The extra paramater for the validator script
   -> TypedValidator a
 mkTypedValidatorParam vc wrapper param =
-  mkTypedValidator (vc `unsafeApplyCode` liftCode param) wrapper
+  mkTypedValidator (vc `unsafeApplyCode` liftCode plcVersion100 param) wrapper
 
 data WrongOutTypeError
   = ExpectedScriptGotPubkey

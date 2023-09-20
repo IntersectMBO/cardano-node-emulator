@@ -45,6 +45,7 @@ import Plutus.Script.Utils.Typed (
 import Plutus.Script.Utils.V2.Scripts qualified as Scripts
 import Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies qualified as MPS
 import PlutusCore.Default (DefaultUni)
+import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusTx (CompiledCode, Lift, liftCode, unsafeApplyCode)
 
@@ -82,4 +83,4 @@ mkTypedValidatorParam
   -- ^ The extra paramater for the validator script
   -> TypedValidator a
 mkTypedValidatorParam vc wrapper param =
-  mkTypedValidator (vc `unsafeApplyCode` liftCode param) wrapper
+  mkTypedValidator (vc `unsafeApplyCode` liftCode plcVersion100 param) wrapper

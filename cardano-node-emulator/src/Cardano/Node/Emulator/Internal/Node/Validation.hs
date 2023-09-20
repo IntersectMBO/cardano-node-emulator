@@ -47,7 +47,7 @@ import Cardano.Ledger.Alonzo.PlutusScriptApi (
  )
 import Cardano.Ledger.Alonzo.Scripts (AlonzoScript)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Alonzo.TxInfo (ExtendedUTxO, ScriptResult (Fails, Passes))
+import Cardano.Ledger.Alonzo.TxInfo (EraPlutusContext, ExtendedUTxO, ScriptResult (Fails, Passes))
 import Cardano.Ledger.Alonzo.UTxO (AlonzoScriptsNeeded)
 import Cardano.Ledger.Api.PParams (AlonzoEraPParams, ppProtocolVersionL)
 import Cardano.Ledger.Api.Tx (
@@ -60,6 +60,7 @@ import Cardano.Ledger.Api.Tx (
 import Cardano.Ledger.Api.UTxO (EraUTxO, ScriptsNeeded)
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Core qualified as Core
+import Cardano.Ledger.Language (Language (PlutusV1))
 import Cardano.Ledger.Shelley.API (
   Coin (Coin),
   LedgerEnv (LedgerEnv, ledgerSlotNo),
@@ -243,9 +244,10 @@ constructValidated
   :: forall era m
    . ( Core.EraTx era
      , MaryEraTxBody era
-     , MonadError [CollectError (Core.EraCrypto era)] m
+     , MonadError [CollectError era] m
      , Core.Script era ~ AlonzoScript era
      , ScriptsNeeded era ~ AlonzoScriptsNeeded era
+     , EraPlutusContext 'PlutusV1 era
      , AlonzoEraTxWits era
      , EraUTxO era
      , AlonzoEraPParams era

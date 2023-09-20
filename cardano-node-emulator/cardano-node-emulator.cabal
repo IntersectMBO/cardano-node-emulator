@@ -22,7 +22,8 @@ common lang
   ghc-options:
     -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
-    -Wredundant-constraints -Wmissing-import-lists
+    -Wredundant-constraints -Wmissing-import-lists -fplugin-opt
+    PlutusTx.Plugin:target-version=1.0.0
 
 library
   import:          lang
@@ -53,7 +54,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen}  ^>=8.2
+    , cardano-api:{cardano-api, gen}
     , cardano-crypto
     , cardano-ledger-alonzo
     , cardano-ledger-api

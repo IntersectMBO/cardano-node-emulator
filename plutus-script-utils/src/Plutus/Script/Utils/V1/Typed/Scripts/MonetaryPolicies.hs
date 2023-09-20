@@ -20,6 +20,7 @@ import Plutus.Script.Utils.Scripts (
   mkMintingPolicyScript,
  )
 import Plutus.Script.Utils.Typed (mkUntypedMintingPolicy)
+import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1 (
   Address (Address, addressCredential),
   Credential (ScriptCredential),
@@ -49,7 +50,7 @@ mkForwardingMintingPolicy vshsh =
               mkUntypedMintingPolicy (forwardToValidator hsh)
             ||]
         )
-    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode vshsh
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
 
 {-# INLINEABLE forwardToValidator #-}
 forwardToValidator :: ValidatorHash -> () -> PV1.ScriptContext -> Bool

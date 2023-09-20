@@ -43,7 +43,8 @@ common lang
     -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wredundant-constraints -Widentities -Wmissing-import-lists
     -fobject-code -fno-ignore-interface-pragmas
-    -fno-omit-interface-pragmas
+    -fno-omit-interface-pragmas -fplugin-opt
+    PlutusTx.Plugin:target-version=1.0.0
 
 flag defer-plugin-errors
   description:
@@ -85,7 +86,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api            ^>=8.2
+    , cardano-api
     , cardano-ledger-alonzo
     , plutus-core            >=1.0.0
     , plutus-ledger-api      >=1.0.0

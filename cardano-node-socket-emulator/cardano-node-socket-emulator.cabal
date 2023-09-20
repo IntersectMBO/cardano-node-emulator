@@ -22,7 +22,8 @@ common lang
   ghc-options:
     -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
-    -Wredundant-constraints
+    -Wredundant-constraints -fplugin-opt
+    PlutusTx.Plugin:target-version=1.0.0
 
 library
   import:          lang

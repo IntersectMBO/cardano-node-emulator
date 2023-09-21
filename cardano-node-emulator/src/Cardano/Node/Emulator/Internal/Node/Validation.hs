@@ -18,7 +18,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
   initialState,
   hasValidationErrors,
-  makeTransactionBody,
+  createAndValidateTransactionBody,
   validateCardanoTx,
   unsafeMakeValid,
 
@@ -77,6 +77,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
   Params (emulatorPParams),
   emulatorGlobals,
   emulatorPParams,
+  pProtocolParams,
  )
 import Cardano.Slotting.Slot (SlotNo (SlotNo))
 import Control.Lens (makeLenses, over, view, (&), (.~), (^.))
@@ -310,10 +311,10 @@ getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
       Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
     toCardanoLedgerError e = Left (P.Phase2, P.CardanoLedgerValidationError $ Text.pack $ show e)
 
-makeTransactionBody
-  :: P.CardanoBuildTx
+createAndValidateTransactionBody
+  :: Params
+  -> P.CardanoBuildTx
   -> Either CardanoLedgerError (C.TxBody C.BabbageEra)
-makeTransactionBody =
-  first (Right . P.TxBodyError . C.displayError)
-    . C.createAndValidateTransactionBody
-    . P.getCardanoBuildTx
+createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
+  let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ pProtocolParams params}
+   in first (Right . P.TxBodyError . C.displayError) $ C.createAndValidateTransactionBody bodyContent'

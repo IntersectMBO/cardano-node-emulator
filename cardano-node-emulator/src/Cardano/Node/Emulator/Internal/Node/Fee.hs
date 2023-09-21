@@ -32,7 +32,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
   UTxO (UTxO),
-  makeTransactionBody,
+  createAndValidateTransactionBody,
  )
 import Control.Arrow ((&&&))
 import Control.Lens (over, (&))
@@ -70,7 +70,7 @@ estimateCardanoBuildTxFee
   -> Either CardanoLedgerError C.Lovelace
 estimateCardanoBuildTxFee params txBodyContent = do
   let nkeys = C.Api.estimateTransactionKeyWitnessCount (getCardanoBuildTx txBodyContent)
-  txBody <- makeTransactionBody txBodyContent
+  txBody <- first Right $ CardanoAPI.createTransactionBody txBodyContent
   pure $ evaluateTransactionFee (bundledProtocolParameters params) txBody nkeys
 
 {- | Creates a balanced transaction by calculating the execution units, the fees and the change,
@@ -142,30 +142,34 @@ makeAutoBalancedTransactionWithUtxoProvider
   -> CardanoBuildTx
   -> m (C.Tx C.BabbageEra)
 makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvider errorReporter (CardanoBuildTx unbalancedBodyContent) = do
-  let initialFeeEstimate = C.Lovelace 300_000
+  let
+    -- Set the params alreay since it makes the tx bigger and so influences the fee
+    unbalancedBodyContent' = unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ pProtocolParams params}
+    initialFeeEstimate = C.Lovelace 300_000
 
-      calcFee n fee = do
-        (txBodyContent, _) <-
-          handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter fee unbalancedBodyContent
+    calcFee n fee = do
+      (txBodyContent, _) <-
+        handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter fee unbalancedBodyContent'
 
-        newFee <- either errorReporter pure $ do
-          estimateCardanoBuildTxFee params (CardanoBuildTx txBodyContent)
+      newFee <- either errorReporter pure $ do
+        estimateCardanoBuildTxFee params (CardanoBuildTx txBodyContent)
 
-        if newFee /= fee
-          then
-            if n == (0 :: Int)
-              then -- If we don't reach a fixed point, pick the larger fee
-                pure (newFee `max` fee)
-              else calcFee (n - 1) newFee
-          else pure newFee
+      if newFee /= fee
+        then
+          if n == (0 :: Int)
+            then -- If we don't reach a fixed point, pick the larger fee
+              pure (newFee `max` fee)
+            else calcFee (n - 1) newFee
+        else pure newFee
 
   theFee <- calcFee 5 initialFeeEstimate
 
   (txBodyContent, _) <-
-    handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter theFee unbalancedBodyContent
+    handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter theFee unbalancedBodyContent'
 
   either errorReporter pure $ do
-    C.makeSignedTransaction [] <$> makeTransactionBody (CardanoBuildTx txBodyContent)
+    C.makeSignedTransaction []
+      <$> createAndValidateTransactionBody params (CardanoBuildTx txBodyContent)
 
 -- | Balance an unbalanced transaction by adding missing inputs and outputs
 handleBalanceTx

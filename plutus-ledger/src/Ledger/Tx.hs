@@ -368,7 +368,7 @@ instance Pretty CardanoTx where
       nest 2 $ vsep ["Tx" <+> pretty (getCardanoTxId tx) <> colon, vsep lines']
 
 instance Pretty CardanoAPI.CardanoBuildTx where
-  pretty txBodyContent = case C.makeSignedTransaction [] <$> CardanoAPI.makeTransactionBody txBodyContent of
+  pretty txBodyContent = case C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody txBodyContent of
     Right tx -> pretty $ CardanoEmulatorEraTx tx
     _ -> viaShow txBodyContent
 

@@ -6,7 +6,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
@@ -27,7 +26,6 @@ import Codec.Serialise (Serialise, decode, encode)
 
 import Control.Lens qualified as L
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Default (def)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
@@ -203,7 +201,7 @@ emptyTxBodyContent =
     , txMintValue = C.TxMintNone
     , txFee = C.TxFeeExplicit C.TxFeesExplicitInBabbageEra 0
     , txOuts = []
-    , txProtocolParams = C.BuildTxWith $ Just $ C.fromLedgerPParams C.ShelleyBasedEraBabbage def
+    , txProtocolParams = C.BuildTxWith Nothing
     , txInsReference = C.TxInsReferenceNone
     , txTotalCollateral = C.TxTotalCollateralNone
     , txReturnCollateral = C.TxReturnCollateralNone
@@ -218,4 +216,6 @@ emptyTxBodyContent =
     , txWithdrawals = C.TxWithdrawalsNone
     , txCertificates = C.TxCertificatesNone
     , txUpdateProposal = C.TxUpdateProposalNone
+    , txGovernanceActions = C.TxGovernanceActionsNone
+    , txVotes = C.TxVotesNone
     }

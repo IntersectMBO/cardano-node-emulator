@@ -54,7 +54,7 @@ module Ledger.Tx.CardanoAPI.Internal (
   toTxScriptValidity,
   scriptDataFromCardanoTxBody,
   plutusScriptsFromTxBody,
-  makeTransactionBody,
+  createTransactionBody,
   toCardanoTxIn,
   toCardanoTxOut,
   toCardanoTxOutDatum,
@@ -667,10 +667,10 @@ fromLedgerScript
   -> Maybe (P.Versioned P.Script)
 fromLedgerScript e s = fromCardanoScriptInEra $ C.fromShelleyBasedScript e s
 
-makeTransactionBody
+createTransactionBody
   :: CardanoBuildTx
   -> Either ToCardanoError (C.TxBody C.BabbageEra)
-makeTransactionBody (CardanoBuildTx txBodyContent) =
+createTransactionBody (CardanoBuildTx txBodyContent) =
   first (TxBodyError . C.displayError) $
     C.createTransactionBody C.ShelleyBasedEraBabbage txBodyContent
 

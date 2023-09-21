@@ -112,7 +112,7 @@ import Ledger.CardanoWallet qualified as CW
 import Ledger.Scripts qualified as Script
 import Ledger.Tx qualified as Tx
 import Ledger.Tx.CardanoAPI (ToCardanoError)
-import Ledger.Tx.CardanoAPI qualified as C hiding (makeTransactionBody)
+import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Value.CardanoAPI qualified as Value
 import Numeric.Natural (Natural)
 import PlutusLedgerApi.V1 qualified as V1

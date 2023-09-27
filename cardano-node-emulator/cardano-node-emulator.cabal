@@ -54,7 +54,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen}
+    , cardano-api:{cardano-api, gen, internal}
     , cardano-crypto
     , cardano-ledger-alonzo
     , cardano-ledger-api
@@ -63,9 +63,9 @@ library
     , cardano-ledger-shelley
     , cardano-slotting
     , ouroboros-consensus
-    , plutus-core                     >=1.0.0
-    , plutus-ledger-api               >=1.0.0
-    , plutus-tx                       >=1.0.0
+    , plutus-core                               >=1.0.0
+    , plutus-ledger-api                         >=1.0.0
+    , plutus-tx                                 >=1.0.0
 
   -- , quickcheck-contractmodel        >=0.1.4.0
 

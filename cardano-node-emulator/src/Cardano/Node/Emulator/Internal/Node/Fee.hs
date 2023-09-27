@@ -9,6 +9,7 @@
 -- | Calculating transaction fees in the emulator.
 module Cardano.Node.Emulator.Internal.Node.Fee (
   estimateCardanoBuildTxFee,
+  fillTxExUnits,
   makeAutoBalancedTransaction,
   makeAutoBalancedTransactionWithUtxoProvider,
   utxoProviderFromWalletOutputs,
@@ -19,6 +20,7 @@ module Cardano.Node.Emulator.Internal.Node.Fee (
 ) where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
@@ -33,6 +35,7 @@ import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
   UTxO (UTxO),
   createAndValidateTransactionBody,
+  getTxExUnitsWithLogs,
  )
 import Control.Arrow ((&&&))
 import Control.Lens (over, (&))
@@ -72,6 +75,37 @@ estimateCardanoBuildTxFee params txBodyContent = do
   let nkeys = C.Api.estimateTransactionKeyWitnessCount (getCardanoBuildTx txBodyContent)
   txBody <- first Right $ CardanoAPI.createTransactionBody txBodyContent
   pure $ evaluateTransactionFee (bundledProtocolParameters params) txBody nkeys
+
+fillTxExUnits :: Params -> UtxoIndex -> CardanoBuildTx -> Either CardanoLedgerError CardanoBuildTx
+fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
+  tmpTx' <-
+    first Right $
+      C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody buildTx
+  exUnitsMap' <-
+    bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
+      getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
+  bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
+    mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
+  where
+    mapWitness
+      :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
+      -> C.ScriptWitnessIndex
+      -> C.ScriptWitness witctx era
+      -> Either C.TxBodyErrorAutoBalance (C.ScriptWitness witctx era)
+    mapWitness _ _ wit@C.SimpleScriptWitness{} = Right wit
+    mapWitness eum idx (C.PlutusScriptWitness langInEra version script datum redeemer _) =
+      case Map.lookup idx eum of
+        Nothing ->
+          Left $ C.TxBodyErrorScriptWitnessIndexMissingFromExecUnitsMap idx eum
+        Just exunits ->
+          Right $
+            C.PlutusScriptWitness
+              langInEra
+              version
+              script
+              datum
+              redeemer
+              exunits
 
 {- | Creates a balanced transaction by calculating the execution units, the fees and the change,
 which is assigned to the given address. Only balances Ada.
@@ -147,12 +181,18 @@ makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvid
     unbalancedBodyContent' = unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ pProtocolParams params}
     initialFeeEstimate = C.Lovelace 300_000
 
-    calcFee n fee = do
+    balanceAndFillExUnits fee = do
       (txBodyContent, _) <-
         handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter fee unbalancedBodyContent'
 
-      newFee <- either errorReporter pure $ do
-        estimateCardanoBuildTxFee params (CardanoBuildTx txBodyContent)
+      either errorReporter pure $ fillTxExUnits params txUtxo (CardanoBuildTx txBodyContent)
+
+    calcFee n fee = do
+      buildTx <- balanceAndFillExUnits fee
+
+      newFee <-
+        either errorReporter pure $
+          estimateCardanoBuildTxFee params buildTx
 
       if newFee /= fee
         then
@@ -164,12 +204,11 @@ makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvid
 
   theFee <- calcFee 5 initialFeeEstimate
 
-  (txBodyContent, _) <-
-    handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter theFee unbalancedBodyContent'
+  txBodyContent <- balanceAndFillExUnits theFee
 
   either errorReporter pure $ do
     C.makeSignedTransaction []
-      <$> createAndValidateTransactionBody params (CardanoBuildTx txBodyContent)
+      <$> createAndValidateTransactionBody params txBodyContent
 
 -- | Balance an unbalanced transaction by adding missing inputs and outputs
 handleBalanceTx

@@ -20,6 +20,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   hasValidationErrors,
   createAndValidateTransactionBody,
   validateCardanoTx,
+  getTxExUnitsWithLogs,
   unsafeMakeValid,
 
   -- * Modifying the state

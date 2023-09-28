@@ -9,11 +9,18 @@
 
     iogx.url = "github:input-output-hk/iogx";
     iogx.inputs.CHaP.follows = "CHaP";
+    iogx.inputs.hackage.follows = "hackage";
 
     CHaP = {
       url = "github:input-output-hk/cardano-haskell-packages?ref=repo";
       flake = false;
     };
+
+    hackage = {
+      url = "github:input-output-hk/hackage.nix?ref=4b093ba708708264ef5f7fd35c052ae7c14c1b06";
+      flake = false;
+    };
+
 
     # Used to provide the cardano-node and cardano-cli executables.
     cardano-node = {

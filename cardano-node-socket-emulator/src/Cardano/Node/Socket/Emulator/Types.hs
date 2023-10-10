@@ -30,7 +30,7 @@ import Cardano.Node.Emulator.API (
   esChainState,
  )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
-import Cardano.Node.Emulator.Internal.Node.Params (testnet)
+import Cardano.Node.Emulator.Internal.Node.Params (Params, testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
@@ -70,10 +70,12 @@ import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, CodecConfig (..))
 import Ouroboros.Consensus.Cardano.Block qualified as OC
 import Ouroboros.Consensus.HardFork.Combinator.AcrossEras (OneEraHash (..))
+import Ouroboros.Consensus.Ledger.Query (Query)
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Network.NodeToClient (
   ClientCodecs,
   cChainSyncCodec,
+  cStateQueryCodec,
   cTxSubmissionCodec,
   clientCodecs,
  )
@@ -89,6 +91,7 @@ import Ouroboros.Network.Block qualified as Ouroboros
 import Ouroboros.Network.Mux
 import Ouroboros.Network.NodeToClient (NodeToClientVersion (..), NodeToClientVersionData (..))
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
+import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, vsep, (<+>))
@@ -179,6 +182,7 @@ data AppState = AppState
   -- ^ blockchain state
   , _emulatorLogs :: EmulatorLogs
   -- ^ history of all log messages
+  , _emulatorParams :: Params
   }
   deriving (Show)
 
@@ -264,7 +268,7 @@ blockId =
 
 -- | Protocol versions
 nodeToClientVersion :: NodeToClientVersion
-nodeToClientVersion = NodeToClientV_13
+nodeToClientVersion = NodeToClientV_16
 
 {- | A temporary definition of the protocol version. This will be moved as an
 argument to the client connection function in a future PR (the network magic
@@ -345,6 +349,15 @@ txSubmissionCodec
       IO
       BSL.ByteString
 txSubmissionCodec = cTxSubmissionCodec nodeToClientCodecs
+
+stateQueryCodec
+  :: (block ~ CardanoBlock StandardCrypto)
+  => Codec
+      (StateQuery.LocalStateQuery block (Point block) (Query block))
+      DeserialiseFailure
+      IO
+      BSL.ByteString
+stateQueryCodec = cStateQueryCodec nodeToClientCodecs
 
 toCardanoBlock :: Praos.Header StandardCrypto -> Block -> CardanoBlock StandardCrypto
 toCardanoBlock header block =

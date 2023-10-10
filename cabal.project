@@ -21,6 +21,8 @@ packages: plutus-ledger
           cardano-node-emulator
           cardano-node-socket-emulator
           freer-extras
+          /Users/sjoerdvisscher/Documents/GitHub/quickcheck-contractmodel/quickcheck-contractmodel
+          /Users/sjoerdvisscher/Documents/GitHub/quickcheck-contractmodel/quickcheck-threatmodel
 
 -- We never, ever, want this.
 write-ghc-environment-files: never
@@ -47,4 +49,5 @@ package cardano-crypto-praos
   flags: -external-libsodium-vrf
 
 constraints:
-  cardano-api ^>=8.8
+  cardano-api ^>= 8.12,
+  cardano-ledger-api ^>= 1.3,

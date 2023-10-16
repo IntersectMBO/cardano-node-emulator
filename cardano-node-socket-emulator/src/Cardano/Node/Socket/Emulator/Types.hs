@@ -21,7 +21,7 @@ import Cardano.Api (NetworkId, Value)
 import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
 import Cardano.Ledger.Era qualified as CL
-import Cardano.Ledger.Shelley.API (extractTx, unsafeMakeValidated)
+import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
 import Cardano.Node.Emulator.API (
   EmulatorLogs,
   EmulatorMsg,
@@ -53,7 +53,6 @@ import Data.Foldable (toList)
 import Data.Functor (void, (<&>))
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
-import Data.Sequence.Strict (fromList)
 import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601 qualified as F
@@ -97,6 +96,14 @@ import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, vsep, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 import Servant.Client (BaseUrl (BaseUrl, baseUrlPort), Scheme (Http))
+
+import Cardano.Protocol.TPraos.BHeader
+import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
+import Test.Cardano.Ledger.Common
+import Test.Cardano.Ledger.Shelley.Constants (defaultConstants)
+import Test.Cardano.Ledger.Shelley.Generator.Presets (coreNodeKeys)
+import Test.Cardano.Ledger.Shelley.Serialisation.EraIndepGenerators ()
+import Test.Cardano.Protocol.TPraos.Create (mkBlock, mkOCert)
 
 type Tip = Ouroboros.Tip (CardanoBlock StandardCrypto)
 
@@ -359,15 +366,44 @@ stateQueryCodec
       BSL.ByteString
 stateQueryCodec = cStateQueryCodec nodeToClientCodecs
 
-toCardanoBlock :: Praos.Header StandardCrypto -> Block -> CardanoBlock StandardCrypto
-toCardanoBlock header block =
-  OC.BlockBabbage
-    ( Shelley.mkShelleyBlock $
-        CL.Block header $
-          CL.toTxSeq $
-            fromList $
-              extractTx . getOnChainTx <$> block
-    )
+toCardanoBlock
+  :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
+toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
+toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
+  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.BabbageEra StandardCrypto))))
+  let allPoolKeys = snd $ head $ coreNodeKeys defaultConstants
+      kesPeriod = 1
+      keyRegKesPeriod = 1
+      ocert = mkOCert allPoolKeys 1 (KESPeriod kesPeriod)
+      txs = extractTx . getOnChainTx <$> block
+      CL.Block hdr1 bdy =
+        mkBlock
+          prevHash
+          allPoolKeys
+          txs
+          curSlotNo
+          curBlockNo
+          NeutralNonce
+          kesPeriod
+          keyRegKesPeriod
+          ocert
+  let translateHeader (BHeader bhBody bhSig) = Praos.Header hBody hSig
+        where
+          hBody =
+            Praos.HeaderBody
+              { Praos.hbBlockNo = bheaderBlockNo bhBody
+              , Praos.hbSlotNo = bheaderSlotNo bhBody
+              , Praos.hbPrev = bheaderPrev bhBody
+              , Praos.hbVk = bheaderVk bhBody
+              , Praos.hbVrfVk = bheaderVrfVk bhBody
+              , Praos.hbVrfRes = coerce $ bheaderEta bhBody
+              , Praos.hbBodySize = fromIntegral $ bsize bhBody
+              , Praos.hbBodyHash = bhash bhBody
+              , Praos.hbOCert = bheaderOCert bhBody
+              , Praos.hbProtVer = bprotver bhBody
+              }
+          hSig = coerce bhSig
+  pure $ OC.BlockBabbage $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
 
 fromCardanoBlock :: CardanoBlock StandardCrypto -> Block
 fromCardanoBlock (OC.BlockBabbage (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq

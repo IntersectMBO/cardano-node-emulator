@@ -282,12 +282,11 @@ idleState
   => LocalChannel
   -> m (ServerStIdle block (Point block) Tip m ())
 idleState channel' = do
-  liftIO $ print "## idle state ##"
   pure
     ServerStIdle
       { recvMsgRequestNext = nextState channel'
       , recvMsgFindIntersect = findIntersect
-      , recvMsgDoneClient = do liftIO $ print "## Done ##"; return ()
+      , recvMsgDoneClient = return ()
       }
 
 {- Get the next block, either immediately (the Just/Left branch)
@@ -305,20 +304,17 @@ nextState
           (m (ServerStNext block (Point block) Tip m ()))
       )
 nextState localChannel@(LocalChannel channel') = do
-  liftIO $ print "## next state ##"
   chainState <- ask
   tip' <- getTip chainState
-  let blockHeader = error "##### blockHeader" -- TODO
   (liftIO . atomically $ tryReadTChan channel') >>= \case
     Nothing -> do
       Right . pure <$> do
-        liftIO $ print "## waiting for next block ##"
         nextBlock <- liftIO . atomically $ readTChan channel'
-        liftIO $ print "## done waiting, sending next block ##"
-        sendRollForward localChannel tip' $ toCardanoBlock blockHeader nextBlock
+        cBlock <- liftIO $ toCardanoBlock tip' nextBlock
+        sendRollForward localChannel tip' cBlock
     Just nextBlock -> do
-      liftIO $ print "## sending next block ##"
-      Left <$> sendRollForward localChannel tip' (toCardanoBlock blockHeader nextBlock)
+      cBlock <- liftIO $ toCardanoBlock tip' nextBlock
+      Left <$> sendRollForward localChannel tip' cBlock
 
 {- This protocol state will search for a block intersection
    with some client provided blocks. When an intersection is found
@@ -332,14 +328,12 @@ findIntersect
   => [Point block]
   -> m (ServerStIntersect block (Point block) Tip m ())
 findIntersect clientPoints = do
-  liftIO $ print "## find intersect ##"
   mvState <- ask
   appState <- liftIO $ readMVar mvState
   let chainState = appState ^. socketEmulatorState . emulatorState . E.esChainState
       blocks = Chain._chainNewestFirst chainState
       slot = Chain._chainCurrentSlot chainState
   serverPoints <- getChainPoints blocks slot
-  liftIO $ print ("Serverpoints", serverPoints, "clientpoints", clientPoints)
   let point =
         listToMaybe $
           intersect
@@ -402,12 +396,9 @@ cloneChainFrom offset = LocalChannel <$> go
     go :: m (TChan Block)
     go = do
       globalChannel <- ask >>= getChannel
-      liftIO $ print "## Start consuming ##"
-      res <- liftIO $ atomically $ do
+      liftIO $ atomically $ do
         localChannel <- cloneTChan globalChannel
         consume localChannel offset
-      liftIO $ print "## Done consuming ##"
-      pure res
 
     consume :: TChan a -> Integer -> STM (TChan a)
     consume channel' ix | ix == 0 = pure channel'

@@ -11,12 +11,8 @@ module Cardano.Node.Socket.Emulator (
 ) where
 
 import Cardano.Api (NetworkId)
-import Cardano.Api.Shelley qualified as C
 import Cardano.BM.Trace (Trace, stdoutTrace)
-import Cardano.Node.Emulator.Internal.Node (
-  SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime),
-  pProtocolParams,
- )
+import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
 import Cardano.Node.Socket.Emulator.API (API)
 import Cardano.Node.Socket.Emulator.Mock (consumeEventHistory, healthcheck, slotCoordinator)
 import Cardano.Node.Socket.Emulator.Params qualified as Params
@@ -102,7 +98,7 @@ main
 prettyTrace :: Trace IO CNSEServerLogMsg
 prettyTrace = LM.convertLog (renderStrict . layoutPretty defaultLayoutOptions . pretty) stdoutTrace
 
-startTestnet :: FilePath -> Integer -> NetworkId -> IO C.ProtocolParameters
+startTestnet :: FilePath -> Integer -> NetworkId -> IO ()
 startTestnet socketPath slotLength networkId =
   let
     config =
@@ -119,4 +115,3 @@ startTestnet socketPath slotLength networkId =
       blocker <- newEmptyMVar
       void $ forkIO $ main prettyTrace config (putMVar blocker ())
       takeMVar blocker
-      pProtocolParams <$> Params.fromNodeServerConfig config

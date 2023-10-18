@@ -20,7 +20,7 @@ common lang
     StandaloneDeriving
 
   ghc-options:
-    -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
+    -Wall -Widentities -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
     -Wredundant-constraints -fplugin-opt
     PlutusTx.Plugin:target-version=1.0.0

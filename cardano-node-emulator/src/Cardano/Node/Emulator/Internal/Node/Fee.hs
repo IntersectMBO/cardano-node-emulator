@@ -85,7 +85,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
       getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
-    mapTxScriptWitnesses (mapWitness exUnitsMap') C.Api.ShelleyBasedEraBabbage txBodyContent
+    mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
   where
     mapWitness
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
@@ -263,7 +263,7 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
   let returnCollateral = Tx.getTxBodyContentReturnCollateral txWithinputsAdded
 
   if isZero (fold collateral)
-    && null (C.collectTxBodyScriptWitnesses C.Api.ShelleyBasedEraBabbage txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
+    && null (C.collectTxBodyScriptWitnesses txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
     && null returnCollateral
     then -- Don't add collateral if there are no plutus scripts that can fail
     -- and there are no collateral inputs or outputs already

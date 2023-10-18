@@ -61,11 +61,12 @@ import Data.Maybe (fromJust, fromMaybe)
 import Data.Ratio ((%))
 import Data.SOP.Counting qualified as Ouroboros
 import Data.SOP.Strict (K (K), NP (Nil, (:*)))
+import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import Ledger.Test (testnet)
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
-import Plutus.Script.Utils.Scripts (Language (PlutusV3))
+import Plutus.Script.Utils.Scripts (Language (PlutusV1))
 import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
@@ -196,8 +197,19 @@ instance Default C.ProtocolParameters where
       , protocolParamTreasuryCut = 1 % 5
       , protocolParamUTxOCostPerWord = Nothing -- Obsolete from babbage onwards
       , protocolParamCostModels =
-          let costModel = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap PlutusV3
-              costModels = Map.fromList $ map (,costModel) [minBound .. maxBound]
+          let costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
+              costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
+              projectLangParams lang m =
+                Map.restrictKeys
+                  (Map.mapKeys (mapParamNames lang) m)
+                  (Set.fromList (Alonzo.costModelParamNames lang))
+              mapParamNames PlutusV1 "blake2b_256-cpu-arguments-intercept" = "blake2b-cpu-arguments-intercept"
+              mapParamNames PlutusV1 "blake2b_256-cpu-arguments-slope" = "blake2b-cpu-arguments-slope"
+              mapParamNames PlutusV1 "blake2b_256-memory-arguments" = "blake2b-memory-arguments"
+              mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-intercept" = "verifySignature-cpu-arguments-intercept"
+              mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
+              mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
+              mapParamNames _ name = name
            in C.fromAlonzoCostModels $ Alonzo.CostModels costModels mempty mempty
       , protocolParamPrices =
           Just

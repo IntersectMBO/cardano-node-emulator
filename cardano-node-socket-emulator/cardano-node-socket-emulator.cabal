@@ -30,7 +30,6 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Cardano.Node.Socket.Emulator
-    Cardano.Node.Socket.Emulator.API
     Cardano.Node.Socket.Emulator.Mock
     Cardano.Node.Socket.Emulator.Params
     Cardano.Node.Socket.Emulator.Server
@@ -71,15 +70,16 @@ library
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , serialise
+    , strict-sop-core
     , typed-protocols
 
   ------------------------
   -- Non-IOG dependencies
   ------------------------
   build-depends:
-    , aeson           >=2
+    , aeson          >=2
     , async
-    , base            >=4.9 && <5
+    , base           >=4.9 && <5
     , bytestring
     , containers
     , contra-tracer
@@ -88,14 +88,10 @@ library
     , lens
     , mtl
     , prettyprinter
-    , servant
-    , servant-client
-    , servant-server
     , stm
     , text
     , time
     , time-units
-    , warp
 
 executable cardano-node-socket-emulator
   import:           lang

@@ -88,14 +88,17 @@ import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Network.Block (Point)
 import Ouroboros.Network.Block qualified as Ouroboros
 import Ouroboros.Network.Mux
-import Ouroboros.Network.NodeToClient (NodeToClientVersion (..), NodeToClientVersionData (..))
+import Ouroboros.Network.NodeToClient (
+  LocalAddress,
+  NodeToClientVersion (..),
+  NodeToClientVersionData (..),
+ )
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, vsep, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
-import Servant.Client (BaseUrl (BaseUrl, baseUrlPort), Scheme (Http))
 
 import Cardano.Protocol.TPraos.BHeader
 import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
@@ -129,9 +132,7 @@ instance Show SocketEmulatorState where
 
 -- | Node server configuration
 data NodeServerConfig = NodeServerConfig
-  { nscBaseUrl :: BaseUrl
-  -- ^ base url of the service
-  , nscInitialTxWallets :: [WalletNumber]
+  { nscInitialTxWallets :: [WalletNumber]
   -- ^ The wallets that receive money from the initial transaction.
   , nscSocketPath :: FilePath
   -- ^ Path to the socket used to communicate with the server.
@@ -150,9 +151,7 @@ data NodeServerConfig = NodeServerConfig
 defaultNodeServerConfig :: NodeServerConfig
 defaultNodeServerConfig =
   NodeServerConfig
-    { -- See Note [pab-ports] in 'test/full/Plutus/PAB/CliSpec.hs'.
-      nscBaseUrl = BaseUrl Http "localhost" 9082 ""
-    , nscInitialTxWallets =
+    { nscInitialTxWallets =
         [ WalletNumber 1
         , WalletNumber 2
         , WalletNumber 3
@@ -175,11 +174,10 @@ instance Default NodeServerConfig where
   def = defaultNodeServerConfig
 
 instance Pretty NodeServerConfig where
-  pretty NodeServerConfig{nscBaseUrl, nscSocketPath, nscNetworkId, nscKeptBlocks} =
+  pretty NodeServerConfig{nscSocketPath, nscNetworkId, nscKeptBlocks} =
     vsep
       [ "Socket:" <+> pretty nscSocketPath
       , "Network Id:" <+> viaShow nscNetworkId
-      , "Port:" <+> viaShow (baseUrlPort nscBaseUrl)
       , "Security Param:" <+> pretty nscKeptBlocks
       ]
 
@@ -239,9 +237,9 @@ inside the CNSE server.
 -}
 data CNSEServerLogMsg
   = StartingSlotCoordination UTCTime Millisecond
-  | StartingCNSEServer Int
+  | StartingCNSEServer
   | ProcessingEmulatorMsg EmulatorMsg
-  deriving (Generic, Show, ToJSON, FromJSON)
+  deriving (Generic, Show)
 
 instance Pretty CNSEServerLogMsg where
   pretty = \case
@@ -251,7 +249,7 @@ instance Pretty CNSEServerLogMsg where
         <+> pretty (F.iso8601Show initialSlotTime)
         <+> "Slot length:"
         <+> viaShow slotLength
-    StartingCNSEServer p -> "Starting Cardano Node Emulator on port" <+> pretty p
+    StartingCNSEServer -> "Starting Cardano Node Emulator"
     ProcessingEmulatorMsg e -> "Processing emulator event:" <+> pretty e
 
 -- | The node protocols require a block header type.
@@ -284,24 +282,19 @@ number matches the one in the test net created by scripts)
 nodeToClientVersionData :: NodeToClientVersionData
 nodeToClientVersionData = NodeToClientVersionData{networkMagic = testNetworkMagic, query = False}
 
--- | A protocol client that will never leave the initial state.
-doNothingInitiatorProtocol
-  :: (MonadTimer m) => RunMiniProtocol 'InitiatorMode BSL.ByteString m a Void
-doNothingInitiatorProtocol =
-  InitiatorProtocolOnly $
-    MuxPeerRaw $
-      const $
-        forever $
-          threadDelay 1_000_000
-
 doNothingResponderProtocol
-  :: (MonadTimer m) => RunMiniProtocol 'ResponderMode BSL.ByteString m Void a
+  :: (MonadTimer m)
+  => RunMiniProtocolWithMinimalCtx
+      'ResponderMode
+      LocalAddress
+      BSL.ByteString
+      m
+      Void
+      a
 doNothingResponderProtocol =
   ResponderProtocolOnly $
-    MuxPeerRaw $
-      const $
-        forever $
-          threadDelay 1_000_000
+    MiniProtocolCb $
+      \_ _ -> forever $ threadDelay 1_000_000
 
 -- | Boilerplate codecs used for protocol serialisation.
 

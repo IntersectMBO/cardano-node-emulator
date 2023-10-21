@@ -12,7 +12,7 @@ module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, proces
 import Cardano.BM.Data.Trace (Trace)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Coerce (coerce)
-import Data.Foldable (traverse_)
+import Data.Foldable (toList, traverse_)
 import Data.List (intersect)
 import Data.Maybe (listToMaybe)
 import Data.SOP.Strict (NS (S, Z))
@@ -42,7 +42,8 @@ import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmissi
 import Plutus.Monitoring.Util qualified as LM
 
 import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
-import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
+import Ouroboros.Consensus.Cardano.Block (BlockQuery (..), CardanoBlock)
+import Ouroboros.Consensus.HardFork.Combinator (QueryHardFork (..))
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Shelley.Eras (StandardCrypto)
@@ -71,7 +72,8 @@ import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorError, EmulatorLogs, EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
-import Cardano.Node.Emulator.Internal.Node.Params (Params)
+import Cardano.Node.Emulator.Internal.Node.Params (Params (..), emulatorEraHistory)
+import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
 import Cardano.Node.Socket.Emulator.Types (
   AppState (..),
   BlockId (BlockId),
@@ -87,11 +89,17 @@ import Cardano.Node.Socket.Emulator.Types (
   nodeToClientVersionData,
   setTip,
   socketEmulatorState,
+  stateQueryCodec,
   toCardanoBlock,
   txSubmissionCodec,
  )
 import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
 import Ledger (Block, CardanoTx (..), Slot (..))
+import Ledger.Tx.CardanoAPI (fromPlutusIndex)
+import Ouroboros.Consensus.Ledger.Query (Query (..))
+import Ouroboros.Consensus.Shelley.Ledger.Query (BlockQuery (..))
+import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
+import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
 
 data CommandChannel = CommandChannel
   { ccCommand :: TQueue ServerCommand
@@ -188,24 +196,23 @@ pruneChain k original = do
 
 -- | Run all chain effects in the IO Monad
 runChainEffects
-  :: Params
-  -> MVar AppState
+  :: MVar AppState
   -> EmulatorT IO a
   -> IO (EmulatorLogs, Either EmulatorError a)
-runChainEffects params stateVar eff = do
-  AppState (SocketEmulatorState oldState chan tip) events <- liftIO $ takeMVar stateVar
+runChainEffects stateVar eff = do
+  AppState (SocketEmulatorState oldState chan tip) events params <- liftIO $ takeMVar stateVar
   (a, newState, newEvents) <- runRWST (runExceptT eff) params oldState
-  liftIO $ putMVar stateVar $ AppState (SocketEmulatorState newState chan tip) (events <> newEvents)
+  putMVar stateVar $
+    AppState (SocketEmulatorState newState chan tip) (events <> newEvents) params
   pure (newEvents, a)
 
 processChainEffects
   :: Trace IO EmulatorMsg
-  -> Params
   -> MVar AppState
   -> EmulatorT IO a
   -> IO a
-processChainEffects trace params stateVar eff = do
-  (events, result) <- runChainEffects params stateVar eff
+processChainEffects trace stateVar eff = do
+  (events, result) <- runChainEffects stateVar eff
   LM.runLogEffects trace $ traverse_ (send . LMessage) events
   either throwIO pure result
 
@@ -214,9 +221,8 @@ handleCommand
   => Trace IO EmulatorMsg
   -> CommandChannel
   -> MVar AppState
-  -> Params
   -> m ()
-handleCommand trace CommandChannel{ccCommand, ccResponse} mvAppState params =
+handleCommand trace CommandChannel{ccCommand, ccResponse} mvAppState =
   liftIO $
     atomically (readTQueue ccCommand) >>= \case
       AddTx tx -> process $ E.queueTx $ CardanoEmulatorEraTx tx
@@ -233,7 +239,7 @@ handleCommand trace CommandChannel{ccCommand, ccResponse} mvAppState params =
           writeTQueue ccResponse (BlockAdded block)
   where
     process :: EmulatorT IO a -> IO a
-    process = processChainEffects trace params mvAppState
+    process = processChainEffects trace mvAppState
 
 {- | Start the server in a new thread, and return a server handler
      used to control the server
@@ -244,14 +250,13 @@ runServerNode
   -> FilePath
   -> Integer
   -> AppState
-  -> Params
   -> m ServerHandler
-runServerNode trace shSocketPath k initialState params = liftIO $ do
+runServerNode trace shSocketPath k initialState = liftIO $ do
   serverState <- newMVar initialState
   shCommandChannel <- CommandChannel <$> newTQueueIO <*> newTQueueIO
   globalChannel <- getChannel serverState
   void $ forkIO . void $ protocolLoop shSocketPath serverState
-  void $ forkIO . forever $ handleCommand trace shCommandChannel serverState params
+  void $ forkIO . forever $ handleCommand trace shCommandChannel serverState
   void $ pruneChain k globalChannel
   pure $ ServerHandler{shSocketPath, shCommandChannel}
 
@@ -276,7 +281,7 @@ idleState
      )
   => LocalChannel
   -> m (ServerStIdle block (Point block) Tip m ())
-idleState channel' =
+idleState channel' = do
   pure
     ServerStIdle
       { recvMsgRequestNext = nextState channel'
@@ -301,14 +306,15 @@ nextState
 nextState localChannel@(LocalChannel channel') = do
   chainState <- ask
   tip' <- getTip chainState
-  let blockHeader = undefined -- TODO
   (liftIO . atomically $ tryReadTChan channel') >>= \case
     Nothing -> do
       Right . pure <$> do
         nextBlock <- liftIO . atomically $ readTChan channel'
-        sendRollForward localChannel tip' $ toCardanoBlock blockHeader nextBlock
+        cBlock <- liftIO $ toCardanoBlock tip' nextBlock
+        sendRollForward localChannel tip' cBlock
     Just nextBlock -> do
-      Left <$> sendRollForward localChannel tip' (toCardanoBlock blockHeader nextBlock)
+      cBlock <- liftIO $ toCardanoBlock tip' nextBlock
+      Left <$> sendRollForward localChannel tip' cBlock
 
 {- This protocol state will search for a block intersection
    with some client provided blocks. When an intersection is found
@@ -503,7 +509,7 @@ nodeToClientProtocols internalState =
   NodeToClientProtocols
     { localChainSyncProtocol = chainSync internalState
     , localTxSubmissionProtocol = txSubmission internalState
-    , localStateQueryProtocol = doNothingResponderProtocol
+    , localStateQueryProtocol = stateQuery internalState
     , localTxMonitorProtocol = doNothingResponderProtocol
     }
 
@@ -534,6 +540,18 @@ txSubmission mvChainState =
           (pure $ txSubmissionServer mvChainState)
       )
 
+stateQuery
+  :: MVar AppState
+  -> RunMiniProtocol 'ResponderMode LBS.ByteString IO Void ()
+stateQuery mvChainState =
+  ResponderProtocolOnly $
+    MuxPeer
+      nullTracer
+      stateQueryCodec
+      ( Query.localStateQueryServerPeer
+          (stateQueryServer mvChainState)
+      )
+
 -- * Computing intersections
 
 -- Given a `Point` find its offset into the chain.
@@ -547,15 +565,13 @@ pointOffset pt =
 
 -- Currently selects all points from the blockchain.
 getChainPoints
-  :: forall m block
-   . (MonadIO m, block ~ CardanoBlock StandardCrypto)
+  :: (MonadIO m, block ~ CardanoBlock StandardCrypto)
   => [Block]
   -> Slot
   -> m [Point block]
 getChainPoints chain slot = do
-  pure $ zipWith mkPoint [slot, slot - 1 .. 0] chain
+  pure $ zipWith mkPoint [slot, slot - 1 .. 1] chain ++ [Point Origin]
   where
-    mkPoint :: Slot -> Block -> Point block
     mkPoint s block =
       Point
         ( At
@@ -572,28 +588,69 @@ getChainPoints chain slot = do
    it is much simpler. -}
 
 txSubmissionServer
-  :: forall block
-   . (block ~ CardanoBlock StandardCrypto)
+  :: (block ~ CardanoBlock StandardCrypto)
   => MVar AppState
   -> TxSubmission.LocalTxSubmissionServer (Shelley.GenTx block) (ApplyTxErr block) IO ()
-txSubmissionServer state = txSubmissionState
+txSubmissionServer state =
+  TxSubmission.LocalTxSubmissionServer
+    { TxSubmission.recvMsgSubmitTx =
+        \tx -> do
+          case tx of
+            (Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx')))))))) -> do
+              let Consensus.ShelleyTx _txid shelleyEraTx = tx'
+              let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
+              _ <-
+                modifyMVar_
+                  state
+                  (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
+              pure ()
+            _ -> pure ()
+          return (TxSubmission.SubmitSuccess, txSubmissionServer state)
+    , TxSubmission.recvMsgDone = ()
+    }
+
+stateQueryServer
+  :: (block ~ CardanoBlock StandardCrypto)
+  => MVar AppState
+  -> StateQuery.LocalStateQueryServer block (Point block) (Query block) IO ()
+stateQueryServer state = Query.LocalStateQueryServer{Query.runLocalStateQueryServer = pure idle}
   where
-    txSubmissionState
-      :: TxSubmission.LocalTxSubmissionServer (Shelley.GenTx block) (ApplyTxErr block) IO ()
-    txSubmissionState =
-      TxSubmission.LocalTxSubmissionServer
-        { TxSubmission.recvMsgSubmitTx =
-            \tx -> do
-              case tx of
-                (Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx')))))))) -> do
-                  let Consensus.ShelleyTx _txid shelleyEraTx = tx'
-                  let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
-                  _ <-
-                    modifyMVar_
-                      state
-                      (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
-                  pure ()
-                _ -> pure ()
-              return (TxSubmission.SubmitSuccess, txSubmissionState)
-        , TxSubmission.recvMsgDone = ()
+    idle =
+      Query.ServerStIdle
+        { Query.recvMsgAcquire = acquiring
+        , Query.recvMsgDone = pure ()
         }
+    acquiring _point = pure $ Query.SendMsgAcquired ack
+    ack =
+      Query.ServerStAcquired
+        { Query.recvMsgQuery = \q -> do
+            res <- handleQuery state q
+            pure $ Query.SendMsgResult res ack
+        , Query.recvMsgReAcquire = acquiring
+        , Query.recvMsgRelease = pure idle
+        }
+
+handleQuery
+  :: (block ~ CardanoBlock StandardCrypto)
+  => MVar AppState
+  -> Query block result
+  -> IO result
+handleQuery state = \case
+  BlockQuery (QueryIfCurrentBabbage GetCurrentPParams) -> do
+    AppState _ _ params <- readMVar state
+    pure $ Right $ emulatorPParams params
+  BlockQuery (QueryIfCurrentBabbage (GetUTxOByAddress addrs)) -> do
+    (_logs, res) <- runChainEffects state $ do
+      utxos <- traverse (E.utxosAt . C.fromShelleyAddrIsSbe) $ toList addrs
+      pure $ fromPlutusIndex (mconcat utxos)
+    either (error . show) (pure . Right) res
+  BlockQuery (QueryHardFork GetInterpreter) -> do
+    AppState _ _ params <- readMVar state
+    let C.EraHistory _ interpreter = emulatorEraHistory params
+    pure interpreter
+  BlockQuery q -> error $ "Unimplemented BlockQuery received: " ++ show q
+  GetSystemStart -> do
+    AppState _ _ Params{pSlotConfig} <- readMVar state
+    pure $ C.SystemStart $ posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
+  GetChainBlockNo -> error "Unimplemented: GetChainBlockNo"
+  GetChainPoint -> error "Unimplemented: GetChainPoint"

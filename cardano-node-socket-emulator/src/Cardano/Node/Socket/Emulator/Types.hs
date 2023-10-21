@@ -21,7 +21,7 @@ import Cardano.Api (NetworkId, Value)
 import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
 import Cardano.Ledger.Era qualified as CL
-import Cardano.Ledger.Shelley.API (extractTx, unsafeMakeValidated)
+import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
 import Cardano.Node.Emulator.API (
   EmulatorLogs,
   EmulatorMsg,
@@ -30,7 +30,7 @@ import Cardano.Node.Emulator.API (
   esChainState,
  )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
-import Cardano.Node.Emulator.Internal.Node.Params (testnet)
+import Cardano.Node.Emulator.Internal.Node.Params (Params, testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
@@ -53,7 +53,6 @@ import Data.Foldable (toList)
 import Data.Functor (void, (<&>))
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
-import Data.Sequence.Strict (fromList)
 import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601 qualified as F
@@ -70,10 +69,12 @@ import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, CodecConfig (..))
 import Ouroboros.Consensus.Cardano.Block qualified as OC
 import Ouroboros.Consensus.HardFork.Combinator.AcrossEras (OneEraHash (..))
+import Ouroboros.Consensus.Ledger.Query (Query)
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Network.NodeToClient (
   ClientCodecs,
   cChainSyncCodec,
+  cStateQueryCodec,
   cTxSubmissionCodec,
   clientCodecs,
  )
@@ -89,11 +90,20 @@ import Ouroboros.Network.Block qualified as Ouroboros
 import Ouroboros.Network.Mux
 import Ouroboros.Network.NodeToClient (NodeToClientVersion (..), NodeToClientVersionData (..))
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
+import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, vsep, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 import Servant.Client (BaseUrl (BaseUrl, baseUrlPort), Scheme (Http))
+
+import Cardano.Protocol.TPraos.BHeader
+import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
+import Test.Cardano.Ledger.Common
+import Test.Cardano.Ledger.Shelley.Constants (defaultConstants)
+import Test.Cardano.Ledger.Shelley.Generator.Presets (coreNodeKeys)
+import Test.Cardano.Ledger.Shelley.Serialisation.EraIndepGenerators ()
+import Test.Cardano.Protocol.TPraos.Create (mkBlock, mkOCert)
 
 type Tip = Ouroboros.Tip (CardanoBlock StandardCrypto)
 
@@ -179,6 +189,7 @@ data AppState = AppState
   -- ^ blockchain state
   , _emulatorLogs :: EmulatorLogs
   -- ^ history of all log messages
+  , _emulatorParams :: Params
   }
   deriving (Show)
 
@@ -264,7 +275,7 @@ blockId =
 
 -- | Protocol versions
 nodeToClientVersion :: NodeToClientVersion
-nodeToClientVersion = NodeToClientV_13
+nodeToClientVersion = NodeToClientV_16
 
 {- | A temporary definition of the protocol version. This will be moved as an
 argument to the client connection function in a future PR (the network magic
@@ -346,15 +357,53 @@ txSubmissionCodec
       BSL.ByteString
 txSubmissionCodec = cTxSubmissionCodec nodeToClientCodecs
 
-toCardanoBlock :: Praos.Header StandardCrypto -> Block -> CardanoBlock StandardCrypto
-toCardanoBlock header block =
-  OC.BlockBabbage
-    ( Shelley.mkShelleyBlock $
-        CL.Block header $
-          CL.toTxSeq $
-            fromList $
-              extractTx . getOnChainTx <$> block
-    )
+stateQueryCodec
+  :: (block ~ CardanoBlock StandardCrypto)
+  => Codec
+      (StateQuery.LocalStateQuery block (Point block) (Query block))
+      DeserialiseFailure
+      IO
+      BSL.ByteString
+stateQueryCodec = cStateQueryCodec nodeToClientCodecs
+
+toCardanoBlock
+  :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
+toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
+toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
+  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.BabbageEra StandardCrypto))))
+  let allPoolKeys = snd $ head $ coreNodeKeys defaultConstants
+      kesPeriod = 1
+      keyRegKesPeriod = 1
+      ocert = mkOCert allPoolKeys 1 (KESPeriod kesPeriod)
+      txs = extractTx . getOnChainTx <$> block
+      CL.Block hdr1 bdy =
+        mkBlock
+          prevHash
+          allPoolKeys
+          txs
+          curSlotNo
+          curBlockNo
+          NeutralNonce
+          kesPeriod
+          keyRegKesPeriod
+          ocert
+  let translateHeader (BHeader bhBody bhSig) = Praos.Header hBody hSig
+        where
+          hBody =
+            Praos.HeaderBody
+              { Praos.hbBlockNo = bheaderBlockNo bhBody
+              , Praos.hbSlotNo = bheaderSlotNo bhBody
+              , Praos.hbPrev = bheaderPrev bhBody
+              , Praos.hbVk = bheaderVk bhBody
+              , Praos.hbVrfVk = bheaderVrfVk bhBody
+              , Praos.hbVrfRes = coerce $ bheaderEta bhBody
+              , Praos.hbBodySize = fromIntegral $ bsize bhBody
+              , Praos.hbBodyHash = bhash bhBody
+              , Praos.hbOCert = bheaderOCert bhBody
+              , Praos.hbProtVer = bprotver bhBody
+              }
+          hSig = coerce bhSig
+  pure $ OC.BlockBabbage $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
 
 fromCardanoBlock :: CardanoBlock StandardCrypto -> Block
 fromCardanoBlock (OC.BlockBabbage (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq

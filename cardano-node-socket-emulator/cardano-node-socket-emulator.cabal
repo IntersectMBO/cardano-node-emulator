@@ -20,7 +20,7 @@ common lang
     StandaloneDeriving
 
   ghc-options:
-    -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
+    -Wall -Widentities -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
     -Wredundant-constraints -fplugin-opt
     PlutusTx.Plugin:target-version=1.0.0
@@ -50,12 +50,13 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api                    >=8.0
+    , cardano-api                                                 >=8.0
     , cardano-ledger-byron
-    , cardano-ledger-core
-    , cardano-ledger-shelley
+    , cardano-ledger-core:{cardano-ledger-core, testlib}
+    , cardano-ledger-shelley-test
+    , cardano-ledger-shelley:{cardano-ledger-shelley, testlib}
+    , cardano-protocol-tpraos:{cardano-protocol-tpraos, testlib}
     , cardano-slotting
-    , cardano-strict-containers
     , cryptonite
     , exceptions
     , io-classes

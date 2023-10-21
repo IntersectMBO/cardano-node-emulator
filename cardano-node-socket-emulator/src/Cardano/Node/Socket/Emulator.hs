@@ -6,13 +6,13 @@
 
 module Cardano.Node.Socket.Emulator (
   main,
+  prettyTrace,
+  startTestnet,
 ) where
 
-import Cardano.BM.Data.Trace (Trace)
-import Cardano.Node.Emulator.Internal.Node (
-  Params (..),
-  SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime),
- )
+import Cardano.Api (NetworkId)
+import Cardano.BM.Trace (Trace, stdoutTrace)
+import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
 import Cardano.Node.Socket.Emulator.API (API)
 import Cardano.Node.Socket.Emulator.Mock (consumeEventHistory, healthcheck, slotCoordinator)
 import Cardano.Node.Socket.Emulator.Params qualified as Params
@@ -23,11 +23,12 @@ import Cardano.Node.Socket.Emulator.Types (
   NodeServerConfig (..),
   initialChainState,
  )
-import Control.Concurrent (MVar, forkIO, newMVar)
+import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, takeMVar)
 import Control.Monad (void)
 import Control.Monad.Freer.Extras.Delay (delayThread, handleDelayEffect)
 import Control.Monad.Freer.Extras.Log (logInfo)
 import Control.Monad.IO.Class (liftIO)
+import Data.Default (def)
 import Data.Function ((&))
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (Proxy))
@@ -37,26 +38,21 @@ import Ledger.CardanoWallet (knownAddresses)
 import Ledger.Value.CardanoAPI qualified as CardanoAPI
 import Network.Wai.Handler.Warp qualified as Warp
 import Plutus.Monitoring.Util qualified as LM
+import Prettyprinter (defaultLayoutOptions, layoutPretty, pretty)
+import Prettyprinter.Render.Text (renderStrict)
 import Servant (Application, hoistServer, serve, (:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (baseUrlPort))
 
 app
   :: Trace IO CNSEServerLogMsg
-  -> Params
   -> MVar AppState
   -> Application
-app trace params stateVar =
+app trace stateVar =
   serve (Proxy @API) $
     hoistServer
       (Proxy @API)
-      (liftIO . Server.processChainEffects (LM.convertLog ProcessingEmulatorMsg trace) params stateVar)
+      (liftIO . Server.processChainEffects (LM.convertLog ProcessingEmulatorMsg trace) stateVar)
       (healthcheck :<|> consumeEventHistory stateVar)
-
-data Ctx = Ctx
-  { serverHandler :: Server.ServerHandler
-  , serverState :: MVar AppState
-  , mockTrace :: Trace IO CNSEServerLogMsg
-  }
 
 main :: Trace IO CNSEServerLogMsg -> NodeServerConfig -> IO () -> IO ()
 main
@@ -75,8 +71,8 @@ main
           Map.fromList $
             zip (getAddress <$> nscInitialTxWallets) (repeat (CardanoAPI.adaValueOf 1_000_000_000))
     initialState <- initialChainState dist
-    let appState = AppState initialState mempty
     params <- liftIO $ Params.fromNodeServerConfig nodeServerConfig
+    let appState = AppState initialState mempty params
     serverHandler <-
       liftIO $
         Server.runServerNode
@@ -84,28 +80,38 @@ main
           nscSocketPath
           nscKeptBlocks
           appState
-          params
     serverState <- liftIO $ newMVar appState
     handleDelayEffect $ delayThread (2 :: Second)
 
-    let ctx =
-          Ctx
-            { serverHandler = serverHandler
-            , serverState = serverState
-            , mockTrace = trace
-            }
-
-    runSlotCoordinator ctx
+    let SlotConfig{scSlotZeroTime, scSlotLength} = nscSlotConfig
+    logInfo $
+      StartingSlotCoordination
+        (posixSecondsToUTCTime $ realToFrac scSlotZeroTime / 1_000)
+        (fromInteger scSlotLength :: Millisecond)
+    void $ liftIO $ forkIO $ slotCoordinator nscSlotConfig serverHandler
 
     logInfo $ StartingCNSEServer $ baseUrlPort nscBaseUrl
-    liftIO $ Warp.runSettings warpSettings $ app trace params serverState
+    liftIO $ Warp.runSettings warpSettings $ app trace serverState
     where
       warpSettings = Warp.defaultSettings & Warp.setPort (baseUrlPort nscBaseUrl) & Warp.setBeforeMainLoop whenStarted
 
-      runSlotCoordinator (Ctx serverHandler _ _) = do
-        let SlotConfig{scSlotZeroTime, scSlotLength} = nscSlotConfig
-        logInfo $
-          StartingSlotCoordination
-            (posixSecondsToUTCTime $ realToFrac scSlotZeroTime / 1000)
-            (fromInteger scSlotLength :: Millisecond)
-        void $ liftIO $ forkIO $ slotCoordinator nscSlotConfig serverHandler
+prettyTrace :: Trace IO CNSEServerLogMsg
+prettyTrace = LM.convertLog (renderStrict . layoutPretty defaultLayoutOptions . pretty) stdoutTrace
+
+startTestnet :: FilePath -> Integer -> NetworkId -> IO ()
+startTestnet socketPath slotLength networkId =
+  let
+    config =
+      def
+        { nscSlotConfig =
+            def
+              { scSlotLength = slotLength
+              }
+        , nscSocketPath = socketPath
+        , nscNetworkId = networkId
+        }
+   in
+    do
+      blocker <- newEmptyMVar
+      void $ forkIO $ main prettyTrace config (putMVar blocker ())
+      takeMVar blocker

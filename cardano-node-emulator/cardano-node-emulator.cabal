@@ -66,6 +66,8 @@ library
     , plutus-core                               >=1.0.0
     , plutus-ledger-api                         >=1.0.0
     , plutus-tx                                 >=1.0.0
+    , sop-extras
+    , strict-sop-core
 
   -- , quickcheck-contractmodel        >=0.1.4.0
 
@@ -87,6 +89,7 @@ library
     , quickcheck-contractmodel  >=0.1.5.0
     , quickcheck-dynamic
     , serialise
+    , sop-core
     , text
     , time
 

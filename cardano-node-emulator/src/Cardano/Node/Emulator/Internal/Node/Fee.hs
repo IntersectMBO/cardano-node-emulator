@@ -27,8 +27,8 @@ import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params (emulatorPParams),
-  bundledProtocolParameters,
   emulatorGlobals,
+  ledgerProtocolParameters,
   pProtocolParams,
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
@@ -74,7 +74,7 @@ estimateCardanoBuildTxFee
 estimateCardanoBuildTxFee params txBodyContent = do
   let nkeys = C.Api.estimateTransactionKeyWitnessCount (getCardanoBuildTx txBodyContent)
   txBody <- first Right $ CardanoAPI.createTransactionBody txBodyContent
-  pure $ evaluateTransactionFee (bundledProtocolParameters params) txBody nkeys
+  pure $ evaluateTransactionFee params txBody nkeys
 
 fillTxExUnits :: Params -> UtxoIndex -> CardanoBuildTx -> Either CardanoLedgerError CardanoBuildTx
 fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
@@ -85,7 +85,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
       getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
-    mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
+    mapTxScriptWitnesses (mapWitness exUnitsMap') C.ShelleyBasedEraBabbage txBodyContent
   where
     mapWitness
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
@@ -144,7 +144,8 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
       C.Api.makeTransactionBodyAutoBalance
         ss
         ei
-        (pProtocolParams params)
+        (ledgerProtocolParameters params)
+        mempty
         mempty
         mempty
         utxo'
@@ -178,7 +179,8 @@ makeAutoBalancedTransactionWithUtxoProvider
 makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvider errorReporter (CardanoBuildTx unbalancedBodyContent) = do
   let
     -- Set the params alreay since it makes the tx bigger and so influences the fee
-    unbalancedBodyContent' = unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ pProtocolParams params}
+    unbalancedBodyContent' =
+      unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
     initialFeeEstimate = C.Lovelace 300_000
 
     balanceAndFillExUnits fee = do
@@ -263,7 +265,7 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
   let returnCollateral = Tx.getTxBodyContentReturnCollateral txWithinputsAdded
 
   if isZero (fold collateral)
-    && null (C.collectTxBodyScriptWitnesses txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
+    && null (C.collectTxBodyScriptWitnesses C.ShelleyBasedEraBabbage txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
     && null returnCollateral
     then -- Don't add collateral if there are no plutus scripts that can fail
     -- and there are no collateral inputs or outputs already
@@ -456,10 +458,9 @@ fromLedgerUTxO (UTxO utxo) =
     . Map.toList
     $ utxo
 
--- Adapted from cardano-api Cardano.API.Fee to avoid PParams conversion
 evaluateTransactionFee
-  :: C.BundledProtocolParameters C.Api.BabbageEra
+  :: Params
   -> C.Api.TxBody C.Api.BabbageEra
   -> Word
   -> C.Api.Lovelace
-evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee params txbody keywitcount 0
+evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee (emulatorPParams params) txbody keywitcount 0

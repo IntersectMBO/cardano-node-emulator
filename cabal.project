@@ -14,7 +14,7 @@ repository cardano-haskell-packages
 -- See CONTRIBUTING.adoc for how to update index-state
 index-state:
   , hackage.haskell.org 2023-09-20T00:00:00Z
-  , cardano-haskell-packages 2023-09-20T00:00:00Z
+  , cardano-haskell-packages 2023-10-19T00:00:00Z
 
 packages: plutus-ledger
           plutus-script-utils
@@ -47,4 +47,4 @@ package cardano-crypto-praos
   flags: -external-libsodium-vrf
 
 constraints:
-  cardano-api ^>=8.8
+  cardano-api ^>= 8.20

@@ -15,7 +15,7 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   emulatorPParamsL,
   pProtocolParams,
   pParamsFromProtocolParams,
-  bundledProtocolParameters,
+  ledgerProtocolParameters,
   protocolParamsL,
   networkIdL,
   increaseTransactionLimits,
@@ -59,8 +59,10 @@ import Data.Default (Default (def))
 import Data.Map qualified as Map
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Ratio ((%))
+import Data.SOP (K (K))
 import Data.SOP.Counting qualified as Ouroboros
-import Data.SOP.Strict (K (K), NP (Nil, (:*)))
+import Data.SOP.NonEmpty qualified as Ouroboros
+import Data.SOP.Strict (NP (Nil, (:*)))
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
@@ -109,12 +111,8 @@ pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraBabbage $ emulatorPPara
 pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
 pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraBabbage
 
-bundledProtocolParameters :: Params -> C.BundledProtocolParameters C.BabbageEra
-bundledProtocolParameters params =
-  C.BundleAsShelleyBasedProtocolParameters
-    C.ShelleyBasedEraBabbage
-    (pProtocolParams params)
-    (emulatorPParams params)
+ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.BabbageEra
+ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
 paramsWithProtocolsParameters :: SlotConfig -> C.ProtocolParameters -> C.NetworkId -> Params
 paramsWithProtocolsParameters sc p = Params sc (pParamsFromProtocolParams p)

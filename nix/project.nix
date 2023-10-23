@@ -1,6 +1,6 @@
 { repoRoot, inputs, pkgs, lib, system }:
 
-let 
+let
 
   cabalProject = pkgs.haskell-nix.cabalProject' {
     name = "cardano-node-emulator";
@@ -25,7 +25,7 @@ let
         # freer-extras.flags.defer-plugin-errors = meta.enableHaddock;
         # plutus-ledger.flags.defer-plugin-errors = meta.enableHaddock;
         # plutus-script-utils.flags.defer-plugin-errors = meta.enableHaddock;
-        
+
         # Werror everything. This is a pain, see https://github.com/input-output-hk/haskell.nix/issues/519
         cardano-node-emulator.ghcOptions = [ "-Werror" ];
         cardano-node-socket-emulator.ghcOptions = [ "-Werror" ];
@@ -45,6 +45,6 @@ let
     };
   };
 
-in 
+in
 
-  project 
+project

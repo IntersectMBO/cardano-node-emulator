@@ -1,10 +1,10 @@
 { repoRoot, inputs, pkgs, lib, system }:
 
-let 
+let
 
   project = repoRoot.nix.project;
 
-in 
+in
 [
   (
     project.flake

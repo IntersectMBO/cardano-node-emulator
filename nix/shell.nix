@@ -1,6 +1,6 @@
 { repoRoot, inputs, pkgs, lib, system }:
 
-_cabalProject: 
+_cabalProject:
 
 let
   cardano-cli = inputs.cardano-node.legacyPackages.cardano-cli;
@@ -24,7 +24,7 @@ in
     fourmolu.enable = true;
     shellcheck.enable = true;
     cabal-fmt.enable = true;
-    png-optimization.enable = true;
+    optipng.enable = true;
     nixpkgs-fmt.enable = true;
   };
 }

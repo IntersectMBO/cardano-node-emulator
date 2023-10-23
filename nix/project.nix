@@ -41,7 +41,7 @@ let
     shellArgs = repoRoot.nix.shell;
     readTheDocs = {
       enable = true;
-      siteFolder = "docs/read-the-docs";
+      siteFolder = "doc/read-the-docs-site";
     };
   };
 

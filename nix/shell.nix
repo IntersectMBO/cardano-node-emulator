@@ -1,11 +1,10 @@
-# This file is part of the IOGX template and is documented at the link below:
-# https://www.github.com/input-output-hk/iogx#34-nixshellnix
+{ repoRoot, inputs, pkgs, lib, system }:
 
-{ inputs, inputs', pkgs, ... }:
+_cabalProject: 
 
 let
-  cardano-cli = inputs'.cardano-node.legacyPackages.cardano-cli;
-  cardano-node = inputs'.cardano-node.legacyPackages.cardano-node;
+  cardano-cli = inputs.cardano-node.legacyPackages.cardano-cli;
+  cardano-node = inputs.cardano-node.legacyPackages.cardano-node;
 in
 {
   name = "cardano-node-emulator";
@@ -13,11 +12,19 @@ in
   packages = [
     cardano-cli
     cardano-node
-    inputs'.mithril.packages.mithril-client
+    inputs.mithril.packages.mithril-client
   ];
 
   env = {
     CARDANO_CLI = "${cardano-cli}/bin/cardano-cli";
     CARDANO_NODE = "${cardano-node}/bin/cardano-node";
+  };
+
+  preCommit = {
+    fourmolu.enable = true;
+    shellcheck.enable = true;
+    cabal-fmt.enable = true;
+    png-optimization.enable = true;
+    nixpkgs-fmt.enable = true;
   };
 }

@@ -49,6 +49,7 @@ package cardano-crypto-praos
 constraints:
   cardano-api ^>= 8.20
 
+-- TODO: remove once this version is on CHaP
 source-repository-package
     type: git
     location: https://github.com/input-output-hk/quickcheck-contractmodel

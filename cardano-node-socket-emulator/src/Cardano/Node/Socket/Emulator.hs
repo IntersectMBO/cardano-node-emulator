@@ -2,7 +2,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Cardano.Node.Socket.Emulator (
   main,
@@ -24,13 +23,12 @@ import Cardano.Node.Socket.Emulator.Types (
  )
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
-import Control.Monad.Freer.Extras.Delay (delayThread, handleDelayEffect)
 import Control.Monad.Freer.Extras.Log (logInfo)
 import Control.Monad.IO.Class (liftIO)
 import Data.Default (def)
 import Data.Map.Strict qualified as Map
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.Units (Millisecond, Second)
+import Data.Time.Units (Millisecond)
 import Ledger.CardanoWallet (knownAddresses)
 import Ledger.Value.CardanoAPI qualified as CardanoAPI
 import Plutus.Monitoring.Util qualified as LM
@@ -62,7 +60,6 @@ main
             nscSocketPath
             nscKeptBlocks
             appState
-      handleDelayEffect $ delayThread (1 :: Second)
 
       let SlotConfig{scSlotZeroTime, scSlotLength} = nscSlotConfig
       logInfo $
@@ -89,4 +86,4 @@ startTestnet socketPath slotLength networkId =
         , nscNetworkId = networkId
         }
    in
-    void $ forkIO $ main prettyTrace config
+    main prettyTrace config

@@ -216,6 +216,6 @@ emptyTxBodyContent =
     , txWithdrawals = C.TxWithdrawalsNone
     , txCertificates = C.TxCertificatesNone
     , txUpdateProposal = C.TxUpdateProposalNone
-    , txGovernanceActions = C.TxGovernanceActionsNone
-    , txVotes = C.TxVotesNone
+    , txProposalProcedures = Nothing
+    , txVotingProcedures = Nothing
     }

@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
-module Main (main) where
+module Main (main, genCardanoBuildTx, genCardanoTx) where
 
 import Cardano.Api qualified as C
 import Data.Aeson qualified as JSON
@@ -73,10 +73,6 @@ tests =
     , testGroup
         "CardanoTx"
         [ testPropertyNamed "Value ToJSON/FromJSON" "genCardanoTx" (jsonRoundTrip genCardanoTx)
-        ]
-    , testGroup
-        "CardanoBuildTx"
-        [ testPropertyNamed "Value ToJSON/FromJSON" "genCardanoBuildTx" (jsonRoundTrip genCardanoBuildTx)
         ]
     , Ledger.Tx.CardanoAPISpec.tests
     ]

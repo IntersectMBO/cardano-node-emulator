@@ -497,14 +497,14 @@ protocolLoop socketPath internalState = liftIO $ withIOManager $ \iocp -> do
         <$> versionedNodeToClientProtocols
           nodeToClientVersion
           nodeToClientVersionData
-          (\_ _ -> nodeToClientProtocols internalState)
+          (nodeToClientProtocols internalState)
     )
     nullErrorPolicies
     $ \_ serverAsync -> wait serverAsync
 
 nodeToClientProtocols
   :: MVar AppState
-  -> NodeToClientProtocols 'ResponderMode LBS.ByteString IO Void ()
+  -> NodeToClientProtocols 'ResponderMode LocalAddress LBS.ByteString IO Void ()
 nodeToClientProtocols internalState =
   NodeToClientProtocols
     { localChainSyncProtocol = chainSync internalState
@@ -515,42 +515,45 @@ nodeToClientProtocols internalState =
 
 chainSync
   :: MVar AppState
-  -> RunMiniProtocol 'ResponderMode LBS.ByteString IO Void ()
+  -> RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
 chainSync mvChainState =
   ResponderProtocolOnly $
-    MuxPeer
-      nullTracer
-      chainSyncCodec
-      ( ChainSync.chainSyncServerPeer
-          ( runReader
-              (hoistChainSync chainSyncServer)
-              mvChainState
-          )
-      )
+    mkMiniProtocolCbFromPeer $
+      const
+        ( nullTracer
+        , chainSyncCodec
+        , ChainSync.chainSyncServerPeer
+            ( runReader
+                (hoistChainSync chainSyncServer)
+                mvChainState
+            )
+        )
 
 txSubmission
   :: MVar AppState
-  -> RunMiniProtocol 'ResponderMode LBS.ByteString IO Void ()
+  -> RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
 txSubmission mvChainState =
   ResponderProtocolOnly $
-    MuxPeer
-      nullTracer
-      txSubmissionCodec
-      ( TxSubmission.localTxSubmissionServerPeer
-          (pure $ txSubmissionServer mvChainState)
-      )
+    mkMiniProtocolCbFromPeer $
+      const
+        ( nullTracer
+        , txSubmissionCodec
+        , TxSubmission.localTxSubmissionServerPeer
+            (pure $ txSubmissionServer mvChainState)
+        )
 
 stateQuery
   :: MVar AppState
-  -> RunMiniProtocol 'ResponderMode LBS.ByteString IO Void ()
+  -> RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
 stateQuery mvChainState =
   ResponderProtocolOnly $
-    MuxPeer
-      nullTracer
-      stateQueryCodec
-      ( Query.localStateQueryServerPeer
-          (stateQueryServer mvChainState)
-      )
+    mkMiniProtocolCbFromPeer $
+      const
+        ( nullTracer
+        , stateQueryCodec
+        , Query.localStateQueryServerPeer
+            (stateQueryServer mvChainState)
+        )
 
 -- * Computing intersections
 

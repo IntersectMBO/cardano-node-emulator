@@ -43,8 +43,8 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.PlutusScriptApi (
   CollectError,
-  collectTwoPhaseScriptInputs,
-  evalScripts,
+  collectPlutusScriptsWithContext,
+  evalPlutusScripts,
  )
 import Cardano.Ledger.Alonzo.Scripts (AlonzoScript)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
@@ -78,7 +78,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
   Params (emulatorPParams),
   emulatorGlobals,
   emulatorPParams,
-  pProtocolParams,
+  ledgerProtocolParameters,
  )
 import Cardano.Slotting.Slot (SlotNo (SlotNo))
 import Control.Lens (makeLenses, over, view, (&), (.~), (^.))
@@ -163,7 +163,9 @@ setUtxo :: Params -> UTxO EmulatorEra -> EmulatedLedgerState -> EmulatedLedgerSt
 setUtxo params utxo els@EmulatedLedgerState{_memPoolState} = els{_memPoolState = newPoolState}
   where
     newPoolState =
-      _memPoolState{lsUTxOState = smartUTxOState (emulatorPParams params) utxo (Coin 0) (Coin 0) def}
+      _memPoolState
+        { lsUTxOState = smartUTxOState (emulatorPParams params) utxo (Coin 0) (Coin 0) def (Coin 0)
+        }
 
 {- | Make a block with all transactions that have been validated in the
 current block, add the block to the blockchain, and empty the current block.
@@ -187,7 +189,7 @@ initialState params =
           }
     , _memPoolState =
         LedgerState
-          { lsUTxOState = smartUTxOState (emulatorPParams params) (UTxO mempty) (Coin 0) (Coin 0) def
+          { lsUTxOState = smartUTxOState (emulatorPParams params) (UTxO mempty) (Coin 0) (Coin 0) def (Coin 0)
           , lsCertState = def
           }
     , _currentBlock = []
@@ -261,10 +263,10 @@ constructValidated
   -> Core.Tx era
   -> m (AlonzoTx era)
 constructValidated globals (C.Ledger.UtxoEnv _ pp _ _) st tx =
-  case collectTwoPhaseScriptInputs ei sysS pp tx utxo of
+  case collectPlutusScriptsWithContext ei sysS pp tx utxo of
     Left errs -> throwError errs
     Right sLst ->
-      let scriptEvalResult = evalScripts @era (view ppProtocolVersionL pp) tx sLst
+      let scriptEvalResult = evalPlutusScripts @era (view ppProtocolVersionL pp) tx sLst
           vTx =
             AlonzoTx
               (view Core.bodyTxL tx)
@@ -317,5 +319,5 @@ createAndValidateTransactionBody
   -> P.CardanoBuildTx
   -> Either CardanoLedgerError (C.TxBody C.BabbageEra)
 createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
-  let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ pProtocolParams params}
+  let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
    in first (Right . P.TxBodyError . C.displayError) $ C.createAndValidateTransactionBody bodyContent'

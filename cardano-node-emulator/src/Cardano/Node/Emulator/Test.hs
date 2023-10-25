@@ -41,7 +41,7 @@ import Cardano.Node.Emulator.API (
  )
 import Cardano.Node.Emulator.Generators (knownAddresses)
 import Cardano.Node.Emulator.Internal.Node qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (pNetworkId)
+import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId)
 import Control.Lens (use, view, (^.))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.RWS.Strict (evalRWS)
@@ -182,7 +182,6 @@ propRunActionsWithOptions initialDist params predicate actions =
     QC..&&. monadic runFinalPredicate monadicPredicate
   where
     finalState = stateAfter actions
-    ps = E.bundledProtocolParameters params
 
     monadicPredicate :: PropertyM (RunMonad EmulatorM) Property
     monadicPredicate = do
@@ -213,7 +212,9 @@ propRunActionsWithOptions initialDist params predicate actions =
     balanceChangePredicate :: ContractModelResult state -> Property
     balanceChangePredicate result =
       let prettyAddr a = fromMaybe (show a) $ lookup (show a) prettyWalletNames
-       in assertBalanceChangesMatch (BalanceChangeOptions False signerPaysFees ps prettyAddr) result
+       in assertBalanceChangesMatch
+            (BalanceChangeOptions False signerPaysFees (ledgerProtocolParameters params) prettyAddr)
+            result
 
 prettyWalletNames :: [(String, String)]
 prettyWalletNames = [(show addr, "Wallet " ++ show nr) | (addr, nr) <- zip knownAddresses [1 .. 10 :: Int]]

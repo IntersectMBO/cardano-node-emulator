@@ -7,16 +7,12 @@
 module Cardano.Node.Socket.Emulator.Mock where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, putMVar, takeMVar)
-import Control.Lens (set, view)
 import Control.Monad (forever, void)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
 import Data.Time.Clock.POSIX qualified as Time
 import Data.Time.Units (Millisecond, toMicroseconds)
 import Data.Time.Units.Extra ()
-import Servant (NoContent (NoContent))
 
-import Cardano.Node.Emulator.Internal.API (EmulatorLogs)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (
   SlotConfig,
   currentSlot,
@@ -24,19 +20,6 @@ import Cardano.Node.Emulator.Internal.Node.TimeSlot (
   slotToBeginPOSIXTime,
  )
 import Cardano.Node.Socket.Emulator.Server qualified as Server
-import Cardano.Node.Socket.Emulator.Types (AppState (..), emulatorLogs)
-
-healthcheck :: (Monad m) => m NoContent
-healthcheck = pure NoContent
-
-consumeEventHistory :: (MonadIO m) => MVar AppState -> m EmulatorLogs
-consumeEventHistory stateVar =
-  liftIO $ do
-    oldState <- takeMVar stateVar
-    let events = view emulatorLogs oldState
-    let newState = set emulatorLogs mempty oldState
-    putMVar stateVar newState
-    pure events
 
 {- | Calls 'addBlock' at the start of every slot, causing pending transactions
   to be validated and added to the chain.

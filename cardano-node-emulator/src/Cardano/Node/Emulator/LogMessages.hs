@@ -10,7 +10,7 @@ module Cardano.Node.Emulator.LogMessages where
 import Cardano.Api qualified as C
 import Cardano.Node.Emulator.Internal.Node.Chain (ChainEvent)
 import Control.Lens.TH (makePrisms)
-import Data.Aeson (FromJSON, ToJSON, Value)
+import Data.Aeson (Value)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Ledger (CardanoTx, getCardanoTxId)
@@ -23,7 +23,6 @@ data EmulatorMsg
   | TxBalanceMsg TxBalanceMsg
   | ChainEvent ChainEvent
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
 
 instance Pretty EmulatorMsg where
   pretty = \case
@@ -43,7 +42,6 @@ data TxBalanceMsg
       ValidationError
       C.Value
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
 
 instance Pretty TxBalanceMsg where
   pretty = \case

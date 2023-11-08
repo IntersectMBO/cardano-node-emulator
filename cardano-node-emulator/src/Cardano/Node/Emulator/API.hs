@@ -8,7 +8,9 @@ module Cardano.Node.Emulator.API (
   queueTx,
   nextSlot,
   currentSlot,
+  currentTimeRange,
   awaitSlot,
+  awaitTime,
 
   -- * Querying the blockchain
   utxosAt,
@@ -68,7 +70,7 @@ import Control.Lens ((%~), (&), (<>~), (^.))
 import Control.Monad (void)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Freer.Extras.Log qualified as L
-import Control.Monad.RWS.Class (ask, get, tell)
+import Control.Monad.RWS.Class (ask, asks, get, tell)
 import Data.Aeson (ToJSON (toJSON))
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -78,6 +80,7 @@ import Ledger (
   Datum,
   DatumHash,
   DecoratedTxOut,
+  POSIXTime,
   PaymentPrivateKey (unPaymentPrivateKey),
   Slot,
   TxOutRef,
@@ -102,6 +105,12 @@ import Ledger.Tx.CardanoAPI (
  )
 
 import Cardano.Node.Emulator.Generators qualified as G
+import Cardano.Node.Emulator.Internal.Node (
+  pSlotConfig,
+  posixTimeToEnclosingSlot,
+  slotToBeginPOSIXTime,
+  slotToEndPOSIXTime,
+ )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as E (
   chainNewestFirst,
   emptyChainState,
@@ -152,6 +161,16 @@ nextSlot = do
 currentSlot :: (MonadEmulator m) => m Slot
 currentSlot = handleChain E.getCurrentSlot
 
+-- | Get the time range of the current slot of the emulated node.
+currentTimeRange :: (MonadEmulator m) => m (POSIXTime, POSIXTime)
+currentTimeRange = do
+  slotConfig <- asks pSlotConfig
+  slot <- currentSlot
+  pure
+    ( slotToBeginPOSIXTime slotConfig slot
+    , slotToEndPOSIXTime slotConfig slot
+    )
+
 -- | Call `nextSlot` until the current slot number equals or exceeds the given slot number.
 awaitSlot :: (MonadEmulator m) => Slot -> m ()
 awaitSlot s = do
@@ -161,6 +180,12 @@ awaitSlot s = do
     else do
       nextSlot
       awaitSlot s
+
+-- | Call `nextSlot` until the given time has been reached.
+awaitTime :: (MonadEmulator m) => POSIXTime -> m ()
+awaitTime t = do
+  slotConfig <- asks pSlotConfig
+  awaitSlot (posixTimeToEnclosingSlot slotConfig t + 1)
 
 -- | Query the unspent transaction outputs at the given address.
 utxosAt :: (MonadEmulator m) => CardanoAddress -> m UtxoIndex
@@ -263,7 +288,9 @@ submitTxConfirmed
   => UtxoIndex
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
   -> CardanoAddress
+  -- ^ Wallet address
   -> f PaymentPrivateKey
+  -- ^ Signatures
   -> CardanoBuildTx
   -> m CardanoTx
 submitTxConfirmed utxoIndex addr privateKeys utx = do

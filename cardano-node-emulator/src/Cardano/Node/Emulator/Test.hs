@@ -9,6 +9,7 @@
 -- | Test facility for 'Cardano.Node.Emulator.API.MonadEmulator'
 module Cardano.Node.Emulator.Test (
   -- * Basic testing
+  testnet,
   hasValidatedTransactionCountOfTotal,
   renderLogs,
 
@@ -41,7 +42,7 @@ import Cardano.Node.Emulator.API (
  )
 import Cardano.Node.Emulator.Generators (knownAddresses)
 import Cardano.Node.Emulator.Internal.Node qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId)
+import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId, testnet)
 import Control.Lens (use, view, (^.))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.RWS.Strict (evalRWS)

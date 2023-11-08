@@ -13,6 +13,7 @@ module Plutus.Script.Utils.V2.Contexts (
   findTxInByTxOutRef,
   findTxRefInByTxOutRef,
   outputsAt,
+  scriptOutputsAt,
   valuePaidTo,
   ownHash,
   ownHashes,
@@ -22,7 +23,7 @@ import Plutus.Script.Utils.Scripts (ValidatorHash (..))
 import PlutusLedgerApi.V1 (Address, Value)
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusLedgerApi.V2.Contexts as Contexts hiding (findTxInByTxOutRef, valuePaidTo)
-import PlutusTx.Prelude (Maybe (Just, Nothing), find, fst, mapMaybe, mconcat, traceError, (==))
+import PlutusTx.Prelude (Maybe (Just, Nothing), find, foldMap, fst, mapMaybe, snd, traceError, (==))
 
 {-# INLINEABLE findTxInByTxOutRef #-}
 findTxInByTxOutRef :: TxOutRef -> PV2.TxInfo -> Maybe PV2.TxInInfo
@@ -36,18 +37,24 @@ findTxRefInByTxOutRef outRef PV2.TxInfo{PV2.txInfoReferenceInputs} =
 
 {-# INLINEABLE outputsAt #-}
 
--- | Get the values paid to a public key address by a pending transaction.
-outputsAt :: Address -> TxInfo -> [Value]
+-- | Get the datums and values paid to an address by a pending transaction.
+outputsAt :: Address -> TxInfo -> [(PV2.OutputDatum, Value)]
 outputsAt addr p =
-  let flt TxOut{txOutAddress, txOutValue} | txOutAddress == addr = Just txOutValue
+  let flt TxOut{txOutAddress, txOutValue, txOutDatum} | txOutAddress == addr = Just (txOutDatum, txOutValue)
       flt _ = Nothing
    in mapMaybe flt (txInfoOutputs p)
+
+{-# INLINEABLE scriptOutputsAt #-}
+
+-- | Get the datums and values paid to an address of a validator by a pending transaction.
+scriptOutputsAt :: ValidatorHash -> TxInfo -> [(PV2.OutputDatum, Value)]
+scriptOutputsAt (ValidatorHash s) = outputsAt (PV2.Address (PV2.ScriptCredential (PV2.ScriptHash s)) Nothing)
 
 {-# INLINEABLE valuePaidTo #-}
 
 -- | Get the total value paid to a public key address by a pending transaction.
 valuePaidTo :: TxInfo -> Address -> Value
-valuePaidTo ptx addr = mconcat (outputsAt addr ptx)
+valuePaidTo ptx addr = foldMap snd (outputsAt addr ptx)
 
 {-# INLINEABLE ownHashes #-}
 

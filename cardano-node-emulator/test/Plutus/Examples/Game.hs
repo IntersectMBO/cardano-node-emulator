@@ -10,7 +10,7 @@
 {- | A guessing game. A simplified version of 'Plutus.Contract.GameStateMachine'
 using 'Cardano.Node.Emulator.MTL'.
 -}
-module Plutus.Example.Game (
+module Plutus.Examples.Game (
   GameParam (..),
   LockArgs (..),
   GuessArgs (..),
@@ -24,7 +24,7 @@ module Plutus.Example.Game (
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (testnet)
+import Cardano.Node.Emulator.Test (testnet)
 import Control.Monad (void)
 import Data.ByteString.Char8 qualified as C
 import Data.Map qualified as Map

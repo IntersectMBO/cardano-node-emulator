@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TupleSections #-}
@@ -64,6 +65,8 @@ import Ledger (
 import Ledger.Index qualified as Index
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
 import Ledger.Value.CardanoAPI qualified as Value
+import Plutus.Script.Utils.Value (Value)
+import PlutusTx.Builtins qualified as Builtins
 import Prettyprinter qualified as Pretty
 import Prettyprinter.Render.Text qualified as Pretty
 import Test.QuickCheck as QC (Property, Testable (property), counterexample, expectFailure, (.&&.))
@@ -88,9 +91,11 @@ import Test.QuickCheck.ContractModel (
   symIsZero,
  )
 import Test.QuickCheck.ContractModel qualified as CM
+import Test.QuickCheck.ContractModel qualified as QCCM
 import Test.QuickCheck.ContractModel.Internal (ContractModelResult)
 import Test.QuickCheck.Monadic (PropertyM, monadic, monadicIO)
 import Test.QuickCheck.StateModel (Realized)
+import Test.QuickCheck.StateModel qualified as QCSM
 
 {- | Test the number of validated transactions and the total number of transactions.
 Returns a failure message if the numbers don't match up.
@@ -144,6 +149,10 @@ the property generation succeed.
 propSanityCheckAssertions :: forall state. (ContractModel state) => Actions state -> QC.Property
 propSanityCheckAssertions as = asserts $ stateAfter as
 
+-- | Default initial assignment of value to wallet addresses
+defInitialDist :: Map CardanoAddress C.Value
+defInitialDist = Map.fromList $ (,Value.adaValueOf 100_000_000) <$> knownAddresses
+
 {- | Run `Actions` in the emulator and check that the model and the emulator agree on the final
   wallet balance changes. Starts with 100.000.000 Ada for each wallet and the default parameters.
 -}
@@ -164,7 +173,7 @@ propRunActions
   -- ^ The actions to run
   -> Property
 propRunActions =
-  propRunActionsWithOptions (Map.fromList $ (,Value.adaValueOf 100_000_000) <$> knownAddresses) def
+  propRunActionsWithOptions defInitialDist def
 
 propRunActionsWithOptions
   :: forall state
@@ -271,3 +280,13 @@ chainStateToContractModelChainState cst =
     { utxo = cst ^. E.index
     , slot = fromIntegral $ cst ^. E.chainCurrentSlot
     }
+
+instance QCCM.HasSymbolics Builtins.BuiltinByteString where
+  getAllSymbolics _ = mempty
+deriving via
+  QCSM.HasNoVariables Builtins.BuiltinByteString
+  instance
+    QCSM.HasVariables Builtins.BuiltinByteString
+
+instance QCCM.SymValueLike Value where
+  toSymValue = either (error . show) QCCM.toSymValue . Value.toCardanoValue

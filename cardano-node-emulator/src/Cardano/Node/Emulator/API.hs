@@ -53,7 +53,7 @@ module Cardano.Node.Emulator.API (
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator.Internal.API (
-  EmulatorError (BalancingError, ToCardanoError, ValidationError),
+  EmulatorError (BalancingError, CustomError, ToCardanoError, ValidationError),
   EmulatorLogs,
   EmulatorM,
   EmulatorState (EmulatorState),

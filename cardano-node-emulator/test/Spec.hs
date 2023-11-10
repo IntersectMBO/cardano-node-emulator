@@ -8,6 +8,7 @@ import Test.Tasty (TestTree, defaultMain, testGroup)
 
 import Cardano.Node.Emulator.GeneratorsSpec qualified as GeneratorsSpec
 import Cardano.Node.Emulator.MTLSpec qualified as MTLSpec
+import Plutus.Examples.EscrowSpec qualified as EscrowSpec
 import Plutus.Examples.GameSpec qualified as GameSpec
 
 main :: IO ()
@@ -20,4 +21,5 @@ tests =
     [ GeneratorsSpec.tests
     , MTLSpec.tests
     , GameSpec.tests
+    , EscrowSpec.tests
     ]

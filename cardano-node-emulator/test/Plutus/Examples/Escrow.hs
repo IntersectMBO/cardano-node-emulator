@@ -46,7 +46,7 @@ module Plutus.Examples.Escrow (
 
 import Control.Lens (makeClassyPrisms)
 import Control.Monad (void)
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (throwError)
 import Control.Monad.RWS.Class (asks)
 import Data.Map qualified as Map
 
@@ -235,7 +235,7 @@ meetsTarget ptx = \case
     case scriptOutputsAt validatorHash ptx of
       [(dataValue', vl')] ->
         PlutusTx.traceIfFalse "dataValue" (dataValue' PlutusTx.== OutputDatum dataValue)
-          && PlutusTx.traceIfFalse "value" (vl' `geq` vl)
+          PlutusTx.&& PlutusTx.traceIfFalse "value" (vl' `geq` vl)
       _ -> False
 
 {-# INLINEABLE validate #-}
@@ -243,15 +243,16 @@ validate :: EscrowParams Datum -> PaymentPubKeyHash -> Action -> ScriptContext -
 validate EscrowParams{escrowDeadline, escrowTargets} contributor action ScriptContext{scriptContextTxInfo} =
   case action of
     Redeem ->
-      PlutusTx.traceIfFalse
-        "escrowDeadline-after"
-        (escrowDeadline `Interval.after` txInfoValidRange scriptContextTxInfo)
-        && PlutusTx.traceIfFalse "meetsTarget" (PlutusTx.all (meetsTarget scriptContextTxInfo) escrowTargets)
+      -- PlutusTx.traceIfFalse
+      -- "escrowDeadline-after"
+      -- (escrowDeadline `Interval.after` txInfoValidRange scriptContextTxInfo)
+      -- PlutusTx.&&
+      PlutusTx.traceIfFalse "meetsTarget" (PlutusTx.all (meetsTarget scriptContextTxInfo) escrowTargets)
     Refund ->
       PlutusTx.traceIfFalse
         "escrowDeadline-before"
         ((escrowDeadline PlutusTx.- 1) `Interval.before` txInfoValidRange scriptContextTxInfo)
-        && PlutusTx.traceIfFalse
+        PlutusTx.&& PlutusTx.traceIfFalse
           "txSignedBy"
           (scriptContextTxInfo `txSignedBy` unPaymentPubKeyHash contributor)
 
@@ -325,7 +326,7 @@ newtype RedeemSuccess = RedeemSuccess TxId
   has all the outputs defined in the contract's list of targets.
 -}
 mkRedeemTx
-  :: (E.MonadEmulator m, MonadError EscrowError m)
+  :: (E.MonadEmulator m)
   => EscrowParams Datum
   -> m (C.CardanoBuildTx, Ledger.UtxoIndex)
 mkRedeemTx escrow = do
@@ -334,11 +335,11 @@ mkRedeemTx escrow = do
   slotConfig <- asks pSlotConfig
   current <- fst <$> E.currentTimeRange
   if current >= escrowDeadline escrow
-    then throwError (RedeemFailed DeadlinePassed)
+    then throwError $ E.CustomError $ show (RedeemFailed DeadlinePassed)
     else
       if C.fromCardanoValue (foldMap Ledger.cardanoTxOutValue (C.unUTxO unspentOutputs))
         `lt` targetTotal escrow
-        then throwError (RedeemFailed NotEnoughFundsAtAddress)
+        then throwError $ E.CustomError $ show (RedeemFailed NotEnoughFundsAtAddress)
         else
           let
             validityRange = toValidityRange slotConfig $ Interval.to $ pred $ escrowDeadline escrow
@@ -362,7 +363,7 @@ mkRedeemTx escrow = do
             pure (C.CardanoBuildTx utx, unspentOutputs)
 
 redeem
-  :: (E.MonadEmulator m, MonadError EscrowError m)
+  :: (E.MonadEmulator m)
   => Ledger.CardanoAddress
   -> Ledger.PaymentPrivateKey
   -> EscrowParams Datum
@@ -377,7 +378,7 @@ newtype RefundSuccess = RefundSuccess TxId
 
 -- | Claim a refund of the contribution.
 mkRefundTx
-  :: (E.MonadEmulator m, MonadError EscrowError m)
+  :: (E.MonadEmulator m)
   => EscrowParams Datum
   -> Ledger.CardanoAddress
   -- ^ Wallet address
@@ -408,11 +409,11 @@ mkRefundTx escrow wallet = do
           , C.txValidityRange = validityRange
           }
   if null txIns
-    then throwError RefundFailed
+    then throwError $ E.CustomError $ show RefundFailed
     else pure (C.CardanoBuildTx utx, unspentOutputs)
 
 refund
-  :: (E.MonadEmulator m, MonadError EscrowError m)
+  :: (E.MonadEmulator m)
   => Ledger.CardanoAddress
   -> Ledger.PaymentPrivateKey
   -> EscrowParams Datum
@@ -427,7 +428,7 @@ refund wallet privateKey escrow = do
   or reclaim the contribution if the goal has not been met.
 -}
 payRedeemRefund
-  :: (E.MonadEmulator m, MonadError EscrowError m)
+  :: (E.MonadEmulator m)
   => Ledger.CardanoAddress
   -> Ledger.PaymentPrivateKey
   -> EscrowParams Datum

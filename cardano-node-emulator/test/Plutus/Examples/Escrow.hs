@@ -243,15 +243,16 @@ validate :: EscrowParams Datum -> PaymentPubKeyHash -> Action -> ScriptContext -
 validate EscrowParams{escrowDeadline, escrowTargets} contributor action ScriptContext{scriptContextTxInfo} =
   case action of
     Redeem ->
-      -- PlutusTx.traceIfFalse
-      -- "escrowDeadline-after"
-      -- (escrowDeadline `Interval.after` txInfoValidRange scriptContextTxInfo)
-      -- PlutusTx.&&
-      PlutusTx.traceIfFalse "meetsTarget" (PlutusTx.all (meetsTarget scriptContextTxInfo) escrowTargets)
+      PlutusTx.traceIfFalse
+        "escrowDeadline-after"
+        (escrowDeadline `Interval.after` txInfoValidRange scriptContextTxInfo)
+        PlutusTx.&& PlutusTx.traceIfFalse
+          "meetsTarget"
+          (PlutusTx.all (meetsTarget scriptContextTxInfo) escrowTargets)
     Refund ->
       PlutusTx.traceIfFalse
         "escrowDeadline-before"
-        ((escrowDeadline PlutusTx.- 1) `Interval.before` txInfoValidRange scriptContextTxInfo)
+        ((escrowDeadline PlutusTx.- 1000) `Interval.before` txInfoValidRange scriptContextTxInfo)
         PlutusTx.&& PlutusTx.traceIfFalse
           "txSignedBy"
           (scriptContextTxInfo `txSignedBy` unPaymentPubKeyHash contributor)
@@ -268,21 +269,6 @@ typedValidator = go
 mkEscrowAddress :: EscrowParams Datum -> Ledger.CardanoAddress
 mkEscrowAddress = validatorCardanoAddress testnet . typedValidator
 
--- escrowContract
---     :: (E.MonadEmulator m)
---     => EscrowParams Datum
---     -> m ()
--- escrowContract escrow =
---     let inst = typedValidator escrow
---         payAndRefund = endpoint @"pay-escrow" $ \vl -> do
---             _ <- pay inst escrow vl
---             _ <- awaitTime $ escrowDeadline escrow
---             refund inst escrow
---     in selectList
---         [ void payAndRefund
---         , void $ redeemEp escrow
---         ]
-
 -- | Pay some money into the escrow contract.
 mkPayTx
   :: SlotConfig
@@ -297,7 +283,7 @@ mkPayTx slotConfig escrow wallet vl =
   let escrowAddr = mkEscrowAddress escrow
       pkh = Ledger.PaymentPubKeyHash $ fromJust $ Ledger.cardanoPubKeyHash wallet
       txOut = C.TxOut escrowAddr (toTxOutValue vl) (toTxOutInlineDatum pkh) C.ReferenceScriptNone
-      validityRange = toValidityRange slotConfig $ Ledger.interval 1 (1 + escrowDeadline escrow)
+      validityRange = toValidityRange slotConfig $ Interval.to $ escrowDeadline escrow - 1000
       utx =
         E.emptyTxBodyContent
           { C.txOuts = [txOut]
@@ -342,7 +328,7 @@ mkRedeemTx escrow = do
         then throwError $ E.CustomError $ show (RedeemFailed NotEnoughFundsAtAddress)
         else
           let
-            validityRange = toValidityRange slotConfig $ Interval.to $ pred $ escrowDeadline escrow
+            validityRange = toValidityRange slotConfig $ Interval.to $ escrowDeadline escrow - 1000
             txOuts = map mkTxOutput (escrowTargets escrow)
             witnessHeader =
               C.toCardanoTxInScriptWitnessHeader
@@ -389,6 +375,7 @@ mkRefundTx escrow wallet = do
   slotConfig <- asks pSlotConfig
   let validityRange = toValidityRange slotConfig $ Interval.from $ escrowDeadline escrow
       pkh = Ledger.PaymentPubKeyHash $ fromJust $ Ledger.cardanoPubKeyHash wallet
+      extraKeyWit = either (error . show) id $ C.toCardanoPaymentKeyHash pkh
       pkhDatumHash = datumHash $ Datum $ PlutusTx.toBuiltinData pkh
       ownUnspentOutputs =
         Map.keys $
@@ -407,6 +394,7 @@ mkRefundTx escrow wallet = do
         E.emptyTxBodyContent
           { C.txIns = txIns
           , C.txValidityRange = validityRange
+          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.ExtraKeyWitnessesInBabbageEra [extraKeyWit]
           }
   if null txIns
     then throwError $ E.CustomError $ show RefundFailed

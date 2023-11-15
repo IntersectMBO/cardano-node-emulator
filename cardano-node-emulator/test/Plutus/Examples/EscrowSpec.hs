@@ -37,7 +37,7 @@ import Cardano.Api.Shelley (toPlutusData)
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params qualified as Params
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Test (propRunActions_)
+import Cardano.Node.Emulator.Test (defInitialDist, propRunActionsWithOptions, propRunActions_)
 import Ledger (Slot, minAdaTxOutEstimated)
 import Ledger qualified
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
@@ -124,8 +124,8 @@ Control.Lens.makeLenses ''EscrowModel
 modelParams :: EscrowParams d
 modelParams = escrowParams $ TimeSlot.scSlotZeroTime def
 
--- options :: CheckOptions
--- options = defaultCheckOptionsContractModel & increaseTransactionLimits
+params :: Params.Params
+params = Params.increaseTransactionLimits def
 
 instance ContractModel EscrowModel where
   data Action EscrowModel
@@ -287,7 +287,7 @@ testWallets :: [Wallet]
 testWallets = [w1, w2, w3, w4, w5] -- removed five to increase collisions (, w6, w7, w8, w9, w10])
 
 prop_Escrow :: Actions EscrowModel -> Property
-prop_Escrow = propRunActions_
+prop_Escrow = propRunActionsWithOptions defInitialDist params (\_ _ -> Nothing)
 
 -- prop_Escrow_DoubleSatisfaction :: Actions EscrowModel -> Property
 -- prop_Escrow_DoubleSatisfaction = checkDoubleSatisfactionWithOptions options defaultCoverageOptions

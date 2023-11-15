@@ -20,6 +20,7 @@ module Cardano.Node.Emulator.Test (
   propRunActions_,
   propRunActions,
   propRunActionsWithOptions,
+  defInitialDist,
 
   -- * Other exports
   chainStateToChainIndex,

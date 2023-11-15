@@ -88,6 +88,7 @@ library
     , QuickCheck
     , quickcheck-contractmodel  >=0.1.5.0
     , quickcheck-dynamic
+    , quickcheck-threatmodel    >=0.1.5.0
     , serialise
     , sop-core
     , text

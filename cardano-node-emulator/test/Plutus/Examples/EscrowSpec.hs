@@ -135,9 +135,6 @@ instance ContractModel EscrowModel where
     -- \| BadRefund Wallet Wallet
     deriving (Eq, Show, Generic)
 
-  -- data ContractInstanceKey EscrowModel w s e params where
-  --   WalletKey :: Wallet -> ContractInstanceKey EscrowModel () EscrowTestSchema EscrowError ()
-
   initialState =
     EscrowModel
       { _contributions = Map.empty
@@ -155,19 +152,6 @@ instance ContractModel EscrowModel where
             , (w2, Ada.adaValueOf 20)
             ]
       }
-
-  -- initialInstances = (`StartContract` ()) . WalletKey <$> testWallets
-
-  -- instanceWallet (WalletKey w) = w
-
-  -- instanceContract _ WalletKey{} _ = testContract
-  --   where
-  --     -- TODO: Lazy test contract for now
-  --     testContract = selectList [ void $ payEp modelParams
-  --                               , void $ redeemEp modelParams
-  --                               , void $ refundEp modelParams
-  --                               -- , void $ badRefundEp modelParams
-  --                               ] >> testContract
 
   nextState a = void $ case a of
     Pay w v -> do
@@ -228,11 +212,6 @@ instance ContractModel EscrowModel where
       afterRefund = Prelude.not beforeRefund
       prefer b = if b then 10 else 1
 
--- monitoring _ (Redeem _) = classify True "Contains Redeem"
--- monitoring (_,_) (BadRefund w w') = tabulate "Bad refund attempts" [if w==w' then "early refund" else "steal refund"]
--- monitoring (s,s') _ = classify (redeemable s' && Prelude.not (redeemable s)) "Redeemable"
---   where redeemable s = precondition s (Redeem undefined)
-
 instance RunModel EscrowModel E.EmulatorM where
   perform _ cmd _ = case cmd of
     Pay w v -> do
@@ -287,10 +266,10 @@ testWallets :: [Wallet]
 testWallets = [w1, w2, w3, w4, w5] -- removed five to increase collisions (, w6, w7, w8, w9, w10])
 
 prop_Escrow :: Actions EscrowModel -> Property
-prop_Escrow = propRunActionsWithOptions defInitialDist params (\_ _ -> Nothing)
+prop_Escrow = propRunActionsWithOptions defInitialDist params (\_ _ -> Nothing) E.balanceChangePredicate
 
--- prop_Escrow_DoubleSatisfaction :: Actions EscrowModel -> Property
--- prop_Escrow_DoubleSatisfaction = checkDoubleSatisfactionWithOptions options defaultCoverageOptions
+prop_Escrow_DoubleSatisfaction :: Actions EscrowModel -> Property
+prop_Escrow_DoubleSatisfaction = E.checkDoubleSatisfactionWithOptions defInitialDist params
 
 observeUTxOEscrow :: DL EscrowModel ()
 observeUTxOEscrow = do
@@ -336,7 +315,7 @@ prop_FinishEscrow = forAllDL finishEscrow prop_Escrow
 --   , nlfpWalletStrategy = finishingStrategy . (==) }
 
 -- prop_NoLockedFunds :: Property
--- prop_NoLockedFunds = checkNoLockedFundsProofWithOptions options noLockProof
+-- prop_NoLockedFunds = checkNoLockedFundsProofWithOptions defInitialDist params noLockProof
 
 -- | Check that you can't redeem after the deadline and not refund before the deadline.
 validityChecks :: ThreatModel ()
@@ -362,8 +341,8 @@ validityChecks = do
           , TxValidityUpperBound ValidityUpperBoundInBabbageEra (deadline - 1)
           )
 
--- prop_validityChecks :: Actions EscrowModel -> Property
--- prop_validityChecks = checkThreatModelWithOptions options defaultCoverageOptions validityChecks
+prop_validityChecks :: Actions EscrowModel -> Property
+prop_validityChecks = E.checkThreatModelWithOptions defInitialDist params validityChecks
 
 tests :: TestTree
 tests =
@@ -433,12 +412,12 @@ tests =
     --                            32000
 
     [ testProperty "QuickCheck ContractModel" prop_Escrow
-    -- , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
-    -- , testProperty "QuickCheck validityChecks" $ withMaxSuccess 30 prop_validityChecks
-
-    -- TODO: commented because the test fails after 'CardanoTx(Both)' was deleted.
-    -- The fix would be to start using CardanoTx instead of EmulatorTx in 'DoubleSatisfation.doubleSatisfactionCandidates'.
-    -- , testProperty "QuickCheck double satisfaction fails" $ expectFailure (noShrinking prop_Escrow_DoubleSatisfaction)
+    , -- , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
+      testProperty "QuickCheck validityChecks" $ QC.withMaxSuccess 30 prop_validityChecks
+    , -- TODO: commented because the test fails after 'CardanoTx(Both)' was deleted.
+      -- The fix would be to start using CardanoTx instead of EmulatorTx in 'DoubleSatisfation.doubleSatisfactionCandidates'.
+      testProperty "QuickCheck double satisfaction fails" $
+        QC.expectFailure (QC.noShrinking prop_Escrow_DoubleSatisfaction)
     ]
   where
     startTime = TimeSlot.scSlotZeroTime def

@@ -16,7 +16,7 @@ module Plutus.Examples.EscrowSpec (
   -- , redeem2Trace
   -- , refundTrace
   prop_Escrow,
-  -- , prop_Escrow_DoubleSatisfaction
+  prop_Escrow_DoubleSatisfaction,
   prop_FinishEscrow,
   prop_observeEscrow,
   -- , prop_NoLockedFunds
@@ -37,7 +37,7 @@ import Cardano.Api.Shelley (toPlutusData)
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params qualified as Params
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Test (defInitialDist, propRunActionsWithOptions, propRunActions_)
+import Cardano.Node.Emulator.Test (defInitialDist, propRunActionsWithOptions)
 import Ledger (Slot, minAdaTxOutEstimated)
 import Ledger qualified
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
@@ -48,6 +48,7 @@ import PlutusLedgerApi.V1.Time (POSIXTime)
 
 import Plutus.Examples.Escrow (
   EscrowParams (EscrowParams, escrowDeadline, escrowTargets),
+  badRefund,
   pay,
   payToPaymentPubKeyTarget,
   redeem,
@@ -119,7 +120,7 @@ data EscrowModel = EscrowModel
   }
   deriving (Eq, Show, Generic)
 
-Control.Lens.makeLenses ''EscrowModel
+makeLenses ''EscrowModel
 
 modelParams :: EscrowParams d
 modelParams = escrowParams $ TimeSlot.scSlotZeroTime def
@@ -132,7 +133,7 @@ instance ContractModel EscrowModel where
     = Pay Wallet Integer
     | Redeem Wallet
     | Refund Wallet
-    -- \| BadRefund Wallet Wallet
+    | BadRefund Wallet Wallet
     deriving (Eq, Show, Generic)
 
   initialState =
@@ -156,7 +157,7 @@ instance ContractModel EscrowModel where
   nextState a = void $ case a of
     Pay w v -> do
       withdraw (walletAddress w) (Ada.adaValueOf $ fromInteger v)
-      contributions Control.Lens.%= Map.insertWith (<>) w (Ada.adaValueOf $ fromInteger v)
+      contributions %= Map.insertWith (<>) w (Ada.adaValueOf $ fromInteger v)
       wait 1
     Redeem w -> do
       targets <- viewContractState targets
@@ -164,51 +165,50 @@ instance ContractModel EscrowModel where
       Data.Foldable.sequence_ [deposit (walletAddress w) v | (w, v) <- Map.toList targets]
       let leftoverValue = Data.Foldable.fold contribs <> inv (Data.Foldable.fold targets)
       deposit (walletAddress w) leftoverValue
-      contributions Control.Lens..= Map.empty
+      contributions .= Map.empty
       wait 1
     Refund w -> do
-      v <- viewContractState $ contributions . Control.Lens.at w . Control.Lens.to Data.Foldable.fold
-      contributions Control.Lens.%= Map.delete w
+      v <- viewContractState $ contributions . at w . to Data.Foldable.fold
+      contributions %= Map.delete w
       deposit (walletAddress w) v
       wait 1
-
-  -- BadRefund _ _ -> do
-  --   wait 2
+    BadRefund _ _ -> do
+      wait 2
 
   precondition s a = case a of
     Redeem _ ->
-      (s Control.Lens.^. contractState . contributions . Control.Lens.to Data.Foldable.fold)
-        `geq` (s Control.Lens.^. contractState . targets . Control.Lens.to Data.Foldable.fold)
-        && ( s Control.Lens.^. currentSlot . Control.Lens.to fromCardanoSlotNo
-              < s Control.Lens.^. contractState . refundSlot - 1
+      (s ^. contractState . contributions . to Data.Foldable.fold)
+        `geq` (s ^. contractState . targets . to Data.Foldable.fold)
+        && ( s ^. currentSlot . to fromCardanoSlotNo
+              < s ^. contractState . refundSlot - 1
            )
     Refund w ->
-      s Control.Lens.^. currentSlot . Control.Lens.to fromCardanoSlotNo
-        >= s Control.Lens.^. contractState . refundSlot
-        && Nothing /= (s Control.Lens.^. contractState . contributions . Control.Lens.at w)
+      s ^. currentSlot . to fromCardanoSlotNo
+        > s ^. contractState . refundSlot
+        && Nothing /= (s ^. contractState . contributions . at w)
     Pay _ v ->
-      s Control.Lens.^. currentSlot . Control.Lens.to fromCardanoSlotNo + 1
-        < s Control.Lens.^. contractState . refundSlot
+      s ^. currentSlot . to fromCardanoSlotNo + 1
+        < s ^. contractState . refundSlot
         && Ada.adaValueOf (fromInteger v) `geq` Ada.toValue Ledger.minAdaTxOutEstimated
-
-  -- BadRefund w w' -> s ^. currentSlot . to fromCardanoSlotNo < s ^. contractState . refundSlot - 2  -- why -2?
-  --                || w /= w'
+    BadRefund w w' ->
+      s ^. currentSlot . to fromCardanoSlotNo < s ^. contractState . refundSlot - 2 -- why -2?
+        || w /= w'
 
   arbitraryAction s =
     frequency $
       [ (prefer beforeRefund, Pay <$> QC.elements testWallets <*> choose @Integer (10, 30))
       , (prefer beforeRefund, Redeem <$> QC.elements testWallets)
-      -- , (prefer afterRefund,   BadRefund <$> QC.elements testWallets <*> QC.elements testWallets)
+      , (prefer afterRefund, BadRefund <$> QC.elements testWallets <*> QC.elements testWallets)
       ]
         ++ [ ( prefer afterRefund
-             , Refund <$> QC.elements (s Control.Lens.^. contractState . contributions . Control.Lens.to Map.keys)
+             , Refund <$> QC.elements (s ^. contractState . contributions . to Map.keys)
              )
            | Prelude.not . Data.Foldable.null $
-              s Control.Lens.^. contractState . contributions . Control.Lens.to Map.keys
+              s ^. contractState . contributions . to Map.keys
            ]
     where
-      slot = s Control.Lens.^. currentSlot . Control.Lens.to fromCardanoSlotNo
-      beforeRefund = slot < s Control.Lens.^. contractState . refundSlot
+      slot = s ^. currentSlot . to fromCardanoSlotNo
+      beforeRefund = slot < s ^. contractState . refundSlot
       afterRefund = Prelude.not beforeRefund
       prefer b = if b then 10 else 1
 
@@ -235,10 +235,14 @@ instance RunModel EscrowModel E.EmulatorM where
             (walletAddress w)
             (walletPrivateKey w)
             modelParams
-
--- BadRefund w w' -> do
---   Trace.callEndpoint @"badrefund-escrow" (h $ WalletKey w) (walletPaymentPubKeyHash w')
---   delay 2
+    BadRefund w w' -> do
+      lift $
+        void $
+          badRefund
+            (walletAddress w)
+            (walletPrivateKey w)
+            modelParams
+            (walletPaymentPubKeyHash w')
 
 w1, w2, w3, w4, w5 :: Wallet
 w1 = 1
@@ -299,7 +303,7 @@ finishEscrow = do
 
 finishingStrategy :: (Wallet -> Bool) -> DL EscrowModel ()
 finishingStrategy walletAlive = do
-  now <- viewModelState (currentSlot . Control.Lens.to fromCardanoSlotNo)
+  now <- viewModelState (currentSlot . to fromCardanoSlotNo)
   slot <- viewContractState refundSlot
   when (now < slot + 1) $ waitUntilDL $ fromIntegral $ slot + 1
   contribs <- viewContractState contributions
@@ -414,13 +418,13 @@ tests =
     [ testProperty "QuickCheck ContractModel" prop_Escrow
     , -- , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
       testProperty "QuickCheck validityChecks" $ QC.withMaxSuccess 30 prop_validityChecks
-    , -- TODO: commented because the test fails after 'CardanoTx(Both)' was deleted.
-      -- The fix would be to start using CardanoTx instead of EmulatorTx in 'DoubleSatisfation.doubleSatisfactionCandidates'.
-      testProperty "QuickCheck double satisfaction fails" $
+    , testProperty "QuickCheck finishEscrow" prop_FinishEscrow
+    , testProperty "QuickCheck double satisfaction fails" $
         QC.expectFailure (QC.noShrinking prop_Escrow_DoubleSatisfaction)
     ]
-  where
-    startTime = TimeSlot.scSlotZeroTime def
+
+-- where
+-- startTime = TimeSlot.scSlotZeroTime def
 
 escrowParams :: POSIXTime -> EscrowParams d
 escrowParams startTime =

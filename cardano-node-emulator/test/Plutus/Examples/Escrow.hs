@@ -33,6 +33,7 @@ module Plutus.Examples.Escrow (
   pay,
   redeem,
   refund,
+  badRefund,
   RedeemFailReason (..),
   RedeemSuccess (..),
   RefundSuccess (..),
@@ -46,7 +47,7 @@ module Plutus.Examples.Escrow (
 
 import Control.Lens (makeClassyPrisms)
 import Control.Monad (void)
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (catchError, throwError)
 import Control.Monad.RWS.Class (asks)
 import Data.Map qualified as Map
 
@@ -410,6 +411,48 @@ refund wallet privateKey escrow = do
   E.logInfo @String "Refunding"
   (utx, utxoIndex) <- mkRefundTx escrow wallet
   RefundSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+
+-- Submit a transaction attempting to take the refund belonging to the given pk.
+mkBadRefundTx
+  :: (E.MonadEmulator m)
+  => EscrowParams Datum
+  -> Ledger.PaymentPubKeyHash
+  -> m (C.CardanoBuildTx, Ledger.UtxoIndex)
+mkBadRefundTx escrow pkh = do
+  let escrowAddr = mkEscrowAddress escrow
+  unspentOutputs <- E.utxosAt escrowAddr
+  let pkhDatumHash = datumHash $ Datum $ PlutusTx.toBuiltinData pkh
+      pkhUnspentOutputs =
+        Map.keys $
+          Map.filter (\(C.TxOut _aie _tov tod _rs) -> C.fromCardanoTxOutDatumHash' tod == Just pkhDatumHash) $
+            C.unUTxO unspentOutputs
+      witnessHeader =
+        C.toCardanoTxInScriptWitnessHeader
+          (Ledger.getValidator <$> Scripts.vValidatorScript (typedValidator escrow))
+      redeemer = toHashableScriptData Refund
+      witness =
+        C.BuildTxWith $
+          C.ScriptWitness C.ScriptWitnessForSpending $
+            witnessHeader C.InlineScriptDatum redeemer C.zeroExecutionUnits
+      txIns = (,witness) <$> pkhUnspentOutputs
+      utx =
+        E.emptyTxBodyContent
+          { C.txIns = txIns
+          }
+  pure (C.CardanoBuildTx utx, unspentOutputs)
+
+badRefund
+  :: (E.MonadEmulator m)
+  => Ledger.CardanoAddress
+  -> Ledger.PaymentPrivateKey
+  -> EscrowParams Datum
+  -> Ledger.PaymentPubKeyHash
+  -> m ()
+badRefund wallet privateKey escrow pkh = do
+  E.logInfo @String "Bad refund"
+  (utx, utxoIndex) <- mkBadRefundTx escrow pkh
+  (void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx)
+    `catchError` (\err -> E.logError $ "Caught error: " ++ show err)
 
 {- | Pay some money into the escrow contract. Then release all funds to their
   specified targets if enough funds were deposited before the deadline,

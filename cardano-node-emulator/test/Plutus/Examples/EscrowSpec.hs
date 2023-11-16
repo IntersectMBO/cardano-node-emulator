@@ -20,7 +20,7 @@ module Plutus.Examples.EscrowSpec (
   prop_FinishEscrow,
   prop_observeEscrow,
   -- , prop_NoLockedFunds
-  -- , prop_validityChecks
+  prop_validityChecks,
   EscrowModel,
 ) where
 

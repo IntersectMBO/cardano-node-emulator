@@ -111,13 +111,6 @@ contract, the refund policy is simpler because here because there is no
 has passed. This is because we're assuming that the participants in the
 escrow contract will make their deposits as quickly as possible after
 agreeing on a deal)
-
-The contract supports two modes of operation, manual and automatic. In
-manual mode, all actions are driven by endpoints that exposed via 'payEp'
-'redeemEp' and 'refundEp'. In automatic mode, the 'pay', 'redeem' and
-'refund'actions start immediately. This mode is useful when the escrow is
-called from within another contract, for example during setup (collection of
-the initial deposits).
 -}
 
 {- | Defines where the money should go. Usually we have `d = Datum` (when

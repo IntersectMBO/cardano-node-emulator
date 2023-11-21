@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
@@ -31,6 +30,7 @@ module Ledger.Tx.CardanoAPI.Internal (
   fromCardanoTxOutToPV2TxInfoTxOut,
   fromCardanoTxOutToPV2TxInfoTxOut',
   fromCardanoTxOutDatumHash,
+  fromCardanoTxOutDatumHash',
   fromCardanoTxOutDatum,
   fromCardanoTxOutValue,
   fromCardanoAddressInEra,

@@ -16,7 +16,7 @@
 {- | A guessing game. A simplified version of 'Plutus.Contract.GameStateMachine'
 using 'Cardano.Node.Emulator.MTL'.
 -}
-module Plutus.Example.GameSpec (tests) where
+module Plutus.Examples.GameSpec (tests) where
 
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
@@ -48,7 +48,7 @@ import Test.QuickCheck.DynamicLogic (chooseQ, elementsQ, forAllQ)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty, withMaxSuccess)
 
-import Plutus.Example.Game (
+import Plutus.Examples.Game (
   GameParam (GameParam),
   GuessArgs (GuessArgs, guessArgsGameParam, guessArgsSecret),
   LockArgs (LockArgs, lockArgsGameParam, lockArgsSecret, lockArgsValue),

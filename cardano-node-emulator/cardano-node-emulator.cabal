@@ -88,6 +88,7 @@ library
     , QuickCheck
     , quickcheck-contractmodel  >=0.1.5.0
     , quickcheck-dynamic
+    , quickcheck-threatmodel    >=0.1.5.0
     , serialise
     , sop-core
     , text
@@ -103,8 +104,10 @@ test-suite cardano-node-emulator-test
   other-modules:
     Cardano.Node.Emulator.GeneratorsSpec
     Cardano.Node.Emulator.MTLSpec
-    Plutus.Example.Game
-    Plutus.Example.GameSpec
+    Plutus.Examples.Escrow
+    Plutus.Examples.EscrowSpec
+    Plutus.Examples.Game
+    Plutus.Examples.GameSpec
 
   --------------------
   -- Local components

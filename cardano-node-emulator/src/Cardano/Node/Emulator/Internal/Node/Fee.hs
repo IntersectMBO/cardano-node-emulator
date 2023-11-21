@@ -184,10 +184,10 @@ makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvid
     initialFeeEstimate = C.Lovelace 300_000
 
     balanceAndFillExUnits fee = do
-      (txBodyContent, _) <-
+      (txBodyContent, utxo') <-
         handleBalanceTx params txUtxo cChangeAddr utxoProvider errorReporter fee unbalancedBodyContent'
 
-      either errorReporter pure $ fillTxExUnits params txUtxo (CardanoBuildTx txBodyContent)
+      either errorReporter pure $ fillTxExUnits params (txUtxo <> utxo') (CardanoBuildTx txBodyContent)
 
     calcFee n fee = do
       buildTx <- balanceAndFillExUnits fee

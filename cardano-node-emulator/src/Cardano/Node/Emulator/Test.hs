@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TupleSections #-}
@@ -9,6 +10,7 @@
 -- | Test facility for 'Cardano.Node.Emulator.API.MonadEmulator'
 module Cardano.Node.Emulator.Test (
   -- * Basic testing
+  testnet,
   hasValidatedTransactionCountOfTotal,
   renderLogs,
 
@@ -18,6 +20,10 @@ module Cardano.Node.Emulator.Test (
   propRunActions_,
   propRunActions,
   propRunActionsWithOptions,
+  checkThreatModelWithOptions,
+  checkDoubleSatisfactionWithOptions,
+  defInitialDist,
+  balanceChangePredicate,
 
   -- * Other exports
   chainStateToChainIndex,
@@ -29,6 +35,7 @@ module Cardano.Node.Emulator.Test (
 
 import Cardano.Api qualified as C
 import Cardano.Api qualified as CardanoAPI
+import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator.API (
   EmulatorLogs,
   EmulatorM,
@@ -41,7 +48,7 @@ import Cardano.Node.Emulator.API (
  )
 import Cardano.Node.Emulator.Generators (knownAddresses)
 import Cardano.Node.Emulator.Internal.Node qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId)
+import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId, testnet)
 import Control.Lens (use, view, (^.))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.RWS.Strict (evalRWS)
@@ -63,6 +70,8 @@ import Ledger (
 import Ledger.Index qualified as Index
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
 import Ledger.Value.CardanoAPI qualified as Value
+import Plutus.Script.Utils.Value (Value)
+import PlutusTx.Builtins qualified as Builtins
 import Prettyprinter qualified as Pretty
 import Prettyprinter.Render.Text qualified as Pretty
 import Test.QuickCheck as QC (Property, Testable (property), counterexample, expectFailure, (.&&.))
@@ -87,9 +96,13 @@ import Test.QuickCheck.ContractModel (
   symIsZero,
  )
 import Test.QuickCheck.ContractModel qualified as CM
+import Test.QuickCheck.ContractModel qualified as QCCM
 import Test.QuickCheck.ContractModel.Internal (ContractModelResult)
+import Test.QuickCheck.ContractModel.ThreatModel (ThreatModel, assertThreatModel)
 import Test.QuickCheck.Monadic (PropertyM, monadic, monadicIO)
 import Test.QuickCheck.StateModel (Realized)
+import Test.QuickCheck.StateModel qualified as QCSM
+import Test.QuickCheck.ThreatModel.DoubleSatisfaction (doubleSatisfaction)
 
 {- | Test the number of validated transactions and the total number of transactions.
 Returns a failure message if the numbers don't match up.
@@ -143,6 +156,10 @@ the property generation succeed.
 propSanityCheckAssertions :: forall state. (ContractModel state) => Actions state -> QC.Property
 propSanityCheckAssertions as = asserts $ stateAfter as
 
+-- | Default initial assignment of value to wallet addresses
+defInitialDist :: Map CardanoAddress C.Value
+defInitialDist = Map.fromList $ (,Value.adaValueOf 100_000_000) <$> knownAddresses
+
 {- | Run `Actions` in the emulator and check that the model and the emulator agree on the final
   wallet balance changes. Starts with 100.000.000 Ada for each wallet and the default parameters.
 -}
@@ -152,18 +169,20 @@ propRunActions_
   => Actions state
   -- ^ The actions to run
   -> Property
-propRunActions_ = propRunActions (\_ _ -> Nothing)
+propRunActions_ = propRunActions (\_ _ -> Nothing) balanceChangePredicate
 
 propRunActions
   :: forall state
    . (RunModel state EmulatorM)
   => (ModelState state -> EmulatorLogs -> Maybe String)
   -- ^ Predicate to check at the end of execution
+  -> (C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property)
+  -- ^ Predicate to run on the contract model
   -> Actions state
   -- ^ The actions to run
   -> Property
 propRunActions =
-  propRunActionsWithOptions (Map.fromList $ (,Value.adaValueOf 100_000_000) <$> knownAddresses) def
+  propRunActionsWithOptions defInitialDist def
 
 propRunActionsWithOptions
   :: forall state
@@ -174,10 +193,12 @@ propRunActionsWithOptions
   -- ^ Node parameters
   -> (ModelState state -> EmulatorLogs -> Maybe String)
   -- ^ Predicate to check at the end of execution
+  -> (C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property)
+  -- ^ Predicate to run on the contract model
   -> Actions state
   -- ^ The actions to run
   -> Property
-propRunActionsWithOptions initialDist params predicate actions =
+propRunActionsWithOptions initialDist params finalPred modelPred actions =
   asserts finalState
     QC..&&. monadic runFinalPredicate monadicPredicate
   where
@@ -186,7 +207,7 @@ propRunActionsWithOptions initialDist params predicate actions =
     monadicPredicate :: PropertyM (RunMonad EmulatorM) Property
     monadicPredicate = do
       result <- runContractModel actions
-      pure $ balanceChangePredicate result
+      pure $ modelPred (ledgerProtocolParameters params) result
 
     runFinalPredicate
       :: RunMonad EmulatorM Property
@@ -201,7 +222,7 @@ propRunActionsWithOptions initialDist params predicate actions =
               $ contract
        in monadicIO $
             let logs = Text.unpack (renderLogs lg)
-             in case (res, predicate finalState lg) of
+             in case (res, finalPred finalState lg) of
                   (Left err, _) ->
                     return $
                       counterexample (logs ++ "\n" ++ show err) $
@@ -209,12 +230,39 @@ propRunActionsWithOptions initialDist params predicate actions =
                   (Right prop, Just msg) -> return $ counterexample (logs ++ "\n" ++ msg) prop
                   (Right prop, Nothing) -> return $ counterexample logs prop
 
-    balanceChangePredicate :: ContractModelResult state -> Property
-    balanceChangePredicate result =
-      let prettyAddr a = fromMaybe (show a) $ lookup (show a) prettyWalletNames
-       in assertBalanceChangesMatch
-            (BalanceChangeOptions False signerPaysFees (ledgerProtocolParameters params) prettyAddr)
-            result
+balanceChangePredicate
+  :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
+balanceChangePredicate ledgerPP result =
+  let prettyAddr a = fromMaybe (show a) $ lookup (show a) prettyWalletNames
+   in assertBalanceChangesMatch
+        (BalanceChangeOptions False signerPaysFees ledgerPP prettyAddr)
+        result
+
+-- | Check a threat model on all transactions produced by the given actions.
+checkThreatModelWithOptions
+  :: (RunModel state EmulatorM)
+  => Map CardanoAddress C.Value
+  -- ^ Initial distribution of funds
+  -> E.Params
+  -- ^ Node parameters
+  -> ThreatModel a
+  -> Actions state
+  -- ^ The actions to run
+  -> Property
+checkThreatModelWithOptions initialDist params =
+  propRunActionsWithOptions initialDist params (\_ _ -> Nothing) . assertThreatModel
+
+checkDoubleSatisfactionWithOptions
+  :: (RunModel state EmulatorM)
+  => Map CardanoAddress C.Value
+  -- ^ Initial distribution of funds
+  -> E.Params
+  -- ^ Node parameters
+  -> Actions state
+  -- ^ The actions to run
+  -> Property
+checkDoubleSatisfactionWithOptions initialDist params =
+  checkThreatModelWithOptions initialDist params doubleSatisfaction
 
 prettyWalletNames :: [(String, String)]
 prettyWalletNames = [(show addr, "Wallet " ++ show nr) | (addr, nr) <- zip knownAddresses [1 .. 10 :: Int]]
@@ -270,3 +318,13 @@ chainStateToContractModelChainState cst =
     { utxo = cst ^. E.index
     , slot = fromIntegral $ cst ^. E.chainCurrentSlot
     }
+
+instance QCCM.HasSymbolics Builtins.BuiltinByteString where
+  getAllSymbolics _ = mempty
+deriving via
+  QCSM.HasNoVariables Builtins.BuiltinByteString
+  instance
+    QCSM.HasVariables Builtins.BuiltinByteString
+
+instance QCCM.SymValueLike Value where
+  toSymValue = either (error . show) QCCM.toSymValue . Value.toCardanoValue

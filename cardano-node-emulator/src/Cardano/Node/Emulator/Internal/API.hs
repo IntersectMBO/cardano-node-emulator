@@ -68,6 +68,7 @@ data EmulatorError
   = BalancingError !E.BalancingError
   | ValidationError !ValidationErrorInPhase
   | ToCardanoError !ToCardanoError
+  | CustomError !String
   deriving (Show)
 
 instance Exception EmulatorError

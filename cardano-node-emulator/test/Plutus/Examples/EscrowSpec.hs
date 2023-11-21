@@ -21,6 +21,7 @@ module Plutus.Examples.EscrowSpec (
   prop_observeEscrow,
   -- , prop_NoLockedFunds
   prop_validityChecks,
+  checkPropEscrowWithCoverage,
   EscrowModel,
 ) where
 
@@ -37,7 +38,7 @@ import Cardano.Api.Shelley (toPlutusData)
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params qualified as Params
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Test (defInitialDist, propRunActionsWithOptions)
+import Cardano.Node.Emulator.Test.Coverage (writeCoverageReport)
 import Ledger (Slot, minAdaTxOutEstimated)
 import Ledger qualified
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
@@ -125,8 +126,12 @@ makeLenses ''EscrowModel
 modelParams :: EscrowParams d
 modelParams = escrowParams $ TimeSlot.scSlotZeroTime def
 
-params :: Params.Params
-params = Params.increaseTransactionLimits def
+options :: E.Options EscrowModel
+options =
+  E.defaultOptions
+    { E.params = Params.increaseTransactionLimits def
+    , E.coverageIndex = Impl.covIdx
+    }
 
 instance ContractModel EscrowModel where
   data Action EscrowModel
@@ -140,8 +145,9 @@ instance ContractModel EscrowModel where
     EscrowModel
       { _contributions = Map.empty
       , _refundSlot =
-          TimeSlot.posixTimeToEnclosingSlot def
-            . escrowDeadline
+          succ
+            $ TimeSlot.posixTimeToEnclosingSlot def
+              . escrowDeadline
             $ modelParams
       , -- TODO: This model is somewhat limited because we focus on one
         -- set of parameters only. The solution is to use the sealed bid
@@ -180,15 +186,15 @@ instance ContractModel EscrowModel where
       (s ^. contractState . contributions . to Data.Foldable.fold)
         `geq` (s ^. contractState . targets . to Data.Foldable.fold)
         && ( s ^. currentSlot . to fromCardanoSlotNo
-              < s ^. contractState . refundSlot - 1
+              < s ^. contractState . refundSlot - 2
            )
     Refund w ->
       s ^. currentSlot . to fromCardanoSlotNo
         > s ^. contractState . refundSlot
         && Nothing /= (s ^. contractState . contributions . at w)
     Pay _ v ->
-      s ^. currentSlot . to fromCardanoSlotNo + 1
-        < s ^. contractState . refundSlot
+      s ^. currentSlot . to fromCardanoSlotNo
+        < s ^. contractState . refundSlot - 2
         && Ada.adaValueOf (fromInteger v) `geq` Ada.toValue Ledger.minAdaTxOutEstimated
     BadRefund w w' ->
       s ^. currentSlot . to fromCardanoSlotNo < s ^. contractState . refundSlot - 2 -- why -2?
@@ -270,10 +276,10 @@ testWallets :: [Wallet]
 testWallets = [w1, w2, w3, w4, w5] -- removed five to increase collisions (, w6, w7, w8, w9, w10])
 
 prop_Escrow :: Actions EscrowModel -> Property
-prop_Escrow = propRunActionsWithOptions defInitialDist params (\_ _ -> Nothing) E.balanceChangePredicate
+prop_Escrow = E.propRunActionsWithOptions options
 
 prop_Escrow_DoubleSatisfaction :: Actions EscrowModel -> Property
-prop_Escrow_DoubleSatisfaction = E.checkDoubleSatisfactionWithOptions defInitialDist params
+prop_Escrow_DoubleSatisfaction = E.checkDoubleSatisfactionWithOptions options
 
 observeUTxOEscrow :: DL EscrowModel ()
 observeUTxOEscrow = do
@@ -346,7 +352,7 @@ validityChecks = do
           )
 
 prop_validityChecks :: Actions EscrowModel -> Property
-prop_validityChecks = E.checkThreatModelWithOptions defInitialDist params validityChecks
+prop_validityChecks = E.checkThreatModelWithOptions options validityChecks
 
 tests :: TestTree
 tests =
@@ -491,3 +497,9 @@ escrowParams startTime =
 --     _ <- Trace.waitNSlots 100
 --     Trace.callEndpoint @"refund-escrow" hdl1 ()
 --     void $ Trace.waitNSlots 1
+
+checkPropEscrowWithCoverage :: IO ()
+checkPropEscrowWithCoverage = do
+  cr <-
+    E.quickCheckWithCoverage QC.stdArgs options $ QC.withMaxSuccess 1000 . E.propRunActionsWithOptions
+  writeCoverageReport "Escrow" cr

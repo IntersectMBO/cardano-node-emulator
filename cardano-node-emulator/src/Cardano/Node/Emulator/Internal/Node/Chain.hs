@@ -19,7 +19,8 @@ module Cardano.Node.Emulator.Internal.Node.Chain where
 
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
-import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
+import Cardano.Node.Emulator.Test.Coverage (getCoverageData)
+import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~), (<>~))
 import Control.Monad.Freer (Eff, Member, Members, send, type (~>))
 import Control.Monad.Freer.Extras.Log (LogMsg, logDebug, logInfo, logWarn)
 import Control.Monad.Freer.State (State, gets, modify)
@@ -42,6 +43,7 @@ import Ledger (
  )
 import Ledger.Index qualified as Index
 import PlutusLedgerApi.V1.Interval qualified as Interval
+import PlutusTx.Coverage (CoverageData)
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
 -- | Events produced by the blockchain emulator.
@@ -75,13 +77,15 @@ data ChainState = ChainState
   -- ^ The UTxO index, used for validation.
   , _chainCurrentSlot :: !Slot
   -- ^ The current slot number
+  , _coverageData :: CoverageData
+  -- ^ coverage data of validation scripts
   }
   deriving (Show, Generic)
 
 makeLenses ''ChainState
 
 emptyChainState :: ChainState
-emptyChainState = ChainState [] [] mempty 0
+emptyChainState = ChainState [] [] mempty 0 mempty
 
 fromBlockchain :: Blockchain -> ChainState
 fromBlockchain bc =
@@ -130,6 +134,7 @@ handleControlChain params = \case
     modify $ txPool .~ []
     modify $ index .~ idx'
     modify $ addBlock block
+    modify $ coverageData <>~ foldMap getChainEventCoverageData events
 
     traverse_ logEvent events
     pure block
@@ -141,6 +146,10 @@ logEvent e = case e of
   TxnValidation Index.FailPhase1{} -> logWarn e
   TxnValidation Index.FailPhase2{} -> logWarn e
   TxnValidation Index.Success{} -> logInfo e
+
+getChainEventCoverageData :: ChainEvent -> CoverageData
+getChainEventCoverageData SlotAdd{} = mempty
+getChainEventCoverageData (TxnValidation res) = getCoverageData res
 
 handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Eff effs
 handleChain params = \case

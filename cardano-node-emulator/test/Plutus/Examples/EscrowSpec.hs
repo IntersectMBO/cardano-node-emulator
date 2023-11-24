@@ -19,7 +19,7 @@ module Plutus.Examples.EscrowSpec (
   prop_Escrow_DoubleSatisfaction,
   prop_FinishEscrow,
   prop_observeEscrow,
-  -- , prop_NoLockedFunds
+  prop_NoLockedFunds,
   prop_validityChecks,
   checkPropEscrowWithCoverage,
   EscrowModel,
@@ -39,6 +39,11 @@ import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params qualified as Params
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
 import Cardano.Node.Emulator.Test.Coverage (writeCoverageReport)
+import Cardano.Node.Emulator.Test.NoLockedFunds (
+  NoLockedFundsProof (nlfpMainStrategy, nlfpWalletStrategy),
+  checkNoLockedFundsProofWithOptions,
+  defaultNLFP,
+ )
 import Ledger (Slot, minAdaTxOutEstimated)
 import Ledger qualified
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
@@ -307,25 +312,27 @@ finishEscrow = do
   finishingStrategy (const True)
   assertModel "Locked funds are not zero" (symIsZero . lockedValue)
 
-finishingStrategy :: (Wallet -> Bool) -> DL EscrowModel ()
+finishingStrategy :: (Ledger.CardanoAddress -> Bool) -> DL EscrowModel ()
 finishingStrategy walletAlive = do
   now <- viewModelState (currentSlot . to fromCardanoSlotNo)
   slot <- viewContractState refundSlot
   when (now < slot + 1) $ waitUntilDL $ fromIntegral $ slot + 1
   contribs <- viewContractState contributions
   Data.Foldable.sequence_
-    [action $ Refund w | w <- testWallets, w `Map.member` contribs, walletAlive w]
+    [action $ Refund w | w <- testWallets, w `Map.member` contribs, walletAlive (walletAddress w)]
 
 prop_FinishEscrow :: Property
 prop_FinishEscrow = forAllDL finishEscrow prop_Escrow
 
--- noLockProof :: NoLockedFundsProof EscrowModel
--- noLockProof = defaultNLFP
---   { nlfpMainStrategy   = finishingStrategy (const True)
---   , nlfpWalletStrategy = finishingStrategy . (==) }
+noLockProof :: NoLockedFundsProof EscrowModel
+noLockProof =
+  defaultNLFP
+    { nlfpMainStrategy = finishingStrategy (const True)
+    , nlfpWalletStrategy = finishingStrategy . (==)
+    }
 
--- prop_NoLockedFunds :: Property
--- prop_NoLockedFunds = checkNoLockedFundsProofWithOptions defInitialDist params noLockProof
+prop_NoLockedFunds :: Property
+prop_NoLockedFunds = checkNoLockedFundsProofWithOptions options noLockProof
 
 -- | Check that you can't redeem after the deadline and not refund before the deadline.
 validityChecks :: ThreatModel ()
@@ -422,8 +429,8 @@ tests =
     --                            32000
 
     [ testProperty "QuickCheck ContractModel" prop_Escrow
-    , -- , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
-      testProperty "QuickCheck validityChecks" $ QC.withMaxSuccess 30 prop_validityChecks
+    , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
+    , testProperty "QuickCheck validityChecks" $ QC.withMaxSuccess 30 prop_validityChecks
     , testProperty "QuickCheck finishEscrow" prop_FinishEscrow
     , testProperty "QuickCheck double satisfaction fails" $
         QC.expectFailure (QC.noShrinking prop_Escrow_DoubleSatisfaction)

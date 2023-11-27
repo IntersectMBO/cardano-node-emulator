@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -17,11 +18,14 @@ module Cardano.Node.Emulator.Test (
   -- * Testing with `quickcheck-contractmodel`
   propSanityCheckModel,
   propSanityCheckAssertions,
-  propRunActions_,
   propRunActions,
   propRunActionsWithOptions,
   checkThreatModelWithOptions,
   checkDoubleSatisfactionWithOptions,
+  quickCheckWithCoverage,
+  quickCheckWithCoverageAndResult,
+  Options (..),
+  defaultOptions,
   defInitialDist,
   balanceChangePredicate,
 
@@ -50,11 +54,14 @@ import Cardano.Node.Emulator.Generators (knownAddresses)
 import Cardano.Node.Emulator.Internal.Node qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId, testnet)
 import Control.Lens (use, view, (^.))
+import Control.Monad (when)
 import Control.Monad.Except (runExceptT)
-import Control.Monad.RWS.Strict (evalRWS)
+import Control.Monad.RWS.Strict (runRWS)
+import Control.Monad.Trans (liftIO)
 import Control.Monad.Writer (runWriterT)
 import Data.Default (def)
-import Data.Foldable (toList)
+import Data.Foldable (for_, toList)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -72,9 +79,11 @@ import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
 import Ledger.Value.CardanoAPI qualified as Value
 import Plutus.Script.Utils.Value (Value)
 import PlutusTx.Builtins qualified as Builtins
+import PlutusTx.Coverage (CoverageData, CoverageIndex, CoverageReport (CoverageReport))
 import Prettyprinter qualified as Pretty
 import Prettyprinter.Render.Text qualified as Pretty
-import Test.QuickCheck as QC (Property, Testable (property), counterexample, expectFailure, (.&&.))
+import Test.QuickCheck (Property, Testable (property), counterexample)
+import Test.QuickCheck qualified as QC
 import Test.QuickCheck.ContractModel (
   Actions,
   BalanceChangeOptions (BalanceChangeOptions),
@@ -163,42 +172,38 @@ defInitialDist = Map.fromList $ (,Value.adaValueOf 100_000_000) <$> knownAddress
 {- | Run `Actions` in the emulator and check that the model and the emulator agree on the final
   wallet balance changes. Starts with 100.000.000 Ada for each wallet and the default parameters.
 -}
-propRunActions_
+propRunActions
   :: forall state
    . (RunModel state EmulatorM)
   => Actions state
   -- ^ The actions to run
   -> Property
-propRunActions_ = propRunActions (\_ _ -> Nothing) balanceChangePredicate
+propRunActions = propRunActionsWithOptions defaultOptions
 
-propRunActions
-  :: forall state
-   . (RunModel state EmulatorM)
-  => (ModelState state -> EmulatorLogs -> Maybe String)
+data Options state = Options
+  { initialDistribution :: Map CardanoAddress C.Value
+  -- ^ Initial distribution of funds
+  , params :: E.Params
+  -- ^ Node parameters
+  , finalPred :: ModelState state -> EmulatorLogs -> Maybe String
   -- ^ Predicate to check at the end of execution
-  -> (C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property)
+  , modelPred :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
   -- ^ Predicate to run on the contract model
-  -> Actions state
-  -- ^ The actions to run
-  -> Property
-propRunActions =
-  propRunActionsWithOptions defInitialDist def
+  , coverageIndex :: CoverageIndex
+  , coverageRef :: Maybe (IORef CoverageData)
+  }
+
+defaultOptions :: Options state
+defaultOptions = Options defInitialDist def (\_ _ -> Nothing) balanceChangePredicate mempty Nothing
 
 propRunActionsWithOptions
   :: forall state
    . (RunModel state EmulatorM)
-  => Map CardanoAddress C.Value
-  -- ^ Initial distribution of funds
-  -> E.Params
-  -- ^ Node parameters
-  -> (ModelState state -> EmulatorLogs -> Maybe String)
-  -- ^ Predicate to check at the end of execution
-  -> (C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property)
-  -- ^ Predicate to run on the contract model
+  => Options state
   -> Actions state
   -- ^ The actions to run
   -> Property
-propRunActionsWithOptions initialDist params finalPred modelPred actions =
+propRunActionsWithOptions Options{..} actions =
   asserts finalState
     QC..&&. monadic runFinalPredicate monadicPredicate
   where
@@ -213,22 +218,24 @@ propRunActionsWithOptions initialDist params finalPred modelPred actions =
       :: RunMonad EmulatorM Property
       -> Property
     runFinalPredicate contract =
-      let (res, lg) =
-            (\m -> evalRWS m params (emptyEmulatorStateWithInitialDist initialDist))
+      let (res, s, lg) =
+            (\m -> runRWS m params (emptyEmulatorStateWithInitialDist initialDistribution))
               . runExceptT
               . fmap fst
               . runWriterT
               . unRunMonad
               $ contract
-       in monadicIO $
-            let logs = Text.unpack (renderLogs lg)
-             in case (res, finalPred finalState lg) of
-                  (Left err, _) ->
-                    return $
-                      counterexample (logs ++ "\n" ++ show err) $
-                        property False
-                  (Right prop, Just msg) -> return $ counterexample (logs ++ "\n" ++ msg) prop
-                  (Right prop, Nothing) -> return $ counterexample logs prop
+          cd = s ^. esChainState . E.coverageData
+          logs = Text.unpack (renderLogs lg)
+       in monadicIO $ do
+            liftIO $ for_ coverageRef (`writeIORef` cd)
+            case (res, finalPred finalState lg) of
+              (Left err, _) ->
+                return $
+                  counterexample (logs ++ "\n" ++ show err) $
+                    property False
+              (Right prop, Just msg) -> return $ counterexample (logs ++ "\n" ++ msg) prop
+              (Right prop, Nothing) -> return $ counterexample logs prop
 
 balanceChangePredicate
   :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
@@ -241,28 +248,22 @@ balanceChangePredicate ledgerPP result =
 -- | Check a threat model on all transactions produced by the given actions.
 checkThreatModelWithOptions
   :: (RunModel state EmulatorM)
-  => Map CardanoAddress C.Value
-  -- ^ Initial distribution of funds
-  -> E.Params
-  -- ^ Node parameters
+  => Options state
   -> ThreatModel a
   -> Actions state
   -- ^ The actions to run
   -> Property
-checkThreatModelWithOptions initialDist params =
-  propRunActionsWithOptions initialDist params (\_ _ -> Nothing) . assertThreatModel
+checkThreatModelWithOptions opts threatModel =
+  propRunActionsWithOptions opts{modelPred = assertThreatModel threatModel}
 
 checkDoubleSatisfactionWithOptions
   :: (RunModel state EmulatorM)
-  => Map CardanoAddress C.Value
-  -- ^ Initial distribution of funds
-  -> E.Params
-  -- ^ Node parameters
+  => Options state
   -> Actions state
   -- ^ The actions to run
   -> Property
-checkDoubleSatisfactionWithOptions initialDist params =
-  checkThreatModelWithOptions initialDist params doubleSatisfaction
+checkDoubleSatisfactionWithOptions opts =
+  checkThreatModelWithOptions opts doubleSatisfaction
 
 prettyWalletNames :: [(String, String)]
 prettyWalletNames = [(show addr, "Wallet " ++ show nr) | (addr, nr) <- zip knownAddresses [1 .. 10 :: Int]]
@@ -318,6 +319,29 @@ chainStateToContractModelChainState cst =
     { utxo = cst ^. E.index
     , slot = fromIntegral $ cst ^. E.chainCurrentSlot
     }
+
+-- | Run QuickCheck on a property that tracks coverage and print its coverage report.
+quickCheckWithCoverage
+  :: (QC.Testable prop)
+  => QC.Args
+  -> Options state
+  -> (Options state -> prop)
+  -> IO CoverageReport
+quickCheckWithCoverage qcargs opts prop = fst <$> quickCheckWithCoverageAndResult qcargs opts prop
+
+quickCheckWithCoverageAndResult
+  :: (QC.Testable prop)
+  => QC.Args
+  -> Options state
+  -> (Options state -> prop)
+  -> IO (CoverageReport, QC.Result)
+quickCheckWithCoverageAndResult qcargs opts prop = do
+  ref <- newIORef mempty
+  res <- QC.quickCheckWithResult qcargs (prop opts{coverageRef = Just ref})
+  covdata <- readIORef ref
+  let report = CoverageReport (coverageIndex opts) covdata
+  when (QC.chatty qcargs) $ print $ Pretty.pretty report
+  return (report, res)
 
 instance QCCM.HasSymbolics Builtins.BuiltinByteString where
   getAllSymbolics _ = mempty

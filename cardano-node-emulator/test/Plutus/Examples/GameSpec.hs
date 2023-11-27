@@ -20,7 +20,7 @@ module Plutus.Examples.GameSpec (tests) where
 
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Test (propRunActions_, propSanityCheckAssertions, propSanityCheckModel)
+import Cardano.Node.Emulator.Test (propRunActions, propSanityCheckAssertions, propSanityCheckModel)
 import Control.Lens (makeLenses, (.=), (^.))
 import Control.Monad (when)
 import Control.Monad.Trans (lift)
@@ -178,7 +178,7 @@ genGuess = QC.elements ["hello", "secret", "hunter2", "*******"]
 -- Dynamic Logic ----------------------------------------------------------
 
 prop_UnitTest :: QC.Property
-prop_UnitTest = QC.withMaxSuccess 1 $ forAllDL unitTest2 propRunActions_
+prop_UnitTest = QC.withMaxSuccess 1 $ forAllDL unitTest2 propRunActions
 
 unitTest1 :: DL GameModel ()
 unitTest1 = do
@@ -204,7 +204,7 @@ noLockedFunds = do
 
 -- | Check that we can always get the money out of the guessing game (by guessing correctly).
 prop_NoLockedFunds :: QC.Property
-prop_NoLockedFunds = forAllDL noLockedFunds propRunActions_
+prop_NoLockedFunds = forAllDL noLockedFunds propRunActions
 
 tests :: TestTree
 tests =

@@ -19,11 +19,14 @@ common lang
     ScopedTypeVariables
     StandaloneDeriving
 
+  -- See Plutus Tx readme for why we need the following flags:
+  -- -fobject-code -fno-ignore-interface-pragmas and -fno-omit-interface-pragmas
   ghc-options:
     -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
-    -Wredundant-constraints -Wmissing-import-lists -fplugin-opt
-    PlutusTx.Plugin:target-version=1.0.0
+    -Wredundant-constraints -Wmissing-import-lists -fobject-code
+    -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+    -fplugin-opt PlutusTx.Plugin:target-version=1.0.0
 
 library
   import:          lang
@@ -41,6 +44,7 @@ library
     Cardano.Node.Emulator.Internal.Node.Validation
     Cardano.Node.Emulator.LogMessages
     Cardano.Node.Emulator.Test
+    Cardano.Node.Emulator.Test.Coverage
 
   --------------------
   -- Local components
@@ -69,8 +73,6 @@ library
     , sop-extras
     , strict-sop-core
 
-  -- , quickcheck-contractmodel        >=0.1.4.0
-
   ------------------------
   -- Non-IOG dependencies
   ------------------------
@@ -82,6 +84,7 @@ library
     , data-default
     , freer-simple
     , hedgehog
+    , html-entities
     , lens
     , mtl
     , prettyprinter             >=1.1.0.1

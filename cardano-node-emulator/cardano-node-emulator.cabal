@@ -45,6 +45,7 @@ library
     Cardano.Node.Emulator.LogMessages
     Cardano.Node.Emulator.Test
     Cardano.Node.Emulator.Test.Coverage
+    Cardano.Node.Emulator.Test.NoLockedFunds
 
   --------------------
   -- Local components

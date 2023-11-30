@@ -32,6 +32,7 @@ module Cardano.Node.Emulator.Test (
   -- * Other exports
   chainStateToChainIndex,
   chainStateToContractModelChainState,
+  prettyAddr,
 
   -- * Re-export quickcheck-contractmodel
   module Test.QuickCheck.ContractModel,
@@ -239,11 +240,8 @@ propRunActionsWithOptions Options{..} actions =
 
 balanceChangePredicate
   :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
-balanceChangePredicate ledgerPP result =
-  let prettyAddr a = fromMaybe (show a) $ lookup (show a) prettyWalletNames
-   in assertBalanceChangesMatch
-        (BalanceChangeOptions False signerPaysFees ledgerPP prettyAddr)
-        result
+balanceChangePredicate ledgerPP =
+  assertBalanceChangesMatch (BalanceChangeOptions False signerPaysFees ledgerPP prettyAddr)
 
 -- | Check a threat model on all transactions produced by the given actions.
 checkThreatModelWithOptions
@@ -265,8 +263,11 @@ checkDoubleSatisfactionWithOptions
 checkDoubleSatisfactionWithOptions opts =
   checkThreatModelWithOptions opts doubleSatisfaction
 
-prettyWalletNames :: [(String, String)]
-prettyWalletNames = [(show addr, "Wallet " ++ show nr) | (addr, nr) <- zip knownAddresses [1 .. 10 :: Int]]
+prettyWalletNames :: [(CardanoAddress, String)]
+prettyWalletNames = [(addr, "Wallet " ++ show nr) | (addr, nr) <- zip knownAddresses [1 .. 10 :: Int]]
+
+prettyAddr :: CardanoAddress -> String
+prettyAddr a = fromMaybe (show a) $ lookup a prettyWalletNames
 
 -- Note `chainStateToChainIndex` below is moved from `Plutus.Contract.Test.ContractModel.Internal`
 -- and could use some serious clean up. Mostly to get rid of the conversions to/from plutus types.

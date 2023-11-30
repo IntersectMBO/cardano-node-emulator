@@ -88,6 +88,7 @@ library
     , lens
     , mtl
     , prettyprinter
+    , sop-core
     , stm
     , text
     , time

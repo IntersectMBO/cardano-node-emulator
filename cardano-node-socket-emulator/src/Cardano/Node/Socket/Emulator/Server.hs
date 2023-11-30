@@ -15,6 +15,7 @@ import Data.Coerce (coerce)
 import Data.Foldable (toList, traverse_)
 import Data.List (intersect)
 import Data.Maybe (listToMaybe)
+import Data.SOP (K (K))
 import Data.SOP.Strict (NS (S, Z))
 import Data.Void (Void)
 
@@ -47,7 +48,6 @@ import Ouroboros.Consensus.HardFork.Combinator (QueryHardFork (..))
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Shelley.Eras (StandardCrypto)
-import Ouroboros.Consensus.Shelley.Ledger qualified as Consensus
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Network.Block (Point (..), pointSlot)
 import Ouroboros.Network.Block qualified as O
@@ -72,7 +72,11 @@ import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorError, EmulatorLogs, EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
-import Cardano.Node.Emulator.Internal.Node.Params (Params (..), emulatorEraHistory)
+import Cardano.Node.Emulator.Internal.Node.Params (
+  Params (..),
+  emulatorEraHistory,
+  genesisDefaultsFromParams,
+ )
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
 import Cardano.Node.Socket.Emulator.Types (
   AppState (..),
@@ -600,7 +604,7 @@ txSubmissionServer state =
         \tx -> do
           case tx of
             (Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx')))))))) -> do
-              let Consensus.ShelleyTx _txid shelleyEraTx = tx'
+              let Shelley.ShelleyTx _txid shelleyEraTx = tx'
               let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
               _ <-
                 modifyMVar_
@@ -639,6 +643,9 @@ handleQuery
   -> Query block result
   -> IO result
 handleQuery state = \case
+  BlockQuery (QueryIfCurrentBabbage GetGenesisConfig) -> do
+    AppState _ _ params <- readMVar state
+    pure $ Right $ Shelley.compactGenesis $ genesisDefaultsFromParams params
   BlockQuery (QueryIfCurrentBabbage GetCurrentPParams) -> do
     AppState _ _ params <- readMVar state
     pure $ Right $ emulatorPParams params
@@ -646,14 +653,23 @@ handleQuery state = \case
     (_logs, res) <- runChainEffects state $ do
       utxos <- traverse (E.utxosAt . C.fromShelleyAddrIsSbe) $ toList addrs
       pure $ fromPlutusIndex (mconcat utxos)
-    either (error . show) (pure . Right) res
+    either (printError . show) (pure . Right) res
   BlockQuery (QueryHardFork GetInterpreter) -> do
     AppState _ _ params <- readMVar state
     let C.EraHistory _ interpreter = emulatorEraHistory params
     pure interpreter
-  BlockQuery q -> error $ "Unimplemented BlockQuery received: " ++ show q
+  BlockQuery (QueryHardFork GetCurrentEra) -> do
+    pure $ Consensus.EraIndex (S (S (S (S (S (Z (K ()))))))) -- BabbageEra
+  BlockQuery q -> printError $ "Unimplemented BlockQuery received: " ++ show q
   GetSystemStart -> do
     AppState _ _ Params{pSlotConfig} <- readMVar state
     pure $ C.SystemStart $ posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
-  GetChainBlockNo -> error "Unimplemented: GetChainBlockNo"
-  GetChainPoint -> error "Unimplemented: GetChainPoint"
+  GetChainBlockNo -> do
+    tip <- getTip state
+    case tip of
+      O.TipGenesis -> pure Origin
+      (O.Tip _ _ curBlockNo) -> pure $ At curBlockNo
+  GetChainPoint -> printError "Unimplemented: GetChainPoint"
+
+printError :: String -> IO a
+printError s = print s >> error s

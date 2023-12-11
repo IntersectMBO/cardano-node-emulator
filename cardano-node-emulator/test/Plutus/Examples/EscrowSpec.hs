@@ -12,9 +12,6 @@
 
 module Plutus.Examples.EscrowSpec (
   tests,
-  -- , redeemTrace
-  -- , redeem2Trace
-  -- , refundTrace
   prop_Escrow,
   prop_Escrow_DoubleSatisfaction,
   prop_FinishEscrow,
@@ -38,6 +35,12 @@ import Cardano.Api.Shelley (toPlutusData)
 import Cardano.Node.Emulator qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params qualified as Params
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
+import Cardano.Node.Emulator.Test (
+  checkPredicateOptions,
+  hasValidatedTransactionCountOfTotal,
+  walletFundsChange,
+  (.&&.),
+ )
 import Cardano.Node.Emulator.Test.Coverage (writeCoverageReport)
 import Cardano.Node.Emulator.Test.NoLockedFunds (
   NoLockedFundsProof (nlfpMainStrategy, nlfpWalletStrategy),
@@ -48,6 +51,7 @@ import Ledger (Slot, minAdaTxOutEstimated)
 import Ledger qualified
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
 import Ledger.Typed.Scripts qualified as Scripts
+import Ledger.Value.CardanoAPI qualified as Value
 import Plutus.Script.Utils.Ada qualified as Ada
 import Plutus.Script.Utils.Value (Value, geq)
 import PlutusLedgerApi.V1.Time (POSIXTime)
@@ -184,7 +188,7 @@ instance ContractModel EscrowModel where
       deposit (walletAddress w) v
       wait 1
     BadRefund _ _ -> do
-      wait 2
+      wait 1
 
   precondition s a = case a of
     Redeem _ ->
@@ -224,36 +228,35 @@ instance ContractModel EscrowModel where
       prefer b = if b then 10 else 1
 
 instance RunModel EscrowModel E.EmulatorM where
-  perform _ cmd _ = case cmd of
-    Pay w v -> do
-      lift $
-        pay
-          (walletAddress w)
-          (walletPrivateKey w)
-          modelParams
-          (Ada.adaValueOf $ fromInteger v)
-    Redeem w -> do
-      lift $
-        void $
-          redeem
-            (walletAddress w)
-            (walletPrivateKey w)
-            modelParams
-    Refund w -> do
-      lift $
-        void $
-          refund
-            (walletAddress w)
-            (walletPrivateKey w)
-            modelParams
-    BadRefund w w' -> do
-      lift $
-        void $
-          badRefund
-            (walletAddress w)
-            (walletPrivateKey w)
-            modelParams
-            (walletPaymentPubKeyHash w')
+  perform _ cmd _ = lift $ act cmd
+
+act :: Action EscrowModel -> E.EmulatorM ()
+act = \case
+  Pay w v ->
+    pay
+      (walletAddress w)
+      (walletPrivateKey w)
+      modelParams
+      (Ada.adaValueOf $ fromInteger v)
+  Redeem w ->
+    void $
+      redeem
+        (walletAddress w)
+        (walletPrivateKey w)
+        modelParams
+  Refund w ->
+    void $
+      refund
+        (walletAddress w)
+        (walletPrivateKey w)
+        modelParams
+  BadRefund w w' ->
+    void $
+      badRefund
+        (walletAddress w)
+        (walletPrivateKey w)
+        modelParams
+        (walletPaymentPubKeyHash w')
 
 w1, w2, w3, w4, w5 :: Wallet
 w1 = 1
@@ -337,10 +340,8 @@ prop_NoLockedFunds = checkNoLockedFundsProofWithOptions options noLockProof
 -- | Check that you can't redeem after the deadline and not refund before the deadline.
 validityChecks :: ThreatModel ()
 validityChecks = do
-  let startTime = TimeSlot.scSlotZeroTime def
-      params = escrowParams startTime
-      deadline = fromIntegral . TimeSlot.posixTimeToEnclosingSlot def $ escrowDeadline params
-      scriptAddr = Scripts.validatorCardanoAddressAny Params.testnet $ typedValidator params
+  let deadline = fromIntegral . TimeSlot.posixTimeToEnclosingSlot def $ escrowDeadline modelParams
+      scriptAddr = Scripts.validatorCardanoAddressAny Params.testnet $ typedValidator modelParams
   input <- anyInputSuchThat $ (scriptAddr ==) . addressOf
   rmdr <- (fromData . toPlutusData =<<) <$> getRedeemer input
   case rmdr of
@@ -365,79 +366,68 @@ tests :: TestTree
 tests =
   testGroup
     "escrow"
-    -- [ let con = void $ payEp @() @EscrowSchema @EscrowError (escrowParams startTime) in
-    --   checkPredicateOptions options "can pay"
-    --     ( assertDone con (Trace.walletInstanceTag w1) (const True) "escrow pay not done"
-    --     .&&. walletFundsChange w1 (Value.adaValueOf (-10))
-    --     )
-    --     $ do
-    --       hdl <- Trace.activateContractWallet w1 con
-    --       Trace.callEndpoint @"pay-escrow" hdl (Ada.adaValueOf 10)
-    --       void $ Trace.waitNSlots 1
-
-    -- , let con = void $ selectEither (payEp @()
-    --                                        @EscrowSchema
-    --                                        @EscrowError
-    --                                        (escrowParams startTime))
-    --                                 (redeemEp (escrowParams startTime)) in
-    --   checkPredicateOptions options "can redeem"
-    --     ( assertDone con (Trace.walletInstanceTag w3) (const True) "escrow redeem not done"
-    --       .&&. walletFundsChange w1 (Value.adaValueOf (-10))
-    --       .&&. walletFundsChange w2 (Value.adaValueOf 10)
-    --       .&&. walletFundsChange w3 mempty
-    --     )
-    --     redeemTrace
-
-    -- , checkPredicateOptions options "can redeem even if more money than required has been paid in"
-
-    --       -- in this test case we pay in a total of 40 lovelace (10 more than required), for
-    --       -- the same contract as before, requiring 10 lovelace to go to wallet 1 and 20 to
-    --       -- wallet 2.
-    --       --
-    --       -- The scenario is
-    --       -- * Wallet 1 contributes 20
-    --       -- * Wallet 2 contributes 10
-    --       -- * Wallet 3 contributes 10
-    --       -- * Wallet 1 is going to redeem the payments
-    --       --
-
-    --       -- Wallet 1 pays 20 and receives 10 from the escrow contract and another 10
-    --       -- in excess inputs
-    --       ( walletFundsChange w1 (Value.lovelaceValueOf 0)
-
-    --       -- Wallet 2 pays 10 and receives 20, as per the contract.
-    --         .&&. walletFundsChange w2 (Value.adaValueOf 10)
-
-    --       -- Wallet 3 pays 10 and doesn't receive anything.
-    --         .&&. walletFundsChange w3 (Value.adaValueOf (-10))
-    --       )
-    --       redeem2Trace
-
-    -- , let con = void (payEp @()
-    --                         @EscrowSchema
-    --                         @EscrowError
-    --                         (escrowParams startTime))
-    --          <> void (refundEp (escrowParams startTime)) in
-    --   checkPredicateOptions options "can refund"
-    --     ( walletFundsChange w1 mempty
-    --       .&&. assertDone con (Trace.walletInstanceTag w1) (const True) "refund should succeed")
-    --     refundTrace
-
-    -- , HUnit.testCaseSteps "script size is reasonable"
-    --     $ \step -> reasonable' step
-    --                            (Scripts.validatorScript $ typedValidator (escrowParams startTime))
-    --                            32000
-
-    [ testProperty "QuickCheck ContractModel" prop_Escrow
+    [ checkPredicateOptions
+        options
+        "can pay"
+        ( hasValidatedTransactionCountOfTotal 1 1
+            .&&. walletFundsChange (walletAddress w1) (Value.adaValueOf (-10))
+        )
+        $ do
+          act $ Pay 1 10
+    , checkPredicateOptions
+        options
+        "can redeem"
+        ( hasValidatedTransactionCountOfTotal 3 3
+            .&&. walletFundsChange (walletAddress w1) (Value.adaValueOf (-10))
+            .&&. walletFundsChange (walletAddress w2) (Value.adaValueOf 10)
+            .&&. walletFundsChange (walletAddress w3) mempty
+        )
+        $ do
+          act $ Pay 1 20
+          act $ Pay 2 10
+          act $ Redeem 3
+    , checkPredicateOptions
+        options
+        "can redeem even if more money than required has been paid in"
+        -- in this test case we pay in a total of 40 lovelace (10 more than required), for
+        -- the same contract as before, requiring 10 lovelace to go to wallet 1 and 20 to
+        -- wallet 2.
+        --
+        -- The scenario is
+        -- \* Wallet 1 contributes 20
+        -- \* Wallet 2 contributes 10
+        -- \* Wallet 3 contributes 10
+        -- \* Wallet 1 is going to redeem the payments
+        --
+        -- Wallet 1 pays 20 and receives 10 from the escrow contract and another 10
+        -- in excess inputs
+        ( hasValidatedTransactionCountOfTotal 4 4
+            .&&. walletFundsChange (walletAddress w1) mempty
+            .&&. walletFundsChange (walletAddress w2) (Value.adaValueOf 10)
+            .&&. walletFundsChange (walletAddress w3) (Value.adaValueOf (-10))
+        )
+        $ do
+          act $ Pay 1 20
+          act $ Pay 2 10
+          act $ Pay 3 10
+          act $ Redeem 1
+    , checkPredicateOptions
+        options
+        "can refund"
+        ( hasValidatedTransactionCountOfTotal 2 2
+            .&&. walletFundsChange (walletAddress w1) mempty
+        )
+        $ do
+          act $ Pay 1 20
+          E.awaitSlot 100
+          act $ Refund 1
+    , testProperty "QuickCheck ContractModel" prop_Escrow
     , testProperty "QuickCheck NoLockedFunds" prop_NoLockedFunds
     , testProperty "QuickCheck validityChecks" $ QC.withMaxSuccess 30 prop_validityChecks
     , testProperty "QuickCheck finishEscrow" prop_FinishEscrow
     , testProperty "QuickCheck double satisfaction fails" $
         QC.expectFailure (QC.noShrinking prop_Escrow_DoubleSatisfaction)
     ]
-
--- where
--- startTime = TimeSlot.scSlotZeroTime def
 
 escrowParams :: POSIXTime -> EscrowParams d
 escrowParams startTime =
@@ -448,62 +438,6 @@ escrowParams startTime =
         , payToPaymentPubKeyTarget (walletPaymentPubKeyHash w2) (Ada.adaValueOf 20)
         ]
     }
-
--- -- | Wallets 1 and 2 pay into an escrow contract, wallet 3
--- --   cashes out.
--- redeemTrace :: Trace.EmulatorTrace ()
--- redeemTrace = do
---     startTime <- TimeSlot.scSlotZeroTime <$> Trace.getSlotConfig
---     let con = void $ selectEither (payEp @()
---                                          @EscrowSchema
---                                          @EscrowError
---                                          (escrowParams startTime))
---                                   (redeemEp (escrowParams startTime))
---     hdl1 <- Trace.activateContractWallet w1 con
---     hdl2 <- Trace.activateContractWallet w2 con
---     hdl3 <- Trace.activateContractWallet w3 con
-
---     Trace.callEndpoint @"pay-escrow" hdl1 (Ada.adaValueOf 20)
---     Trace.callEndpoint @"pay-escrow" hdl2 (Ada.adaValueOf 10)
---     _ <- Trace.waitNSlots 1
---     Trace.callEndpoint @"redeem-escrow" hdl3 ()
---     void $ Trace.waitNSlots 1
-
--- -- | Wallets 1-3 pay into an escrow contract, wallet 1 redeems.
--- redeem2Trace :: Trace.EmulatorTrace ()
--- redeem2Trace = do
---     startTime <- TimeSlot.scSlotZeroTime <$> Trace.getSlotConfig
---     let con = void $ both (payEp @()
---                                  @EscrowSchema
---                                  @EscrowError
---                                  (escrowParams startTime)
---                           )
---                           (redeemEp (escrowParams startTime))
---     hdl1 <- Trace.activateContractWallet w1 con
---     hdl2 <- Trace.activateContractWallet w2 con
---     hdl3 <- Trace.activateContractWallet w3 con
---     Trace.callEndpoint @"pay-escrow" hdl1 (Ada.adaValueOf 20)
---     Trace.callEndpoint @"pay-escrow" hdl2 (Ada.adaValueOf 10)
---     Trace.callEndpoint @"pay-escrow" hdl3 (Ada.adaValueOf 10)
---     _ <- Trace.waitNSlots 1
---     Trace.callEndpoint @"redeem-escrow" hdl1 ()
---     void $ Trace.waitNSlots 1
-
--- -- | Wallet 1 pays into an escrow contract and gets a refund when the
--- --   amount isn't claimed.
--- refundTrace :: Trace.EmulatorTrace ()
--- refundTrace = do
---     startTime <- TimeSlot.scSlotZeroTime <$> Trace.getSlotConfig
---     let con = void (payEp @()
---                           @EscrowSchema
---                           @EscrowError
---                           (escrowParams startTime))
---            <> void (refundEp (escrowParams startTime))
---     hdl1 <- Trace.activateContractWallet w1 con
---     Trace.callEndpoint @"pay-escrow" hdl1 (Ada.adaValueOf 20)
---     _ <- Trace.waitNSlots 100
---     Trace.callEndpoint @"refund-escrow" hdl1 ()
---     void $ Trace.waitNSlots 1
 
 checkPropEscrowWithCoverage :: IO ()
 checkPropEscrowWithCoverage = do

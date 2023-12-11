@@ -13,7 +13,7 @@ import Control.Lens.TH (makePrisms)
 import Data.Aeson (Value)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
-import Ledger (CardanoTx, getCardanoTxId)
+import Ledger (CardanoAddress, CardanoTx, getCardanoTxId)
 import Ledger.Index (UtxoIndex, ValidationError, ValidationPhase)
 import Ledger.Tx.CardanoAPI (CardanoBuildTx)
 import Prettyprinter (Pretty (pretty), colon, hang, viaShow, vsep, (<+>))
@@ -32,7 +32,8 @@ instance Pretty EmulatorMsg where
 
 data TxBalanceMsg
   = BalancingUnbalancedTx CardanoBuildTx UtxoIndex
-  | FinishedBalancing CardanoTx
+  | -- | Stores the wallet address for fees
+    FinishedBalancing CardanoTx CardanoAddress
   | SigningTx CardanoTx
   | SubmittingTx CardanoTx
   | -- | The amount of collateral stored in the transaction.
@@ -51,7 +52,7 @@ instance Pretty TxBalanceMsg where
           [ hang 2 $ vsep ["Balancing an unbalanced transaction:", pretty tx]
           , hang 2 $ vsep $ "Utxo index:" : (pretty <$> Map.toList utxo)
           ]
-    FinishedBalancing tx -> hang 2 $ vsep ["Finished balancing:", pretty tx]
+    FinishedBalancing tx _ -> hang 2 $ vsep ["Finished balancing:", pretty tx]
     SigningTx tx -> "Signing tx:" <+> pretty (getCardanoTxId tx)
     SubmittingTx tx -> "Submitting tx:" <+> pretty (getCardanoTxId tx)
     ValidationFailed p tx e _ -> "Validation error:" <+> pretty p <+> pretty (getCardanoTxId tx) <> colon <+> pretty e

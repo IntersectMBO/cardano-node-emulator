@@ -161,18 +161,21 @@ hasValidatedTransactionCountOfTotal valid total lg =
               then Just $ "Unexpected number of invalid transactions: " ++ show invalidCount
               else Nothing
 
+initialWalletFunds :: CardanoAddress -> EmulatorM C.Value
+initialWalletFunds addr =
+  gets
+    ( Map.findWithDefault mempty addr
+        . AM.values
+        . AM.fromChain
+        . pure
+        . last
+        . view (esChainState . E.chainNewestFirst)
+    )
+
 walletFundsChange :: CardanoAddress -> C.Value -> EmulatorPredicate
 walletFundsChange addr dlt lg = do
   now <- fundsAt addr
-  thn <-
-    gets
-      ( Map.findWithDefault mempty addr
-          . AM.values
-          . AM.fromChain
-          . pure
-          . last
-          . view (esChainState . E.chainNewestFirst)
-      )
+  thn <- initialWalletFunds addr
   let fees = flip foldMap lg $ \case
         LogMessage _ (TxBalanceMsg (FinishedBalancing tx changeAddr)) | changeAddr == addr -> getCardanoTxFee tx
         _ -> mempty

@@ -252,7 +252,7 @@ balanceTx utxoIndex changeAddr utx = do
         (either (throwError . BalancingError) pure . utxoProvider)
         (throwError . either ValidationError ToCardanoError)
         utx
-  logMsg L.Info $ TxBalanceMsg $ FinishedBalancing tx
+  logMsg L.Info $ TxBalanceMsg $ FinishedBalancing tx changeAddr
   pure tx
 
 -- | Sign a transaction with the given signatures.

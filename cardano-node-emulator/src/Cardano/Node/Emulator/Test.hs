@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -10,9 +11,18 @@
 
 -- | Test facility for 'Cardano.Node.Emulator.API.MonadEmulator'
 module Cardano.Node.Emulator.Test (
-  -- * Basic testing
+  -- * Options
+  Options (..),
+  defaultOptions,
   testnet,
+
+  -- * Basic testing
+  runEmulatorM,
+  checkPredicate,
+  checkPredicateOptions,
+  (.&&.),
   hasValidatedTransactionCountOfTotal,
+  walletFundsChange,
   renderLogs,
 
   -- * Testing with `quickcheck-contractmodel`
@@ -24,8 +34,6 @@ module Cardano.Node.Emulator.Test (
   checkDoubleSatisfactionWithOptions,
   quickCheckWithCoverage,
   quickCheckWithCoverageAndResult,
-  Options (..),
-  defaultOptions,
   defInitialDist,
   balanceChangePredicate,
 
@@ -42,22 +50,30 @@ import Cardano.Api qualified as C
 import Cardano.Api qualified as CardanoAPI
 import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator.API (
+  EmulatorError,
   EmulatorLogs,
   EmulatorM,
   EmulatorMsg (ChainEvent),
+  EmulatorState,
   LogMessage (LogMessage),
   awaitSlot,
   emptyEmulatorStateWithInitialDist,
   esChainState,
+  fundsAt,
   getParams,
  )
 import Cardano.Node.Emulator.Generators (knownAddresses)
 import Cardano.Node.Emulator.Internal.Node qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params (ledgerProtocolParameters, pNetworkId, testnet)
+import Cardano.Node.Emulator.LogMessages (
+  EmulatorMsg (TxBalanceMsg),
+  TxBalanceMsg (FinishedBalancing),
+ )
+import Control.Applicative (liftA2, (<|>))
 import Control.Lens (use, view, (^.))
 import Control.Monad (when)
 import Control.Monad.Except (runExceptT)
-import Control.Monad.RWS.Strict (runRWS)
+import Control.Monad.RWS.Strict (gets, runRWS)
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Writer (runWriterT)
 import Data.Default (def)
@@ -67,20 +83,24 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum (Sum))
+import Data.String (fromString)
 import Data.Text qualified as Text
 import Ledger (
   CardanoAddress,
   CardanoTx (CardanoEmulatorEraTx),
   OnChainTx,
+  getCardanoTxFee,
   onChainTxIsValid,
   unOnChain,
  )
+import Ledger.AddressMap qualified as AM
 import Ledger.Index qualified as Index
 import Ledger.Tx.CardanoAPI (fromCardanoSlotNo)
 import Ledger.Value.CardanoAPI qualified as Value
 import Plutus.Script.Utils.Value (Value)
 import PlutusTx.Builtins qualified as Builtins
 import PlutusTx.Coverage (CoverageData, CoverageIndex, CoverageReport (CoverageReport))
+import Prettyprinter (pretty, (<+>))
 import Prettyprinter qualified as Pretty
 import Prettyprinter.Render.Text qualified as Pretty
 import Test.QuickCheck (Property, Testable (property), counterexample)
@@ -113,11 +133,19 @@ import Test.QuickCheck.Monadic (PropertyM, monadic, monadicIO)
 import Test.QuickCheck.StateModel (Realized)
 import Test.QuickCheck.StateModel qualified as QCSM
 import Test.QuickCheck.ThreatModel.DoubleSatisfaction (doubleSatisfaction)
+import Test.Tasty (TestName, TestTree)
+import Test.Tasty.HUnit (assertFailure, testCase)
+
+type EmulatorPredicate = EmulatorLogs -> EmulatorM (Maybe String)
+
+-- | Combine two test predicates
+(.&&.) :: EmulatorPredicate -> EmulatorPredicate -> EmulatorPredicate
+(.&&.) = liftA2 (liftA2 (<|>))
 
 {- | Test the number of validated transactions and the total number of transactions.
 Returns a failure message if the numbers don't match up.
 -}
-hasValidatedTransactionCountOfTotal :: Int -> Int -> EmulatorLogs -> Maybe String
+hasValidatedTransactionCountOfTotal :: Int -> Int -> EmulatorPredicate
 hasValidatedTransactionCountOfTotal valid total lg =
   let count = \case
         LogMessage _ (ChainEvent (E.TxnValidation Index.Success{})) -> (Sum 1, Sum 0)
@@ -125,12 +153,53 @@ hasValidatedTransactionCountOfTotal valid total lg =
         LogMessage _ (ChainEvent (E.TxnValidation Index.FailPhase2{})) -> (Sum 0, Sum 1)
         _otherLogMsg -> mempty
       (Sum validCount, Sum invalidCount) = foldMap count lg
-   in if valid /= validCount
-        then Just $ "Unexpected number of valid transactions: " ++ show validCount
-        else
-          if total - valid /= invalidCount
-            then Just $ "Unexpected number of invalid transactions: " ++ show invalidCount
-            else Nothing
+   in pure $
+        if valid /= validCount
+          then Just $ "Unexpected number of valid transactions: " ++ show validCount
+          else
+            if total - valid /= invalidCount
+              then Just $ "Unexpected number of invalid transactions: " ++ show invalidCount
+              else Nothing
+
+initialWalletFunds :: CardanoAddress -> EmulatorM C.Value
+initialWalletFunds addr =
+  gets
+    ( Map.findWithDefault mempty addr
+        . AM.values
+        . AM.fromChain
+        . pure
+        . last
+        . view (esChainState . E.chainNewestFirst)
+    )
+
+walletFundsChange :: CardanoAddress -> C.Value -> EmulatorPredicate
+walletFundsChange addr dlt lg = do
+  now <- fundsAt addr
+  thn <- initialWalletFunds addr
+  let fees = flip foldMap lg $ \case
+        LogMessage _ (TxBalanceMsg (FinishedBalancing tx changeAddr)) | changeAddr == addr -> getCardanoTxFee tx
+        _ -> mempty
+      balance = now <> C.lovelaceToValue fees <> C.negateValue thn
+      result = balance == dlt
+  pure $
+    if result
+      then Nothing
+      else
+        Just $
+          unlines $
+            map show $
+              [ "Expected funds of" <+> fromString (prettyAddr addr) <+> "to change by"
+              , " " <+> pretty dlt
+              , "  (excluding" <+> pretty fees <+> " in fees)"
+              ]
+                ++ if balance == mempty
+                  then ["but they did not change"]
+                  else
+                    [ "but they changed by"
+                    , " " <+> pretty balance
+                    , "a discrepancy of"
+                    , " " <+> pretty (balance <> C.negateValue dlt)
+                    ]
 
 -- | Render the logs in a format useful for debugging why a test failed.
 renderLogs :: EmulatorLogs -> Text.Text
@@ -197,6 +266,37 @@ data Options state = Options
 defaultOptions :: Options state
 defaultOptions = Options defInitialDist def (\_ _ -> Nothing) balanceChangePredicate mempty Nothing
 
+runEmulatorM
+  :: Options state -> EmulatorM a -> (Either EmulatorError a, (EmulatorState, EmulatorLogs))
+runEmulatorM Options{..} m =
+  case runRWS (runExceptT m) params (emptyEmulatorStateWithInitialDist initialDistribution) of
+    (r, s, l) -> (r, (s, l))
+
+checkPredicate
+  :: TestName
+  -> EmulatorPredicate
+  -> EmulatorM a
+  -> TestTree
+checkPredicate = checkPredicateOptions defaultOptions
+
+checkPredicateOptions
+  :: Options state
+  -> TestName
+  -> EmulatorPredicate
+  -> EmulatorM a
+  -> TestTree
+checkPredicateOptions options testName test contract =
+  testCase testName $
+    let (res, (st, lg)) = runEmulatorM options contract
+     in case res of
+          Left err -> assertFailure $ show err
+          Right _ ->
+            let (res1, _, _) = runRWS (runExceptT (test lg)) (params options) st
+             in case res1 of
+                  Left err -> assertFailure $ show err
+                  Right (Just msg) -> assertFailure $ Text.unpack (renderLogs lg) ++ "\n" ++ msg
+                  _ -> pure ()
+
 propRunActionsWithOptions
   :: forall state
    . (RunModel state EmulatorM)
@@ -204,7 +304,7 @@ propRunActionsWithOptions
   -> Actions state
   -- ^ The actions to run
   -> Property
-propRunActionsWithOptions Options{..} actions =
+propRunActionsWithOptions opts@Options{..} actions =
   asserts finalState
     QC..&&. monadic runFinalPredicate monadicPredicate
   where
@@ -219,9 +319,8 @@ propRunActionsWithOptions Options{..} actions =
       :: RunMonad EmulatorM Property
       -> Property
     runFinalPredicate contract =
-      let (res, s, lg) =
-            (\m -> runRWS m params (emptyEmulatorStateWithInitialDist initialDistribution))
-              . runExceptT
+      let (res, (s, lg)) =
+            runEmulatorM opts
               . fmap fst
               . runWriterT
               . unRunMonad

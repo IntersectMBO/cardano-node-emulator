@@ -12,7 +12,7 @@
            data:
            redeemers:
          Utxo index:
-[INFO] Finished balancing:
+[INFO] Finished balancing (using PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)):
          Tx 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b:
            inputs:
              - 60368582749c31ebc289ceb1422a492e0dc3d7b0ffd9b37f1bbb8155f72952c3!1
@@ -47,7 +47,7 @@
            data:
            redeemers:
          Utxo index:
-[INFO] Finished balancing:
+[INFO] Finished balancing (using PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)):
          Tx a3db788dff556e9152c385257adbcc24ddbbcfd8e083ea70fd110741babb94c3:
            inputs:
              - 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b!1

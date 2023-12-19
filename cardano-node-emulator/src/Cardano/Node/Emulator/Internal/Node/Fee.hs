@@ -20,6 +20,7 @@ module Cardano.Node.Emulator.Internal.Node.Fee (
 ) where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Error qualified as C.Api
 import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
@@ -85,7 +86,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
       getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
-    mapTxScriptWitnesses (mapWitness exUnitsMap') C.ShelleyBasedEraBabbage txBodyContent
+    mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
   where
     mapWitness
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
@@ -127,10 +128,14 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
     -- Correct for a negative balance in cases where execution units, and hence fees, have increased.
     change' =
       case (change, trial) of
-        ( C.Api.TxOut addr (C.Api.TxOutValue vtype value) datum _referenceScript
+        ( C.Api.TxOut addr txoVal datum _referenceScript
           , Left (C.Api.TxBodyErrorAdaBalanceNegative delta)
           ) ->
-            C.Api.TxOut addr (C.Api.TxOutValue vtype $ value <> lovelaceToValue delta) datum _referenceScript
+            C.Api.TxOut
+              addr
+              (CardanoAPI.toCardanoTxOutValue $ CardanoAPI.fromCardanoTxOutValue txoVal <> lovelaceToValue delta)
+              datum
+              _referenceScript
         _ -> change
   -- Construct the body with correct execution units and fees.
   C.Api.BalancedTxBody _ txBody _ _ <- first (TxBodyError . C.Api.displayError) $ balance [change']
@@ -142,6 +147,7 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
     utxo' = fromLedgerUTxO utxo
     balance extraOuts =
       C.Api.makeTransactionBodyAutoBalance
+        C.Api.shelleyBasedEra
         ss
         ei
         (ledgerProtocolParameters params)
@@ -463,4 +469,4 @@ evaluateTransactionFee
   -> C.Api.TxBody C.Api.BabbageEra
   -> Word
   -> C.Api.Lovelace
-evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee (emulatorPParams params) txbody keywitcount 0
+evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee C.shelleyBasedEra (emulatorPParams params) txbody keywitcount 0

@@ -248,7 +248,7 @@ makeTx
 makeTx bodyContent = do
   txBody <-
     either (fail . ("makeTx: Can't create TxBody: " <>) . show) pure $
-      C.createAndValidateTransactionBody bodyContent
+      C.createAndValidateTransactionBody C.shelleyBasedEra bodyContent
   pure $ signAll $ CardanoEmulatorEraTx $ C.Tx txBody []
 
 {- | Generate a valid transaction, using the unspent outputs provided.
@@ -314,14 +314,14 @@ genValidTransactionBodySpending' g ins totalVal = do
           C.zeroExecutionUnits
   let txMintValue =
         C.TxMintValue
-          C.MultiAssetInBabbageEra
+          C.MaryEraOnwardsBabbage
           (fromMaybe mempty mintValue)
           (C.BuildTxWith (Map.singleton alwaysSucceedPolicyId mintWitness))
       txIns = map (,C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending) ins
   txInsCollateral <-
     maybe
       (fail "Cannot gen collateral")
-      (pure . C.TxInsCollateral C.CollateralInBabbageEra . flip take ins . fromIntegral)
+      (pure . C.TxInsCollateral C.AlonzoEraOnwardsBabbage . flip take ins . fromIntegral)
       (gmMaxCollateralInputs g)
   pure $
     Tx.emptyTxBodyContent

@@ -24,7 +24,6 @@ module Cardano.Node.Emulator.Internal.Node.TimeSlot (
   posixTimeToNominalDiffTime,
 ) where
 
-import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (def))
 import Data.Time.Clock qualified as Time
@@ -57,7 +56,7 @@ data SlotConfig = SlotConfig
   -- ^ Beginning of slot 0 (in milliseconds)
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON, Serialise)
+  deriving anyclass (ToJSON, FromJSON)
 
 makeLift ''SlotConfig
 

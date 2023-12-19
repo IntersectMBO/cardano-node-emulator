@@ -40,7 +40,9 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   emulatorGlobals,
 ) where
 
+import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
+import Cardano.Ledger.Alonzo.Plutus.TxInfo (ExtendedUTxO, ScriptResult (Fails, Passes))
 import Cardano.Ledger.Alonzo.PlutusScriptApi (
   CollectError,
   collectPlutusScriptsWithContext,
@@ -48,8 +50,7 @@ import Cardano.Ledger.Alonzo.PlutusScriptApi (
  )
 import Cardano.Ledger.Alonzo.Scripts (AlonzoScript)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Alonzo.TxInfo (EraPlutusContext, ExtendedUTxO, ScriptResult (Fails, Passes))
-import Cardano.Ledger.Alonzo.UTxO (AlonzoScriptsNeeded)
+import Cardano.Ledger.Alonzo.UTxO (AlonzoEraUTxO, AlonzoScriptsNeeded)
 import Cardano.Ledger.Api.PParams (AlonzoEraPParams, ppProtocolVersionL)
 import Cardano.Ledger.Api.Tx (
   AlonzoEraTxWits,
@@ -58,10 +59,11 @@ import Cardano.Ledger.Api.Tx (
   ValidationFailed (ValidationFailedV1, ValidationFailedV2),
   evalTxExUnitsWithLogs,
  )
-import Cardano.Ledger.Api.UTxO (EraUTxO, ScriptsNeeded)
+import Cardano.Ledger.Api.UTxO (ScriptsNeeded)
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Core qualified as Core
-import Cardano.Ledger.Language (Language (PlutusV1))
+import Cardano.Ledger.Plutus.Language (Language (PlutusV1))
+import Cardano.Ledger.Plutus.TxInfo (EraPlutusContext)
 import Cardano.Ledger.Shelley.API (
   Coin (Coin),
   LedgerEnv (LedgerEnv, ledgerSlotNo),
@@ -246,16 +248,15 @@ in https://github.com/input-output-hk/cardano-ledger/commit/721adb55b39885847562
 -}
 constructValidated
   :: forall era m
-   . ( Core.EraTx era
-     , MaryEraTxBody era
+   . ( MaryEraTxBody era
      , MonadError [CollectError era] m
      , Core.Script era ~ AlonzoScript era
      , ScriptsNeeded era ~ AlonzoScriptsNeeded era
      , EraPlutusContext 'PlutusV1 era
      , AlonzoEraTxWits era
-     , EraUTxO era
      , AlonzoEraPParams era
      , ExtendedUTxO era
+     , AlonzoEraUTxO era
      )
   => Globals
   -> C.Ledger.UtxoEnv era
@@ -320,4 +321,5 @@ createAndValidateTransactionBody
   -> Either CardanoLedgerError (C.TxBody C.BabbageEra)
 createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
   let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
-   in first (Right . P.TxBodyError . C.displayError) $ C.createAndValidateTransactionBody bodyContent'
+   in first (Right . P.TxBodyError . C.displayError) $
+        C.createAndValidateTransactionBody C.shelleyBasedEra bodyContent'

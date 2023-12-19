@@ -147,7 +147,7 @@ txInOrdInstanceEquivalenceTest = property $ do
 
 genCardanoBuildTx :: Hedgehog.Gen CardanoBuildTx
 genCardanoBuildTx = do
-  tx <- Gen.genTxBodyContent C.BabbageEra
+  tx <- Gen.genTxBodyContent C.ShelleyBasedEraBabbage
   let tx' =
         tx
           { C.txCertificates = C.TxCertificatesNone
@@ -166,40 +166,34 @@ genCardanoBuildTx = do
 genCardanoTx :: Hedgehog.Gen CardanoTx
 genCardanoTx =
   Gen.choice
-    [ genByronEraInCardanoModeTx
-    , genShelleyEraInCardanoModeTx
+    [ genShelleyEraInCardanoModeTx
     , genAllegraEraInCardanoModeTx
     , genMaryEraInCardanoModeTx
     , genAlonzoEraInCardanoModeTx
     , genBabbageEraInCardanoModeTx
     ]
 
-genByronEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
-genByronEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.ByronEra
-  pure $ CardanoTx tx C.ByronEraInCardanoMode
-
 genShelleyEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genShelleyEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.ShelleyEra
-  pure $ CardanoTx tx C.ShelleyEraInCardanoMode
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraShelley
+  pure $ CardanoTx tx C.ShelleyBasedEraShelley
 
 genAllegraEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genAllegraEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.AllegraEra
-  pure $ CardanoTx tx C.AllegraEraInCardanoMode
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraAllegra
+  pure $ CardanoTx tx C.ShelleyBasedEraAllegra
 
 genMaryEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genMaryEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.MaryEra
-  pure $ CardanoTx tx C.MaryEraInCardanoMode
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraMary
+  pure $ CardanoTx tx C.ShelleyBasedEraMary
 
 genAlonzoEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genAlonzoEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.AlonzoEra
-  pure $ CardanoTx tx C.AlonzoEraInCardanoMode
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraAlonzo
+  pure $ CardanoTx tx C.ShelleyBasedEraAlonzo
 
 genBabbageEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genBabbageEraInCardanoModeTx = do
-  tx <- fromGenT $ Gen.genTx C.BabbageEra
-  pure $ CardanoTx tx C.BabbageEraInCardanoMode
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraBabbage
+  pure $ CardanoTx tx C.ShelleyBasedEraBabbage

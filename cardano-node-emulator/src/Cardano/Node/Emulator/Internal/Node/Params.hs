@@ -193,7 +193,6 @@ instance Default C.ProtocolParameters where
       , protocolParamPoolPledgeInfluence = 3 % 10
       , protocolParamMonetaryExpansion = 3 % 1000
       , protocolParamTreasuryCut = 1 % 5
-      , protocolParamUTxOCostPerWord = Nothing -- Obsolete from babbage onwards
       , protocolParamCostModels =
           let costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
               costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
@@ -257,8 +256,8 @@ genesisDefaultsFromParams params@Params{pSlotConfig, pNetworkId} =
     d = fromMaybe (error "3 % 5 should be valid UnitInterval") $ boundRational (3 % 5)
 
 -- | A sensible default 'EraHistory' value for the emulator
-emulatorEraHistory :: Params -> C.EraHistory C.CardanoMode
-emulatorEraHistory params = C.EraHistory C.CardanoMode (Ouroboros.mkInterpreter $ Ouroboros.summaryWithExactly list)
+emulatorEraHistory :: Params -> C.EraHistory
+emulatorEraHistory params = C.EraHistory (Ouroboros.mkInterpreter $ Ouroboros.summaryWithExactly list)
   where
     one =
       Ouroboros.nonEmptyHead $

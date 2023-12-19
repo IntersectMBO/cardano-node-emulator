@@ -16,7 +16,9 @@ import Cardano.Api (
   makeShelleyAddress,
   shelleyAddressInEra,
  )
-import Cardano.Api.Shelley (StakeCredential (StakeCredentialByKey))
+import Cardano.Api qualified as C
+import Cardano.Api.Shelley (StakeCredential (StakeCredentialByKey), shelleyBasedEra)
+import Cardano.Api.Shelley qualified as C
 import Hedgehog (Gen, Property, forAll, property, tripping, (===))
 import Hedgehog qualified
 import Hedgehog.Gen qualified as Gen
@@ -33,7 +35,7 @@ import Ledger.Tx.CardanoAPI (
  )
 import Ledger.Value.CardanoAPI (combine, valueFromList, valueGeq)
 import PlutusTx.Lattice ((\/))
-import Test.Gen.Cardano.Api.Typed (genAssetName, genTxId, genValueDefault)
+import Test.Gen.Cardano.Api.Typed (genAssetName, genTxId)
 import Test.Gen.Cardano.Api.Typed qualified as Gen
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testPropertyNamed)
@@ -66,6 +68,9 @@ tests =
         ]
     ]
 
+genValueDefault :: Gen C.Value
+genValueDefault = C.fromMaryValue <$> Gen.genValueDefault C.MaryEraOnwardsBabbage
+
 cardanoAssetNameRoundTrip :: Property
 cardanoAssetNameRoundTrip = property $ do
   assetName <- forAll genAssetName
@@ -88,7 +93,7 @@ addressRoundTripSpec :: Property
 addressRoundTripSpec = property $ do
   networkId <- forAll genNetworkId
   shelleyAddr <-
-    shelleyAddressInEra
+    shelleyAddressInEra shelleyBasedEra
       <$> forAll
         ( makeShelleyAddress networkId
             <$> genPaymentCredential

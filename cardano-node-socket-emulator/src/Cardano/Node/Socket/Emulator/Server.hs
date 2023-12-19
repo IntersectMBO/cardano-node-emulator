@@ -651,12 +651,12 @@ handleQuery state = \case
     pure $ Right $ emulatorPParams params
   BlockQuery (QueryIfCurrentBabbage (GetUTxOByAddress addrs)) -> do
     (_logs, res) <- runChainEffects state $ do
-      utxos <- traverse (E.utxosAt . C.fromShelleyAddrIsSbe) $ toList addrs
+      utxos <- traverse (E.utxosAt . C.fromShelleyAddrIsSbe C.shelleyBasedEra) $ toList addrs
       pure $ fromPlutusIndex (mconcat utxos)
     either (printError . show) (pure . Right) res
   BlockQuery (QueryHardFork GetInterpreter) -> do
     AppState _ _ params <- readMVar state
-    let C.EraHistory _ interpreter = emulatorEraHistory params
+    let C.EraHistory interpreter = emulatorEraHistory params
     pure interpreter
   BlockQuery (QueryHardFork GetCurrentEra) -> do
     pure $ Consensus.EraIndex (S (S (S (S (S (Z (K ()))))))) -- BabbageEra

@@ -24,7 +24,6 @@ module Ledger.AddressMap (
   fromChain,
 ) where
 
-import Codec.Serialise.Class (Serialise)
 import Control.Lens (
   At (..),
   Index,
@@ -59,7 +58,6 @@ type UtxoMap = Map C.TxIn (CardanoTx, TxOut)
 -- | A map of 'Address'es and their unspent outputs.
 newtype AddressMap = AddressMap {getAddressMap :: Map CardanoAddress UtxoMap}
   deriving stock (Show, Eq, Generic)
-  deriving newtype (Serialise)
   deriving (ToJSON, FromJSON)
 
 -- | An address map with a single unspent transaction output.

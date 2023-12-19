@@ -109,28 +109,20 @@ fromCardanoTotalCollateral C.TxTotalCollateralNone = Nothing
 fromCardanoTotalCollateral (C.TxTotalCollateral _ lv) = Just lv
 
 toCardanoTotalCollateral :: Maybe C.Lovelace -> C.TxTotalCollateral C.BabbageEra
-toCardanoTotalCollateral totalCollateral =
-  case C.totalAndReturnCollateralSupportedInEra C.BabbageEra of
-    Just txTotalAndReturnCollateralInBabbageEra ->
-      maybe
-        C.TxTotalCollateralNone
-        (C.TxTotalCollateral txTotalAndReturnCollateralInBabbageEra)
-        totalCollateral
-    Nothing -> C.TxTotalCollateralNone
+toCardanoTotalCollateral =
+  maybe
+    C.TxTotalCollateralNone
+    (C.TxTotalCollateral C.BabbageEraOnwardsBabbage)
 
 fromCardanoReturnCollateral :: C.TxReturnCollateral C.CtxTx C.BabbageEra -> Maybe P.TxOut
 fromCardanoReturnCollateral C.TxReturnCollateralNone = Nothing
 fromCardanoReturnCollateral (C.TxReturnCollateral _ txOut) = Just $ P.TxOut txOut
 
 toCardanoReturnCollateral :: Maybe P.TxOut -> C.TxReturnCollateral C.CtxTx C.BabbageEra
-toCardanoReturnCollateral returnCollateral =
-  case C.totalAndReturnCollateralSupportedInEra C.BabbageEra of
-    Just txTotalAndReturnCollateralInBabbageEra ->
-      maybe
-        C.TxReturnCollateralNone
-        (C.TxReturnCollateral txTotalAndReturnCollateralInBabbageEra . P.getTxOut)
-        returnCollateral
-    Nothing -> C.TxReturnCollateralNone
+toCardanoReturnCollateral =
+  maybe
+    C.TxReturnCollateralNone
+    (C.TxReturnCollateral C.BabbageEraOnwardsBabbage . P.getTxOut)
 
 getRequiredSigners :: C.Tx C.BabbageEra -> [P.PaymentPubKeyHash]
 getRequiredSigners (C.ShelleyTx _ (AlonzoTx BabbageTxBody{btbReqSignerHashes = rsq} _ _ _)) =

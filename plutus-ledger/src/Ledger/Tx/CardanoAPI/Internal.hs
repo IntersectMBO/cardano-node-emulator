@@ -92,6 +92,7 @@ module Ledger.Tx.CardanoAPI.Internal (
 
 import Cardano.Api qualified as C
 import Cardano.Api.Byron qualified as C
+import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.TxBody qualified as C
 import Cardano.BM.Data.Tracer (ToObject)
@@ -100,11 +101,6 @@ import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
 
 import Cardano.Ledger.Core qualified as Ledger
-import Codec.Serialise (Serialise)
-import Codec.Serialise qualified as Codec
-import Codec.Serialise.Decoding (Decoder, decodeBytes, decodeSimple)
-import Codec.Serialise.Encoding (Encoding (Encoding), Tokens (TkBytes, TkSimple))
-import Control.Applicative ((<|>))
 import Control.Lens ((<&>))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
 import Data.Aeson qualified as Aeson
@@ -112,6 +108,7 @@ import Data.Aeson.Types (Parser, parseFail, prependFailure, typeMismatch)
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.Data (Proxy (Proxy))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
@@ -136,69 +133,37 @@ newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.
 
 -- | Cardano tx from any era.
 data CardanoTx where
-  CardanoTx :: (C.IsCardanoEra era) => C.Tx era -> C.EraInMode era C.CardanoMode -> CardanoTx
+  CardanoTx :: C.Tx era -> C.ShelleyBasedEra era -> CardanoTx
 
 getEmulatorEraTx :: CardanoTx -> C.Tx C.BabbageEra
-getEmulatorEraTx (CardanoTx tx C.BabbageEraInCardanoMode) = tx
+getEmulatorEraTx (CardanoTx tx C.ShelleyBasedEraBabbage) = tx
 getEmulatorEraTx _ = error "getEmulatorEraTx: Expected a Babbage tx"
 
 pattern CardanoEmulatorEraTx :: C.Tx C.BabbageEra -> CardanoTx
 pattern CardanoEmulatorEraTx tx <- (getEmulatorEraTx -> tx)
   where
-    CardanoEmulatorEraTx tx = CardanoTx tx C.BabbageEraInCardanoMode
+    CardanoEmulatorEraTx tx = CardanoTx tx C.shelleyBasedEra
 
 {-# COMPLETE CardanoEmulatorEraTx #-}
 
 instance Eq CardanoTx where
-  (CardanoTx tx1 C.ByronEraInCardanoMode) == (CardanoTx tx2 C.ByronEraInCardanoMode) = tx1 == tx2
-  (CardanoTx tx1 C.ShelleyEraInCardanoMode) == (CardanoTx tx2 C.ShelleyEraInCardanoMode) = tx1 == tx2
-  (CardanoTx tx1 C.AllegraEraInCardanoMode) == (CardanoTx tx2 C.AllegraEraInCardanoMode) = tx1 == tx2
-  (CardanoTx tx1 C.MaryEraInCardanoMode) == (CardanoTx tx2 C.MaryEraInCardanoMode) = tx1 == tx2
-  (CardanoTx tx1 C.AlonzoEraInCardanoMode) == (CardanoTx tx2 C.AlonzoEraInCardanoMode) = tx1 == tx2
-  (CardanoTx tx1 C.BabbageEraInCardanoMode) == (CardanoTx tx2 C.BabbageEraInCardanoMode) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraShelley) == (CardanoTx tx2 C.ShelleyBasedEraShelley) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraAllegra) == (CardanoTx tx2 C.ShelleyBasedEraAllegra) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraMary) == (CardanoTx tx2 C.ShelleyBasedEraMary) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraAlonzo) == (CardanoTx tx2 C.ShelleyBasedEraAlonzo) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraBabbage) == (CardanoTx tx2 C.ShelleyBasedEraBabbage) = tx1 == tx2
+  (CardanoTx tx1 C.ShelleyBasedEraConway) == (CardanoTx tx2 C.ShelleyBasedEraConway) = tx1 == tx2
   _ == _ = False
 
 deriving instance Show CardanoTx
 
-instance Serialise CardanoTx where
-  encode (CardanoTx tx eraInMode) = encodedMode eraInMode <> Encoding (TkBytes (C.serialiseToCBOR tx))
-    where
-      encodedMode :: C.EraInMode era C.CardanoMode -> Encoding
-      -- 0 and 1 are for ByronEraInByronMode and ShelleyEraInShelleyMode
-      encodedMode C.ByronEraInCardanoMode = Encoding (TkSimple 2)
-      encodedMode C.ShelleyEraInCardanoMode = Encoding (TkSimple 3)
-      encodedMode C.AllegraEraInCardanoMode = Encoding (TkSimple 4)
-      encodedMode C.MaryEraInCardanoMode = Encoding (TkSimple 5)
-      encodedMode C.AlonzoEraInCardanoMode = Encoding (TkSimple 6)
-      encodedMode C.BabbageEraInCardanoMode = Encoding (TkSimple 7)
-      encodedMode C.ConwayEraInCardanoMode = Encoding (TkSimple 8)
-  decode = do
-    w <- decodeSimple
-    case w of
-      2 -> decodeTx C.AsByronEra C.ByronEraInCardanoMode
-      3 -> decodeTx C.AsShelleyEra C.ShelleyEraInCardanoMode
-      4 -> decodeTx C.AsAllegraEra C.AllegraEraInCardanoMode
-      5 -> decodeTx C.AsMaryEra C.MaryEraInCardanoMode
-      6 -> decodeTx C.AsAlonzoEra C.AlonzoEraInCardanoMode
-      7 -> decodeTx C.AsBabbageEra C.BabbageEraInCardanoMode
-      8 -> decodeTx C.AsConwayEra C.ConwayEraInCardanoMode
-      _ -> fail "Unexpected value while decoding Cardano.Api.EraInMode"
-    where
-      decodeTx
-        :: (C.IsCardanoEra era) => C.AsType era -> C.EraInMode era C.CardanoMode -> Decoder s CardanoTx
-      decodeTx asType eraInMode = do
-        bytes <- decodeBytes
-        tx <-
-          either (const $ fail "Failed to decode Cardano.Api.Tx") pure $
-            C.deserialiseFromCBOR (C.AsTx asType) bytes
-        pure $ CardanoTx tx eraInMode
-
 instance ToJSON CardanoTx where
-  toJSON (CardanoTx tx eraInMode) =
-    object
-      [ "tx" .= C.serialiseToTextEnvelope Nothing tx
-      , "eraInMode" .= eraInMode
-      ]
+  toJSON (CardanoTx tx sbe) =
+    C.shelleyBasedEraConstraints sbe $
+      object
+        [ "tx" .= C.serialiseToTextEnvelope Nothing tx
+        , "shelleyBasedEra" .= sbe
+        ]
 
 {- | Converting 'CardanoTx' to JSON.
 
@@ -206,89 +171,26 @@ If the "tx" field is from an unknown era, the JSON parser will print an
 error at runtime while parsing.
 -}
 instance FromJSON CardanoTx where
-  parseJSON v =
-    parseByronInCardanoModeTx v
-      <|> parseShelleyEraInCardanoModeTx v
-      <|> parseAllegraEraInCardanoModeTx v
-      <|> parseMaryEraInCardanoModeTx v
-      <|> parseAlonzoEraInCardanoModeTx v
-      <|> parseBabbageEraInCardanoModeTx v
-      <|> parseConwayEraInCardanoModeTx v
-      <|> parseEraInCardanoModeFail v
+  parseJSON = parseSomeCardanoTx
 
 -- | Run code that needs an `IsCardanoEra` constraint while you only have an `EraInMode` value.
-withIsCardanoEra :: C.EraInMode era C.CardanoMode -> ((C.IsCardanoEra era) => r) -> r
-withIsCardanoEra C.ByronEraInCardanoMode r = r
-withIsCardanoEra C.ShelleyEraInCardanoMode r = r
-withIsCardanoEra C.AllegraEraInCardanoMode r = r
-withIsCardanoEra C.MaryEraInCardanoMode r = r
-withIsCardanoEra C.AlonzoEraInCardanoMode r = r
-withIsCardanoEra C.BabbageEraInCardanoMode r = r
-withIsCardanoEra C.ConwayEraInCardanoMode r = r
-
-parseByronInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseByronInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse ByronEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsByronEra)
-
-parseShelleyEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseShelleyEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse ShelleyEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsShelleyEra)
-
-parseMaryEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseMaryEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse MaryEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsMaryEra)
-
-parseAllegraEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseAllegraEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse AllegraEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsAllegraEra)
-
-parseAlonzoEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseAlonzoEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse AlonzoEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsAlonzoEra)
-
-parseBabbageEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseBabbageEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse BabbageEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsBabbageEra)
-
-parseConwayEraInCardanoModeTx :: Aeson.Value -> Parser CardanoTx
-parseConwayEraInCardanoModeTx =
-  parseSomeCardanoTx
-    "Failed to parse ConwayEra 'tx' field from CardanoTx"
-    (C.AsTx C.AsConwayEra)
-
-parseEraInCardanoModeFail :: Aeson.Value -> Parser CardanoTx
-parseEraInCardanoModeFail _ = fail "Unable to parse 'eraInMode'"
+withIsCardanoEra :: C.CardanoEra era -> ((C.IsCardanoEra era) => r) -> r
+withIsCardanoEra = C.cardanoEraConstraints
 
 parseSomeCardanoTx
-  :: ( FromJSON (C.EraInMode era C.CardanoMode)
-     , C.IsCardanoEra era
-     )
-  => String
-  -> C.AsType (C.Tx era)
-  -> Aeson.Value
+  :: Aeson.Value
   -> Parser CardanoTx
-parseSomeCardanoTx errorMsg txAsType (Aeson.Object v) =
-  CardanoTx
-    <$> ( v .: "tx" >>= \envelope ->
-            either
-              (const $ parseFail errorMsg)
-              pure
-              $ C.deserialiseFromTextEnvelope txAsType envelope
-        )
-    <*> v .: "eraInMode"
-parseSomeCardanoTx _ _ invalid =
+parseSomeCardanoTx (Aeson.Object v) = do
+  C.AnyShelleyBasedEra sbe <- v .: "shelleyBasedEra"
+  envelope :: C.TextEnvelope <- v .: "tx"
+  tx <-
+    C.shelleyBasedEraConstraints sbe
+      $ either
+        (const $ parseFail "Failed to parse 'tx' field from CardanoTx")
+        pure
+      $ C.deserialiseFromTextEnvelope (C.AsTx (C.proxyToAsType Proxy)) envelope
+  pure $ CardanoTx tx sbe
+parseSomeCardanoTx invalid =
   prependFailure
     "parsing CardanoTx failed, "
     (typeMismatch "Object" invalid)
@@ -308,21 +210,17 @@ unspentOutputsTx tx = Map.fromList $ swap <$> txOutRefs tx
 scripts, always return @True@.
 -}
 fromTxScriptValidity :: C.TxScriptValidity era -> Bool
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInAlonzoEra C.ScriptValid) = True
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInAlonzoEra C.ScriptInvalid) = False
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInBabbageEra C.ScriptValid) = True
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInBabbageEra C.ScriptInvalid) = False
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInConwayEra C.ScriptValid) = True
-fromTxScriptValidity (C.TxScriptValidity C.TxScriptValiditySupportedInConwayEra C.ScriptInvalid) = False
+fromTxScriptValidity (C.TxScriptValidity _ C.ScriptValid) = True
+fromTxScriptValidity (C.TxScriptValidity _ C.ScriptInvalid) = False
 fromTxScriptValidity C.TxScriptValidityNone = True
 
 toTxScriptValidity :: C.ShelleyBasedEra era -> Bool -> C.TxScriptValidity era
-toTxScriptValidity C.ShelleyBasedEraAlonzo True = C.TxScriptValidity C.TxScriptValiditySupportedInAlonzoEra C.ScriptValid
-toTxScriptValidity C.ShelleyBasedEraAlonzo False = C.TxScriptValidity C.TxScriptValiditySupportedInAlonzoEra C.ScriptInvalid
-toTxScriptValidity C.ShelleyBasedEraBabbage True = C.TxScriptValidity C.TxScriptValiditySupportedInBabbageEra C.ScriptValid
-toTxScriptValidity C.ShelleyBasedEraBabbage False = C.TxScriptValidity C.TxScriptValiditySupportedInBabbageEra C.ScriptInvalid
-toTxScriptValidity C.ShelleyBasedEraConway True = C.TxScriptValidity C.TxScriptValiditySupportedInConwayEra C.ScriptValid
-toTxScriptValidity C.ShelleyBasedEraConway False = C.TxScriptValidity C.TxScriptValiditySupportedInConwayEra C.ScriptInvalid
+toTxScriptValidity C.ShelleyBasedEraAlonzo True = C.TxScriptValidity C.AlonzoEraOnwardsAlonzo C.ScriptValid
+toTxScriptValidity C.ShelleyBasedEraAlonzo False = C.TxScriptValidity C.AlonzoEraOnwardsAlonzo C.ScriptInvalid
+toTxScriptValidity C.ShelleyBasedEraBabbage True = C.TxScriptValidity C.AlonzoEraOnwardsBabbage C.ScriptValid
+toTxScriptValidity C.ShelleyBasedEraBabbage False = C.TxScriptValidity C.AlonzoEraOnwardsBabbage C.ScriptInvalid
+toTxScriptValidity C.ShelleyBasedEraConway True = C.TxScriptValidity C.AlonzoEraOnwardsConway C.ScriptValid
+toTxScriptValidity C.ShelleyBasedEraConway False = C.TxScriptValidity C.AlonzoEraOnwardsConway C.ScriptInvalid
 toTxScriptValidity _ _ = C.TxScriptValidityNone
 
 withShelleyBasedEraConstraintsForLedger
@@ -341,7 +239,7 @@ with their hashes.
 scriptDataFromCardanoTxBody
   :: C.TxBody era
   -> (Map P.DatumHash P.Datum, PV1.Redeemers)
-scriptDataFromCardanoTxBody C.ByronTxBody{} = (mempty, mempty)
+-- scriptDataFromCardanoTxBody C.ByronTxBody{} = (mempty, mempty)
 scriptDataFromCardanoTxBody (C.ShelleyTxBody _ _ _ C.TxBodyNoScriptData _ _) =
   (mempty, mempty)
 scriptDataFromCardanoTxBody
@@ -385,7 +283,7 @@ redeemerPtrFromCardanoRdmrPtr (Alonzo.RdmrPtr rdmrTag ptr) = PV1.RedeemerPtr t (
 Note that Plutus scripts are only supported in Alonzo era and onwards.
 -}
 plutusScriptsFromTxBody :: C.TxBody era -> Map P.ScriptHash (P.Versioned P.Script)
-plutusScriptsFromTxBody C.ByronTxBody{} = mempty
+-- plutusScriptsFromTxBody C.ByronTxBody{} = mempty
 plutusScriptsFromTxBody (C.ShelleyTxBody shelleyBasedEra _ scripts _ _ _) =
   Map.fromList $
     mapMaybe (fmap (\s -> (P.scriptHash s, s)) . fromLedgerScript shelleyBasedEra) scripts
@@ -560,12 +458,10 @@ toCardanoStakeKeyHash (PV1.PubKeyHash bs) =
     deserialiseFromRawBytes (C.AsHash C.AsStakeKey) (PlutusTx.fromBuiltin bs)
 
 fromCardanoTxOutValue :: C.TxOutValue era -> C.Value
-fromCardanoTxOutValue (C.TxOutAdaOnly _ 0) = mempty
-fromCardanoTxOutValue (C.TxOutAdaOnly _ lovelace) = C.lovelaceToValue lovelace
-fromCardanoTxOutValue (C.TxOutValue _ value) = value
+fromCardanoTxOutValue = C.txOutValueToValue
 
 toCardanoTxOutValue :: C.Value -> C.TxOutValue C.BabbageEra
-toCardanoTxOutValue = C.TxOutValue C.MultiAssetInBabbageEra
+toCardanoTxOutValue = C.TxOutValueShelleyBased C.shelleyBasedEra . C.toMaryValue
 
 fromCardanoTxOutDatumHash :: C.TxOutDatum C.CtxTx era -> Maybe P.DatumHash
 fromCardanoTxOutDatumHash C.TxOutDatumNone = Nothing
@@ -608,7 +504,7 @@ toCardanoTxOutNoDatum = C.TxOutDatumNone
 
 toCardanoTxOutDatumInTx :: PV2.Datum -> C.TxOutDatum C.CtxTx C.BabbageEra
 toCardanoTxOutDatumInTx =
-  C.TxOutDatumInTx C.ScriptDataInBabbageEra
+  C.TxOutDatumInTx C.AlonzoEraOnwardsBabbage
     . C.unsafeHashableScriptData
     . C.fromPlutusData
     . PV2.builtinDataToData
@@ -616,7 +512,7 @@ toCardanoTxOutDatumInTx =
 
 toCardanoTxOutDatumInline :: PV2.Datum -> C.TxOutDatum C.CtxTx C.BabbageEra
 toCardanoTxOutDatumInline =
-  C.TxOutDatumInline C.ReferenceTxInsScriptsInlineDatumsInBabbageEra
+  C.TxOutDatumInline C.BabbageEraOnwardsBabbage
     . C.unsafeHashableScriptData
     . C.fromPlutusData
     . PV2.builtinDataToData
@@ -624,7 +520,7 @@ toCardanoTxOutDatumInline =
 
 toCardanoTxOutDatumHashFromDatum :: PV2.Datum -> C.TxOutDatum ctx C.BabbageEra
 toCardanoTxOutDatumHashFromDatum =
-  C.TxOutDatumHash C.ScriptDataInBabbageEra
+  C.TxOutDatumHash C.AlonzoEraOnwardsBabbage
     . C.hashScriptDataBytes
     . C.unsafeHashableScriptData
     . C.fromPlutusData
@@ -632,7 +528,7 @@ toCardanoTxOutDatumHashFromDatum =
     . PV2.getDatum
 
 toCardanoTxOutDatumHash :: P.DatumHash -> Either ToCardanoError (C.TxOutDatum ctx C.BabbageEra)
-toCardanoTxOutDatumHash datumHash = C.TxOutDatumHash C.ScriptDataInBabbageEra <$> toCardanoScriptDataHash datumHash
+toCardanoTxOutDatumHash datumHash = C.TxOutDatumHash C.AlonzoEraOnwardsBabbage <$> toCardanoScriptDataHash datumHash
 
 toCardanoTxOutDatum :: PV2.OutputDatum -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.BabbageEra)
 toCardanoTxOutDatum PV2.NoOutputDatum = pure toCardanoTxOutNoDatum
@@ -703,11 +599,10 @@ toCardanoAssetId (Value.AssetClass (currencySymbol, tokenName))
         <*> toCardanoAssetName tokenName
 
 fromCardanoFee :: C.TxFee era -> C.Lovelace
-fromCardanoFee (C.TxFeeImplicit _) = mempty
 fromCardanoFee (C.TxFeeExplicit _ lovelace) = lovelace
 
 toCardanoFee :: C.Lovelace -> C.TxFee C.BabbageEra
-toCardanoFee = C.TxFeeExplicit C.TxFeesExplicitInBabbageEra
+toCardanoFee = C.TxFeeExplicit C.shelleyBasedEra
 
 fromCardanoLovelace :: C.Lovelace -> PV1.Value
 fromCardanoLovelace (C.lovelaceToQuantity -> C.Quantity lovelace) = Ada.lovelaceValueOf lovelace
@@ -720,8 +615,8 @@ toCardanoLovelace value =
   where
     Ada.Lovelace lovelace = Ada.fromValue value
 
-fromCardanoValidityRange :: (C.TxValidityLowerBound era, C.TxValidityUpperBound era) -> P.SlotRange
-fromCardanoValidityRange (l, u) = PV1.Interval (fromCardanoValidityLowerBound l) (fromCardanoValidityUpperBound u)
+fromCardanoValidityRange :: C.TxValidityLowerBound era -> C.TxValidityUpperBound era -> P.SlotRange
+fromCardanoValidityRange l u = PV1.Interval (fromCardanoValidityLowerBound l) (fromCardanoValidityUpperBound u)
 
 toCardanoValidityRange
   :: P.SlotRange
@@ -737,20 +632,20 @@ toCardanoValidityLowerBound
 toCardanoValidityLowerBound (PV1.LowerBound PV1.NegInf _) = pure C.TxValidityNoLowerBound
 toCardanoValidityLowerBound (PV1.LowerBound (PV1.Finite slotNo) closed) =
   pure
-    . C.TxValidityLowerBound C.ValidityLowerBoundInBabbageEra
+    . C.TxValidityLowerBound C.AllegraEraOnwardsBabbage
     . toCardanoSlotNo
     $ if slotNo < 0 then 0 else if closed then slotNo else slotNo + 1
 toCardanoValidityLowerBound (PV1.LowerBound PV1.PosInf _) = Left InvalidValidityRange
 
 fromCardanoValidityUpperBound :: C.TxValidityUpperBound era -> PV1.UpperBound P.Slot
-fromCardanoValidityUpperBound (C.TxValidityNoUpperBound _) = PV1.UpperBound PV1.PosInf True
-fromCardanoValidityUpperBound (C.TxValidityUpperBound _ slotNo) = PV1.UpperBound (PV1.Finite $ fromCardanoSlotNo slotNo) False
+fromCardanoValidityUpperBound (C.TxValidityUpperBound _ Nothing) = PV1.UpperBound PV1.PosInf True
+fromCardanoValidityUpperBound (C.TxValidityUpperBound _ (Just slotNo)) = PV1.UpperBound (PV1.Finite $ fromCardanoSlotNo slotNo) False
 
 toCardanoValidityUpperBound
   :: PV1.UpperBound P.Slot -> Either ToCardanoError (C.TxValidityUpperBound C.BabbageEra)
-toCardanoValidityUpperBound (PV1.UpperBound PV1.PosInf _) = pure $ C.TxValidityNoUpperBound C.ValidityNoUpperBoundInBabbageEra
+toCardanoValidityUpperBound (PV1.UpperBound PV1.PosInf _) = pure $ C.TxValidityUpperBound C.shelleyBasedEra Nothing
 toCardanoValidityUpperBound (PV1.UpperBound (PV1.Finite slotNo) closed) =
-  pure . C.TxValidityUpperBound C.ValidityUpperBoundInBabbageEra . toCardanoSlotNo $
+  pure . C.TxValidityUpperBound C.shelleyBasedEra . Just . toCardanoSlotNo $
     if closed then slotNo + 1 else slotNo
 toCardanoValidityUpperBound (PV1.UpperBound PV1.NegInf _) = Left InvalidValidityRange
 
@@ -817,7 +712,7 @@ fromCardanoReferenceScript (C.ReferenceScript _ script) = fromCardanoScriptInAny
 
 toCardanoReferenceScript :: Maybe (P.Versioned P.Script) -> C.ReferenceScript C.BabbageEra
 toCardanoReferenceScript (Just script) =
-  C.ReferenceScript C.ReferenceTxInsScriptsInlineDatumsInBabbageEra $ toCardanoScriptInAnyLang script
+  C.ReferenceScript C.BabbageEraOnwardsBabbage $ toCardanoScriptInAnyLang script
 toCardanoReferenceScript Nothing = C.ReferenceScriptNone
 
 deserialiseFromRawBytes

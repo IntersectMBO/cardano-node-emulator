@@ -222,6 +222,6 @@ createGenesisTransaction vals =
         }
     txBody =
       either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $
-        C.createAndValidateTransactionBody txBodyContent
+        C.createAndValidateTransactionBody C.shelleyBasedEra txBodyContent
    in
     CardanoEmulatorEraTx $ C.Tx txBody []

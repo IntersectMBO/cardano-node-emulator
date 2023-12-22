@@ -166,7 +166,7 @@ toHashableScriptData :: (PlutusTx.ToData a) => a -> C.HashableScriptData
 toHashableScriptData = C.unsafeHashableScriptData . C.fromPlutusData . PlutusTx.toData
 
 toTxOutInlineDatum :: (PlutusTx.ToData a) => a -> C.TxOutDatum C.CtxTx C.BabbageEra
-toTxOutInlineDatum = C.TxOutDatumInline C.ReferenceTxInsScriptsInlineDatumsInBabbageEra . toHashableScriptData
+toTxOutInlineDatum = C.TxOutDatumInline C.BabbageEraOnwardsBabbage . toHashableScriptData
 
 toValidityRange
   :: SlotConfig
@@ -181,6 +181,7 @@ mkTxOutput = \case
   PaymentPubKeyTarget pkh vl ->
     C.TxOut
       ( C.makeShelleyAddressInEra
+          C.shelleyBasedEra
           testnet
           (either (error . show) C.PaymentCredentialByKey $ C.toCardanoPaymentKeyHash pkh)
           C.NoStakeAddress
@@ -191,6 +192,7 @@ mkTxOutput = \case
   ScriptTarget (Ledger.ValidatorHash vs) ds vl ->
     C.TxOut
       ( C.makeShelleyAddressInEra
+          C.shelleyBasedEra
           testnet
           (either (error . show) C.PaymentCredentialByScript $ C.toCardanoScriptHash $ Ledger.ScriptHash vs)
           C.NoStakeAddress
@@ -281,7 +283,8 @@ mkPayTx slotConfig escrow wallet vl =
       utx =
         E.emptyTxBodyContent
           { C.txOuts = [txOut]
-          , C.txValidityRange = validityRange
+          , C.txValidityLowerBound = fst validityRange
+          , C.txValidityUpperBound = snd validityRange
           }
       utxoIndex = mempty
    in (C.CardanoBuildTx utx, utxoIndex)
@@ -337,7 +340,8 @@ mkRedeemTx escrow = do
               E.emptyTxBodyContent
                 { C.txIns = txIns
                 , C.txOuts = txOuts
-                , C.txValidityRange = validityRange
+                , C.txValidityLowerBound = fst validityRange
+                , C.txValidityUpperBound = snd validityRange
                 }
            in
             pure (C.CardanoBuildTx utx, unspentOutputs)
@@ -387,8 +391,9 @@ mkRefundTx escrow wallet = do
       utx =
         E.emptyTxBodyContent
           { C.txIns = txIns
-          , C.txValidityRange = validityRange
-          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.ExtraKeyWitnessesInBabbageEra [extraKeyWit]
+          , C.txValidityLowerBound = fst validityRange
+          , C.txValidityUpperBound = snd validityRange
+          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.AlonzoEraOnwardsBabbage [extraKeyWit]
           }
   if null txIns
     then throwError $ E.CustomError $ show RefundFailed

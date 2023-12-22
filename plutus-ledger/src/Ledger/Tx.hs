@@ -132,6 +132,8 @@ import PlutusLedgerApi.V2.Tx qualified as V2.Tx hiding (TxId (..))
 import Prettyprinter (Pretty (pretty), colon, hang, nest, viaShow, vsep, (<+>))
 
 -- for re-export
+
+import Cardano.Api (TxBodyContent (txValidityUpperBound))
 import Ledger.Index.Internal (UtxoIndex)
 import Ledger.Tx.Internal as Export
 import PlutusLedgerApi.V1.Tx as Export hiding (
@@ -444,7 +446,7 @@ getTxBodyContentMint :: C.TxBodyContent ctx era -> C.Value
 getTxBodyContentMint C.TxBodyContent{..} = CardanoAPI.fromCardanoMintValue txMintValue
 
 getCardanoTxValidityRange :: CardanoTx -> SlotRange
-getCardanoTxValidityRange (CardanoTx (C.Tx (C.TxBody C.TxBodyContent{..}) _) _) = CardanoAPI.fromCardanoValidityRange txValidityRange
+getCardanoTxValidityRange (CardanoTx (C.Tx (C.TxBody C.TxBodyContent{..}) _) _) = CardanoAPI.fromCardanoValidityRange txValidityLowerBound txValidityUpperBound
 
 getCardanoTxData :: CardanoTx -> Map V1.DatumHash V1.Datum
 getCardanoTxData (CardanoTx (C.Tx txBody _) _) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
@@ -466,7 +468,7 @@ txBodyContentCollateralIns =
     )
     ( \bodyContent ins ->
         bodyContent
-          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.CollateralInBabbageEra ins
+          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.AlonzoEraOnwardsBabbage ins
           }
     )
 
@@ -500,6 +502,7 @@ addCardanoTxSignature privKey = addSignatureCardano
 
     fromPaymentPrivateKey xprv txBody =
       C.Api.makeShelleyKeyWitness
+        C.shelleyBasedEra
         (C.Api.ShelleyTxBody C.Api.ShelleyBasedEraBabbage txBody notUsed notUsed notUsed notUsed)
         (C.Api.WitnessPaymentExtendedKey (C.Api.PaymentExtendedSigningKey xprv))
       where

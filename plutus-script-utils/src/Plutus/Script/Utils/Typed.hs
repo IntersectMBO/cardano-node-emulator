@@ -29,10 +29,11 @@ module Plutus.Script.Utils.Typed (
   IsScriptContext (mkUntypedValidator, mkUntypedStakeValidator, mkUntypedMintingPolicy),
   ScriptContextV1,
   ScriptContextV2,
+  ScriptContextV3,
 ) where
 
 import Cardano.Api qualified as C
-import Cardano.Ledger.Alonzo.Language (Language (PlutusV1, PlutusV2, PlutusV3))
+import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
 import Data.Aeson (ToJSON)
 import Data.Kind (Type)
 import Data.Void (Void)
@@ -45,6 +46,7 @@ import Plutus.Script.Utils.Scripts qualified as PV1
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Address qualified as PV1
 import PlutusLedgerApi.V2 qualified as PV2
+import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx.Prelude (BuiltinData, BuiltinString, check, trace)
 
 type UntypedValidator = BuiltinData -> BuiltinData -> BuiltinData -> ()
@@ -298,7 +300,8 @@ class (PV1.UnsafeFromData sc) => IsScriptContext sc where
 
 type ScriptContextV1 = PV1.ScriptContext
 type ScriptContextV2 = PV2.ScriptContext
+type ScriptContextV3 = PV3.ScriptContext
 
 instance IsScriptContext PV1.ScriptContext
-
 instance IsScriptContext PV2.ScriptContext
+instance IsScriptContext PV3.ScriptContext

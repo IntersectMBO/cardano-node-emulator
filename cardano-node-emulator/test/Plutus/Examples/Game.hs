@@ -136,7 +136,7 @@ mkLockTx LockArgs{lockArgsGameParam, lockArgsSecret, lockArgsValue} =
         C.TxOut
           gameAddr
           (C.toCardanoTxOutValue lockArgsValue)
-          (C.TxOutDatumInline C.ReferenceTxInsScriptsInlineDatumsInBabbageEra datum)
+          (C.TxOutDatumInline C.BabbageEraOnwardsBabbage datum)
           C.ReferenceScriptNone
       tx =
         E.emptyTxBodyContent

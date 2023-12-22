@@ -71,13 +71,12 @@ import PlutusTx.Monoid (inv)
 
 import Cardano.Api (
   AddressInEra (AddressInEra),
+  AllegraEraOnwards (AllegraEraOnwardsBabbage),
+  IsShelleyBasedEra (shelleyBasedEra),
   TxOut (TxOut),
   TxValidityLowerBound (TxValidityLowerBound, TxValidityNoLowerBound),
-  TxValidityUpperBound (TxValidityNoUpperBound, TxValidityUpperBound),
+  TxValidityUpperBound (TxValidityUpperBound),
   UTxO (unUTxO),
-  ValidityLowerBoundSupportedInEra (ValidityLowerBoundInBabbageEra),
-  ValidityNoUpperBoundSupportedInEra (ValidityNoUpperBoundInBabbageEra),
-  ValidityUpperBoundSupportedInEra (ValidityUpperBoundInBabbageEra),
   toAddressAny,
  )
 import Test.QuickCheck qualified as QC hiding ((.&&.))
@@ -349,14 +348,14 @@ validityChecks = do
     Just Impl.Redeem ->
       shouldNotValidate $
         changeValidityRange
-          ( TxValidityLowerBound ValidityLowerBoundInBabbageEra deadline
-          , TxValidityNoUpperBound ValidityNoUpperBoundInBabbageEra
+          ( TxValidityLowerBound AllegraEraOnwardsBabbage deadline
+          , TxValidityUpperBound shelleyBasedEra Nothing
           )
     Just Impl.Refund ->
       shouldNotValidate $
         changeValidityRange
           ( TxValidityNoLowerBound
-          , TxValidityUpperBound ValidityUpperBoundInBabbageEra (deadline - 1)
+          , TxValidityUpperBound shelleyBasedEra (Just $ deadline - 1)
           )
 
 prop_validityChecks :: Actions EscrowModel -> Property

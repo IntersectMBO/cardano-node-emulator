@@ -48,6 +48,7 @@ see note [Hash computation of datums, redeemers and scripts]
 toScriptAddress :: Script.NetworkId -> Script -> Script.AddressInEra Script.BabbageEra
 toScriptAddress networkId script =
   Script.makeShelleyAddressInEra
+    Script.shelleyBasedEra
     networkId
     ( Script.PaymentCredentialByScript
         . Script.hashScript

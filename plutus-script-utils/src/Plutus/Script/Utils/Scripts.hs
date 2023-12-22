@@ -56,7 +56,7 @@ module Plutus.Script.Utils.Scripts (
 
 import Cardano.Api qualified as C.Api
 import Cardano.Api.Shelley qualified as C.Api
-import Cardano.Ledger.Alonzo.Language (Language (PlutusV1, PlutusV2, PlutusV3))
+import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
 import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.String (IsString)
@@ -260,6 +260,7 @@ unStakeValidatorScript = getStakeValidator
 toScriptAddress :: C.Api.NetworkId -> Versioned Script -> C.Api.AddressInEra C.Api.BabbageEra
 toScriptAddress networkId script =
   C.Api.makeShelleyAddressInEra
+    C.Api.shelleyBasedEra
     networkId
     (C.Api.PaymentCredentialByScript (cardanoScriptHash script))
     C.Api.NoStakeAddress

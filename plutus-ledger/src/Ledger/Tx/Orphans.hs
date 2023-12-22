@@ -89,9 +89,6 @@ instance Serialise C.TxId where
       pure
       $ C.deserialiseFromRawBytes C.AsTxId bs
 
-instance Pretty C.TxIn where
-  pretty (C.TxIn txId (C.TxIx txIx)) = pretty txId <> "!" <> viaShow txIx
-
 deriving instance Generic C.TxIn
 deriving instance Generic C.TxId
 deriving instance Generic C.TxIx

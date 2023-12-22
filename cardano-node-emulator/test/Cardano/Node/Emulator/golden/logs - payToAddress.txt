@@ -1,70 +1,70 @@
 [INFO] Balancing an unbalanced transaction:
-         Tx 2ecd70166c531e5f30ac25fe72912106225a228243b0324959edbd9867fd416a:
+         Tx 03354d1fb79eef1d40c9efc91a8c4679e85d915bb65e85051a839f428f63388c:
            inputs:
            reference inputs:
            collateral inputs:
            outputs:
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
-           mint: 
+           mint: 0 lovelace
            fee: 0 lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
          Utxo index:
 [INFO] Finished balancing (using PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)):
-         Tx 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b:
+         Tx f02e3168c84a391325b4fd485322bd28fb64712b3786e0ca8543620bf0513d15:
            inputs:
-             - 60368582749c31ebc289ceb1422a492e0dc3d7b0ffd9b37f1bbb8155f72952c3!1
+             - TxIn "eecd766999928496a327fb5b587acc169a14b8eeb4c3a2cc696ed99243f1566e" (TxIx 1)
            reference inputs:
            collateral inputs:
            outputs:
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
-             - 8834455 lovelace addressed to
+             - 8834631 lovelace addressed to
                PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)
-           mint: 
-           fee: 165545 lovelace
+           mint: 0 lovelace
+           fee: 165369 lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
-[INFO] Signing tx: 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b
-[INFO] Submitting tx: 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b
-[INFO] TxnValidation 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b
+[INFO] Signing tx: f02e3168c84a391325b4fd485322bd28fb64712b3786e0ca8543620bf0513d15
+[INFO] Submitting tx: f02e3168c84a391325b4fd485322bd28fb64712b3786e0ca8543620bf0513d15
+[INFO] TxnValidation f02e3168c84a391325b4fd485322bd28fb64712b3786e0ca8543620bf0513d15
        Validation success
 [DEBUG] SlotAdd Slot 1
 [INFO] Balancing an unbalanced transaction:
-         Tx 2ecd70166c531e5f30ac25fe72912106225a228243b0324959edbd9867fd416a:
+         Tx 03354d1fb79eef1d40c9efc91a8c4679e85d915bb65e85051a839f428f63388c:
            inputs:
            reference inputs:
            collateral inputs:
            outputs:
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
-           mint: 
+           mint: 0 lovelace
            fee: 0 lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
          Utxo index:
 [INFO] Finished balancing (using PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)):
-         Tx a3db788dff556e9152c385257adbcc24ddbbcfd8e083ea70fd110741babb94c3:
+         Tx e4a2b3f50dcfe209dd16f730f522c2f7eeae349d9ff51c3fd5278687a62b9ff8:
            inputs:
-             - 4f54ed37832dae6b107c2a0ec1df8ae2718fe1419d0efd414dd124d2fb4d689b!1
+             - TxIn "f02e3168c84a391325b4fd485322bd28fb64712b3786e0ca8543620bf0513d15" (TxIx 1)
            reference inputs:
            collateral inputs:
            outputs:
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
-             - 7668910 lovelace addressed to
+             - 7669262 lovelace addressed to
                PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)
-           mint: 
-           fee: 165545 lovelace
+           mint: 0 lovelace
+           fee: 165369 lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
-[INFO] Signing tx: a3db788dff556e9152c385257adbcc24ddbbcfd8e083ea70fd110741babb94c3
-[INFO] Submitting tx: a3db788dff556e9152c385257adbcc24ddbbcfd8e083ea70fd110741babb94c3
-[INFO] TxnValidation a3db788dff556e9152c385257adbcc24ddbbcfd8e083ea70fd110741babb94c3
+[INFO] Signing tx: e4a2b3f50dcfe209dd16f730f522c2f7eeae349d9ff51c3fd5278687a62b9ff8
+[INFO] Submitting tx: e4a2b3f50dcfe209dd16f730f522c2f7eeae349d9ff51c3fd5278687a62b9ff8
+[INFO] TxnValidation e4a2b3f50dcfe209dd16f730f522c2f7eeae349d9ff51c3fd5278687a62b9ff8
        Validation success
 [DEBUG] SlotAdd Slot 2

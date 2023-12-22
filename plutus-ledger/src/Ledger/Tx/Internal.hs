@@ -37,6 +37,7 @@ import Ledger.DCert.Orphans ()
 import Ledger.Tx.Orphans ()
 import Ledger.Tx.Orphans.V2 ()
 
+import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts
@@ -199,16 +200,14 @@ emptyTxBodyContent =
     { txIns = []
     , txInsCollateral = C.TxInsCollateralNone
     , txMintValue = C.TxMintNone
-    , txFee = C.TxFeeExplicit C.TxFeesExplicitInBabbageEra 0
+    , txFee = C.TxFeeExplicit C.shelleyBasedEra 0
     , txOuts = []
     , txProtocolParams = C.BuildTxWith Nothing
     , txInsReference = C.TxInsReferenceNone
     , txTotalCollateral = C.TxTotalCollateralNone
     , txReturnCollateral = C.TxReturnCollateralNone
-    , txValidityRange =
-        ( C.TxValidityNoLowerBound
-        , C.TxValidityNoUpperBound C.ValidityNoUpperBoundInBabbageEra
-        )
+    , txValidityLowerBound = C.TxValidityNoLowerBound
+    , txValidityUpperBound = C.TxValidityUpperBound C.shelleyBasedEra Nothing
     , txScriptValidity = C.TxScriptValidityNone
     , txExtraKeyWits = C.TxExtraKeyWitnessesNone
     , txMetadata = C.TxMetadataNone

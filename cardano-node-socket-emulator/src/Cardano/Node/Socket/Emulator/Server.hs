@@ -6,10 +6,49 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
 
 import Cardano.BM.Data.Trace (Trace)
+import Control.Concurrent (
+  MVar,
+  ThreadId,
+  forkIO,
+  modifyMVar_,
+  newMVar,
+  putMVar,
+  readMVar,
+  takeMVar,
+ )
+import Control.Concurrent.Async (async, wait)
+import Control.Concurrent.STM (
+  STM,
+  TChan,
+  TQueue,
+  atomically,
+  cloneTChan,
+  newTQueueIO,
+  readTChan,
+  readTQueue,
+  retry,
+  tryReadTChan,
+  writeTChan,
+  writeTQueue,
+ )
+import Control.Exception (throwIO)
+import Control.Lens (over, (^.))
+import Control.Monad (forever, void)
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Freer (send)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.RWS.Strict (runRWST)
+import Control.Monad.Reader (
+  MonadReader (ask),
+  ReaderT (runReaderT),
+  runReader,
+ )
+import Control.Tracer (nullTracer)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Coerce (coerce)
 import Data.Foldable (toList, traverse_)
@@ -18,18 +57,6 @@ import Data.Maybe (listToMaybe)
 import Data.SOP (K (K))
 import Data.SOP.Strict (NS (S, Z))
 import Data.Void (Void)
-
-import Control.Concurrent
-import Control.Concurrent.Async
-import Control.Concurrent.STM
-import Control.Exception (throwIO)
-import Control.Lens (over, (^.))
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Freer (send)
-import Control.Monad.RWS.Strict (runRWST)
-
-import Control.Monad.Reader
-import Control.Tracer
 
 import Ouroboros.Network.Protocol.ChainSync.Server (
   ChainSyncServer (..),

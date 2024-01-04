@@ -90,9 +90,9 @@ library
     , mtl
     , prettyprinter             >=1.1.0.1
     , QuickCheck
-    , quickcheck-contractmodel  >=0.1.5.0
+    , quickcheck-contractmodel
     , quickcheck-dynamic
-    , quickcheck-threatmodel    >=0.1.5.0
+    , quickcheck-threatmodel
     , sop-core
     , tasty
     , tasty-hunit

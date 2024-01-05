@@ -7,7 +7,6 @@ let
     src = ../.;
     compiler-nix-name = lib.mkDefault "ghc962";
     flake.variants.ghc928.compiler-nix-name = "ghc928";
-    flake.variants.ghc8107.compiler-nix-name = "ghc8107";
     shell.withHoogle = false;
     inputMap = {
       "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.iogx.inputs.CHaP;

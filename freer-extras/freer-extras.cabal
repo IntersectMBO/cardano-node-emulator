@@ -52,10 +52,10 @@ library
   ------------------------
   build-depends:
     , aeson
-    , base           >=4.7 && <5
+    , base           >=4.7     && <5
     , containers
     , data-default
-    , freer-simple
+    , freer-simple   >=1.2.0.0
     , lens
     , mtl
     , prettyprinter
@@ -73,7 +73,7 @@ test-suite freer-extras-test
   ----------------------------
   -- Local components
   ----------------------------
-  build-depends:  freer-extras >=1.2.0
+  build-depends:  freer-extras ^>=1.3.0
 
   ------------------------
   -- Non-IOG dependencies

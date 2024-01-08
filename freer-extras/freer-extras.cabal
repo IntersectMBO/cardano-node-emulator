@@ -52,10 +52,10 @@ library
   ------------------------
   build-depends:
     , aeson
-    , base           >=4.7     && <5
+    , base           >=4.7 && <5
     , containers
     , data-default
-    , freer-simple   >=1.2.0.0
+    , freer-simple
     , lens
     , mtl
     , prettyprinter

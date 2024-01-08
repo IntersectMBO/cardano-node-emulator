@@ -59,7 +59,6 @@ import Control.Monad.Freer.Extras.Modify (raiseUnder)
 import Control.Lens (AReview, Prism', makeLenses, prism', review)
 import Control.Monad.Freer
 import Control.Monad.Freer.State (State, get, put, runState)
-import Control.Monad.Freer.TH (makeEffect)
 import Control.Monad.Freer.Writer (Writer (..), tell)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (for_, traverse_)
@@ -412,4 +411,8 @@ handleObserveLog =
               obsLabelStart
       send $ LMessage msg'
 
-makeEffect ''LogObserve
+observeBefore :: (Member (LogObserve a) effs) => a -> Eff effs ObservationHandle
+observeBefore a = send (ObserveBefore a)
+
+observeAfter :: (Member (LogObserve a) effs) => Maybe a -> ObservationHandle -> Eff effs ()
+observeAfter a b = send (ObserveAfter a b)

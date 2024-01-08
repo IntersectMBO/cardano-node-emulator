@@ -2,21 +2,20 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Control.Monad.Freer.Extras.Delay where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad.Freer (Eff, LastMember, interpret, type (~>))
-import Control.Monad.Freer.TH (makeEffect)
+import Control.Monad.Freer (Eff, LastMember, Member, interpret, send, type (~>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Time.Units (TimeUnit, toMicroseconds)
 
 data DelayEffect r where
   DelayThread :: (TimeUnit a) => a -> DelayEffect ()
 
-makeEffect ''DelayEffect
+delayThread :: (TimeUnit a) => (Member DelayEffect effs) => a -> Eff effs ()
+delayThread = send . DelayThread
 
 handleDelayEffect
   :: forall effs m

@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Cardano.Node.Emulator.Test.NoLockedFunds (

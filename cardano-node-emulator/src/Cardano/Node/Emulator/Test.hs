@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -69,7 +70,11 @@ import Cardano.Node.Emulator.LogMessages (
   EmulatorMsg (TxBalanceMsg),
   TxBalanceMsg (FinishedBalancing),
  )
+#if MIN_VERSION_base(4,18,0)
+import Control.Applicative ((<|>))
+#else
 import Control.Applicative (liftA2, (<|>))
+#endif
 import Control.Lens (use, view, (^.))
 import Control.Monad (when)
 import Control.Monad.Except (runExceptT)

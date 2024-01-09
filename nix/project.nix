@@ -5,7 +5,8 @@ let
   cabalProject = pkgs.haskell-nix.cabalProject' {
     name = "cardano-node-emulator";
     src = ../.;
-    compiler-nix-name = lib.mkDefault "ghc928";
+    compiler-nix-name = lib.mkDefault "ghc962";
+    flake.variants.ghc928.compiler-nix-name = "ghc928";
     shell.withHoogle = false;
     inputMap = {
       "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.iogx.inputs.CHaP;

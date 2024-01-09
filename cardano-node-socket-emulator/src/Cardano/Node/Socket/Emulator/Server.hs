@@ -10,16 +10,13 @@
 
 module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
 
-import Cardano.BM.Data.Trace (Trace)
 import Control.Concurrent (
   MVar,
   ThreadId,
   forkIO,
   modifyMVar_,
   newMVar,
-  putMVar,
   readMVar,
-  takeMVar,
  )
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.STM (
@@ -39,10 +36,9 @@ import Control.Concurrent.STM (
 import Control.Exception (throwIO)
 import Control.Lens (over, (^.))
 import Control.Monad (forever, void)
-import Control.Monad.Except (runExceptT)
 import Control.Monad.Freer (send)
+import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.RWS.Strict (runRWST)
 import Control.Monad.Reader (
   MonadReader (ask),
   ReaderT (runReaderT),
@@ -51,28 +47,18 @@ import Control.Monad.Reader (
 import Control.Tracer (nullTracer)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Coerce (coerce)
-import Data.Foldable (toList, traverse_)
+import Data.Foldable (traverse_)
 import Data.List (intersect)
 import Data.Maybe (listToMaybe)
-import Data.SOP (K (K))
 import Data.SOP.Strict (NS (S, Z))
 import Data.Void (Void)
 
-import Ouroboros.Network.Protocol.ChainSync.Server (
-  ChainSyncServer (..),
-  ServerStIdle (..),
-  ServerStIntersect (..),
-  ServerStNext (..),
- )
-import Ouroboros.Network.Protocol.ChainSync.Server qualified as ChainSync
-import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
-import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
-import Plutus.Monitoring.Util qualified as LM
-
+import Cardano.BM.Data.Trace (Trace)
 import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
-import Ouroboros.Consensus.Cardano.Block (BlockQuery (..), CardanoBlock)
-import Ouroboros.Consensus.HardFork.Combinator (QueryHardFork (..))
+import Ledger (Block, CardanoTx (..), Slot (..))
+import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
+import Ouroboros.Consensus.Ledger.Query (Query (..))
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Shelley.Eras (StandardCrypto)
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
@@ -87,28 +73,34 @@ import Ouroboros.Network.NodeToClient (
   versionedNodeToClientProtocols,
  )
 import Ouroboros.Network.Point qualified as OP (Block (..))
+import Ouroboros.Network.Protocol.ChainSync.Server (
+  ChainSyncServer (..),
+  ServerStIdle (..),
+  ServerStIntersect (..),
+  ServerStNext (..),
+ )
+import Ouroboros.Network.Protocol.ChainSync.Server qualified as ChainSync
 import Ouroboros.Network.Protocol.Handshake.Codec
 import Ouroboros.Network.Protocol.Handshake.Version
+import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
+import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
+import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
+import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Snocket
 import Ouroboros.Network.Socket
+import Plutus.Monitoring.Util qualified as LM
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 
 import Cardano.Node.Emulator.API qualified as E
-import Cardano.Node.Emulator.Internal.API (EmulatorError, EmulatorLogs, EmulatorMsg, EmulatorT)
+import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
-import Cardano.Node.Emulator.Internal.Node.Params (
-  Params (..),
-  emulatorEraHistory,
-  genesisDefaultsFromParams,
- )
-import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
+import Cardano.Node.Socket.Emulator.Query (handleQuery)
 import Cardano.Node.Socket.Emulator.Types (
   AppState (..),
   BlockId (BlockId),
-  SocketEmulatorState (..),
   Tip,
   blockId,
   chainSyncCodec,
@@ -118,19 +110,13 @@ import Cardano.Node.Socket.Emulator.Types (
   getTip,
   nodeToClientVersion,
   nodeToClientVersionData,
+  runChainEffects,
   setTip,
   socketEmulatorState,
   stateQueryCodec,
   toCardanoBlock,
   txSubmissionCodec,
  )
-import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
-import Ledger (Block, CardanoTx (..), Slot (..))
-import Ledger.Tx.CardanoAPI (fromPlutusIndex)
-import Ouroboros.Consensus.Ledger.Query (Query (..))
-import Ouroboros.Consensus.Shelley.Ledger.Query (BlockQuery (..))
-import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
-import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
 
 data CommandChannel = CommandChannel
   { ccCommand :: TQueue ServerCommand
@@ -224,18 +210,6 @@ pruneChain k original = do
           liftIO $ atomically (readTChan original) >> go 0 localChannel
         else do
           go (k' - 1) localChannel
-
--- | Run all chain effects in the IO Monad
-runChainEffects
-  :: MVar AppState
-  -> EmulatorT IO a
-  -> IO (EmulatorLogs, Either EmulatorError a)
-runChainEffects stateVar eff = do
-  AppState (SocketEmulatorState oldState chan tip) events params <- liftIO $ takeMVar stateVar
-  (a, newState, newEvents) <- runRWST (runExceptT eff) params oldState
-  putMVar stateVar $
-    AppState (SocketEmulatorState newState chan tip) (events <> newEvents) params
-  pure (newEvents, a)
 
 processChainEffects
   :: Trace IO EmulatorMsg
@@ -663,40 +637,3 @@ stateQueryServer state = Query.LocalStateQueryServer{Query.runLocalStateQuerySer
         , Query.recvMsgReAcquire = acquiring
         , Query.recvMsgRelease = pure idle
         }
-
-handleQuery
-  :: (block ~ CardanoBlock StandardCrypto)
-  => MVar AppState
-  -> Query block result
-  -> IO result
-handleQuery state = \case
-  BlockQuery (QueryIfCurrentBabbage GetGenesisConfig) -> do
-    AppState _ _ params <- readMVar state
-    pure $ Right $ Shelley.compactGenesis $ genesisDefaultsFromParams params
-  BlockQuery (QueryIfCurrentBabbage GetCurrentPParams) -> do
-    AppState _ _ params <- readMVar state
-    pure $ Right $ emulatorPParams params
-  BlockQuery (QueryIfCurrentBabbage (GetUTxOByAddress addrs)) -> do
-    (_logs, res) <- runChainEffects state $ do
-      utxos <- traverse (E.utxosAt . C.fromShelleyAddrIsSbe C.shelleyBasedEra) $ toList addrs
-      pure $ fromPlutusIndex (mconcat utxos)
-    either (printError . show) (pure . Right) res
-  BlockQuery (QueryHardFork GetInterpreter) -> do
-    AppState _ _ params <- readMVar state
-    let C.EraHistory interpreter = emulatorEraHistory params
-    pure interpreter
-  BlockQuery (QueryHardFork GetCurrentEra) -> do
-    pure $ Consensus.EraIndex (S (S (S (S (S (Z (K ()))))))) -- BabbageEra
-  BlockQuery q -> printError $ "Unimplemented BlockQuery received: " ++ show q
-  GetSystemStart -> do
-    AppState _ _ Params{pSlotConfig} <- readMVar state
-    pure $ C.SystemStart $ posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
-  GetChainBlockNo -> do
-    tip <- getTip state
-    case tip of
-      O.TipGenesis -> pure Origin
-      (O.Tip _ _ curBlockNo) -> pure $ At curBlockNo
-  GetChainPoint -> printError "Unimplemented: GetChainPoint"
-
-printError :: String -> IO a
-printError s = print s >> error s

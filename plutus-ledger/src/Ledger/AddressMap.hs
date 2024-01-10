@@ -20,7 +20,6 @@ module Ledger.AddressMap (
   singleton,
   updateAddresses,
   updateAllAddresses,
-  lookupOutRef,
   fromChain,
 ) where
 
@@ -30,7 +29,6 @@ import Control.Lens (
   IxValue,
   Ixed (..),
   Lens',
-  alaf,
   at,
   lens,
   non,
@@ -44,7 +42,6 @@ import Data.Foldable (fold)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
-import Data.Monoid (First (..))
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 
@@ -63,10 +60,6 @@ newtype AddressMap = AddressMap {getAddressMap :: Map CardanoAddress UtxoMap}
 -- | An address map with a single unspent transaction output.
 singleton :: (CardanoAddress, C.TxIn, CardanoTx, TxOut) -> AddressMap
 singleton (addr, ref, tx, ot) = AddressMap $ Map.singleton addr (Map.singleton ref (tx, ot))
-
--- | Determine the unspent output that an input refers to
-lookupOutRef :: C.TxIn -> AddressMap -> Maybe TxOut
-lookupOutRef outRef = fmap snd . alaf First foldMap (Map.lookup outRef) . getAddressMap
 
 instance Semigroup AddressMap where
   (AddressMap l) <> (AddressMap r) = AddressMap (Map.unionWith add l r)

@@ -15,8 +15,9 @@ module Cardano.Node.Emulator.API (
   -- * Querying the blockchain
   utxosAt,
   utxosAtPlutus,
+  utxoAtTxIn,
+  utxosAtTxIns,
   utxoAtTxOutRef,
-  utxoAtTxOutRefPlutus,
   fundsAt,
   lookupDatum,
 
@@ -66,7 +67,7 @@ import Cardano.Node.Emulator.Internal.API (
   modifySlot,
   processBlock,
  )
-import Control.Lens ((%~), (&), (<>~), (^.))
+import Control.Lens (use, (%~), (&), (<>~), (^.))
 import Control.Monad (void)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Freer.Extras.Log qualified as L
@@ -87,7 +88,7 @@ import Ledger (
   UtxoIndex,
  )
 import Ledger.AddressMap qualified as AM
-import Ledger.Index (createGenesisTransaction, insertBlock)
+import Ledger.Index qualified as Index
 import Ledger.Tx (
   TxOut,
   addCardanoTxSignature,
@@ -134,11 +135,11 @@ emptyEmulatorState = EmulatorState E.emptyChainState mempty mempty
 
 emptyEmulatorStateWithInitialDist :: Map CardanoAddress C.Value -> EmulatorState
 emptyEmulatorStateWithInitialDist initialDist =
-  let tx = createGenesisTransaction initialDist
+  let tx = Index.createGenesisTransaction initialDist
       vtx = unsafeMakeValid tx
    in emptyEmulatorState
         & esChainState . E.chainNewestFirst %~ ([vtx] :)
-        & esChainState . E.index %~ insertBlock [vtx]
+        & esChainState . E.index %~ Index.insertBlock [vtx]
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 
@@ -202,19 +203,22 @@ utxosAtPlutus addr = do
       Map.mapMaybe (toDecoratedTxOut . snd) $
         es ^. esAddressMap . AM.fundsAt addr
 
--- | Resolve the transaction output reference.
-utxoAtTxOutRef :: (MonadEmulator m) => C.TxIn -> m (Maybe TxOut)
-utxoAtTxOutRef txIn = do
-  es <- get
-  pure $ AM.lookupOutRef txIn (es ^. esAddressMap)
+-- | Query the unspent transaction outputs at the given transaction inputs.
+utxosAtTxIns :: (MonadEmulator m, Foldable f) => f C.TxIn -> m UtxoIndex
+utxosAtTxIns txIns = do
+  idx <- use (esChainState . E.index)
+  pure $ foldMap (\txIn -> maybe mempty (Index.singleton txIn) $ Index.lookupUTxO txIn idx) txIns
+
+-- | Resolve the transaction input.
+utxoAtTxIn :: (MonadEmulator m) => C.TxIn -> m (Maybe TxOut)
+utxoAtTxIn txIn = Index.lookup txIn <$> use (esChainState . E.index)
 
 -- | Resolve the transaction output reference (using Plutus types).
-utxoAtTxOutRefPlutus :: (MonadEmulator m) => TxOutRef -> m (Maybe DecoratedTxOut)
-utxoAtTxOutRefPlutus ref = either (const $ pure Nothing) findTxOut (toCardanoTxIn ref)
+utxoAtTxOutRef :: (MonadEmulator m) => TxOutRef -> m (Maybe DecoratedTxOut)
+utxoAtTxOutRef ref = either (const $ pure Nothing) findTxOut (toCardanoTxIn ref)
   where
     findTxOut txIn = do
-      es <- get
-      let mTxOut = AM.lookupOutRef txIn (es ^. esAddressMap)
+      mTxOut <- utxoAtTxIn txIn
       pure $ mTxOut >>= toDecoratedTxOut
 
 -- | Query the total value of the unspent transaction outputs at the given address.

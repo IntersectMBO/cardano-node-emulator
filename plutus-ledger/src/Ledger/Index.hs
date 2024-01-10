@@ -16,7 +16,9 @@ module Ledger.Index (
   insertCollateral,
   insertBlock,
   initialise,
+  singleton,
   lookup,
+  lookupUTxO,
   getCollateral,
   ValidationError (..),
   _TxOutRefNotFound,
@@ -89,6 +91,10 @@ import PlutusTx.Lattice ((\/))
 initialise :: Blockchain -> UtxoIndex
 initialise = (`insertBlock` mempty) . concat
 
+-- | Create an index with a single UTxO.
+singleton :: C.TxIn -> C.TxOut C.CtxUTxO C.BabbageEra -> UtxoIndex
+singleton txIn txOut = C.UTxO $ Map.singleton txIn txOut
+
 -- | Update the index for the addition of a transaction.
 insert :: CardanoTx -> UtxoIndex -> UtxoIndex
 insert tx (C.UTxO unspent) =
@@ -107,9 +113,9 @@ insertCollateral tx (C.UTxO unspent) =
 insertBlock :: Block -> UtxoIndex -> UtxoIndex
 insertBlock blck i = foldl' (flip (eitherTx insertCollateral insert)) i blck
 
--- | Find an unspent transaction output by the 'TxOutRef' that spends it.
+-- | Find an unspent transaction output by the 'TxIn' that spends it.
 lookup :: C.TxIn -> UtxoIndex -> Maybe TxOut
-lookup i index = case Map.lookup i $ C.unUTxO index of
+lookup i index = case lookupUTxO i index of
   Just (C.TxOut aie tov tod rs) ->
     let tod' = case tod of
           C.TxOutDatumNone -> C.TxOutDatumNone
@@ -117,6 +123,10 @@ lookup i index = case Map.lookup i $ C.unUTxO index of
           C.TxOutDatumInline era scriptData -> C.TxOutDatumInline era scriptData
      in Just $ TxOut (C.TxOut aie tov tod' rs)
   Nothing -> Nothing
+
+-- | Find an unspent transaction output (using the Ledger type) by the 'TxIn' that spends it.
+lookupUTxO :: C.TxIn -> UtxoIndex -> Maybe (C.TxOut C.CtxUTxO C.BabbageEra)
+lookupUTxO i index = Map.lookup i $ C.unUTxO index
 
 getCollateral :: UtxoIndex -> CardanoTx -> C.Value
 getCollateral idx tx = case getCardanoTxTotalCollateral tx of

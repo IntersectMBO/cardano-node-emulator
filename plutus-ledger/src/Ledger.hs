@@ -10,7 +10,7 @@ import Cardano.Api (NetworkId)
 import Ledger.Address as Export
 import Ledger.Blockchain as Export
 import Ledger.Crypto as Export
-import Ledger.Index as Export
+import Ledger.Index as Export hiding (singleton)
 import Ledger.Orphans ()
 import Ledger.Scripts as Export
 import Ledger.Slot as Export

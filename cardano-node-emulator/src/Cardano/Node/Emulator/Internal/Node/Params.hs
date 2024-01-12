@@ -176,7 +176,7 @@ instance Default C.ProtocolParameters where
   -- The protocol parameters as they are in the Alonzo era.
   def =
     C.ProtocolParameters
-      { protocolParamProtocolVersion = (7, 0)
+      { protocolParamProtocolVersion = (8, 0)
       , protocolParamDecentralization = Nothing
       , protocolParamExtraPraosEntropy = Nothing
       , protocolParamMaxBlockHeaderSize = 1100

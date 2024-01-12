@@ -24,9 +24,11 @@ import Cardano.Ledger.Block qualified as CL
 import Cardano.Ledger.Era qualified as CL
 import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
 import Cardano.Node.Emulator.API (
+  EmulatorError,
   EmulatorLogs,
   EmulatorMsg,
   EmulatorState,
+  EmulatorT,
   emptyEmulatorStateWithInitialDist,
   esChainState,
  )
@@ -35,13 +37,15 @@ import Cardano.Node.Emulator.Internal.Node.Params (Params, testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
-import Control.Concurrent (MVar, modifyMVar_, readMVar)
+import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
 import Control.Concurrent.STM
 import Control.Lens (makeLenses, view, (&), (.~), (^.))
 import Control.Monad (forever)
 import Control.Monad.Class.MonadST (MonadST)
 import Control.Monad.Class.MonadTimer (MonadDelay (threadDelay), MonadTimer)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.RWS.Strict (runRWST)
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Extras qualified as JSON
@@ -230,6 +234,18 @@ setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
     oldState
       & socketEmulatorState . tip
         .~ Ouroboros.Tip (fromIntegral slot) (coerce $ blockId block) (fromIntegral slot)
+
+-- | Run all chain effects in the IO Monad
+runChainEffects
+  :: MVar AppState
+  -> EmulatorT IO a
+  -> IO (EmulatorLogs, Either EmulatorError a)
+runChainEffects stateVar eff = do
+  AppState (SocketEmulatorState oldState chan tip') events params <- liftIO $ takeMVar stateVar
+  (a, newState, newEvents) <- runRWST (runExceptT eff) params oldState
+  putMVar stateVar $
+    AppState (SocketEmulatorState newState chan tip') (events <> newEvents) params
+  pure (newEvents, a)
 
 -- Logging ------------------------------------------------------------------------------------------------------------
 

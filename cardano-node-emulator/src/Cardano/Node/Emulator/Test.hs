@@ -262,7 +262,7 @@ data Options state = Options
   -- ^ Node parameters
   , finalPred :: ModelState state -> EmulatorLogs -> Maybe String
   -- ^ Predicate to check at the end of execution
-  , modelPred :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
+  , modelPred :: C.LedgerProtocolParameters C.ConwayEra -> ContractModelResult state -> Property
   -- ^ Predicate to run on the contract model
   , coverageIndex :: CoverageIndex
   , coverageRef :: Maybe (IORef CoverageData)
@@ -343,7 +343,7 @@ propRunActionsWithOptions opts@Options{..} actions =
               (Right prop, Nothing) -> return $ counterexample logs prop
 
 balanceChangePredicate
-  :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
+  :: C.LedgerProtocolParameters C.ConwayEra -> ContractModelResult state -> Property
 balanceChangePredicate ledgerPP =
   assertBalanceChangesMatch (BalanceChangeOptions False signerPaysFees ledgerPP prettyAddr)
 

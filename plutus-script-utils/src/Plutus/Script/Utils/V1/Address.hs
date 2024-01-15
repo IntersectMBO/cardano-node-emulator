@@ -27,17 +27,17 @@ mkValidatorAddress validator = Address (ScriptCredential (PV1.scriptHash $ getVa
 
 -- | Cardano address of a 'PV1.Validator' script.
 mkValidatorCardanoAddress
-  :: Script.NetworkId -> PV1.Validator -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV1.Validator -> Script.AddressInEra Script.ConwayEra
 mkValidatorCardanoAddress networkId = toScriptAddress networkId . getValidator
 
 -- | Cardano address of a 'PV1.MintingPolicy' script.
 mkMintingPolicyCardanoAddress
-  :: Script.NetworkId -> PV1.MintingPolicy -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV1.MintingPolicy -> Script.AddressInEra Script.ConwayEra
 mkMintingPolicyCardanoAddress networkId = toScriptAddress networkId . getMintingPolicy
 
 -- | Cardano address of a 'PV1.MintingPolicy' script.
 mkStakeValidatorCardanoAddress
-  :: Script.NetworkId -> PV1.StakeValidator -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV1.StakeValidator -> Script.AddressInEra Script.ConwayEra
 mkStakeValidatorCardanoAddress networkId = toScriptAddress networkId . getStakeValidator
 
 {- | Convert a 'Script' to a 'cardano-api' address.
@@ -45,7 +45,7 @@ mkStakeValidatorCardanoAddress networkId = toScriptAddress networkId . getStakeV
 For why we depend on `cardano-api`,
 see note [Hash computation of datums, redeemers and scripts]
 -}
-toScriptAddress :: Script.NetworkId -> Script -> Script.AddressInEra Script.BabbageEra
+toScriptAddress :: Script.NetworkId -> Script -> Script.AddressInEra Script.ConwayEra
 toScriptAddress networkId script =
   Script.makeShelleyAddressInEra
     Script.shelleyBasedEra

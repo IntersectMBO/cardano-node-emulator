@@ -99,7 +99,7 @@ validatorAddress :: TypedValidator a -> PV1.Address
 validatorAddress = PV1.scriptHashAddress . PV1.ScriptHash . PV1.getValidatorHash . tvValidatorHash
 
 -- | The address of the validator.
-validatorCardanoAddress :: C.NetworkId -> TypedValidator a -> C.AddressInEra C.BabbageEra
+validatorCardanoAddress :: C.NetworkId -> TypedValidator a -> C.AddressInEra C.ConwayEra
 validatorCardanoAddress networkId = mkValidatorCardanoAddress networkId . tvValidator
 
 validatorCardanoAddressAny :: C.NetworkId -> TypedValidator a -> C.AddressAny

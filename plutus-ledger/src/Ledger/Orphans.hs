@@ -50,14 +50,14 @@ deriving instance Data C.NetworkMagic
 deriving instance Data C.NetworkId
 deriving instance Generic C.NetworkId
 
-instance Serialise (C.AddressInEra C.BabbageEra) where
+instance Serialise (C.AddressInEra C.ConwayEra) where
   encode = encode . C.serialiseToRawBytes
   decode = do
     bs <- decode
     either
       (fail . show)
       pure
-      $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsBabbageEra) bs
+      $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsConwayEra) bs
 
 deriving instance Generic C.Lovelace
 deriving instance Generic C.PolicyId

@@ -265,7 +265,7 @@ toDecoratedTxOut (TxOut (C.TxOut addr' val dt rs)) =
     (toDecoratedDatum dt)
     (CardanoAPI.fromCardanoReferenceScript rs)
   where
-    toDecoratedDatum :: C.TxOutDatum C.CtxTx C.BabbageEra -> Maybe (V2.DatumHash, DatumFromQuery)
+    toDecoratedDatum :: C.TxOutDatum C.CtxTx C.ConwayEra -> Maybe (V2.DatumHash, DatumFromQuery)
     toDecoratedDatum C.TxOutDatumNone =
       Nothing
     toDecoratedDatum (C.TxOutDatumHash _ h) =
@@ -292,7 +292,7 @@ toTxOut networkId p =
         )
 
 toTxOutDatum
-  :: Maybe (V2.DatumHash, DatumFromQuery) -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.BabbageEra)
+  :: Maybe (V2.DatumHash, DatumFromQuery) -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.ConwayEra)
 toTxOutDatum = CardanoAPI.toCardanoTxOutDatum . toPlutusOutputDatum
 
 {- | Converts a transaction output from the chain index to the plutus-ledger-api
@@ -375,7 +375,7 @@ instance Pretty CardanoAPI.CardanoBuildTx where
     Right tx -> pretty $ CardanoEmulatorEraTx tx
     _ -> viaShow txBodyContent
 
-getTxBodyContent :: CardanoTx -> C.TxBodyContent C.ViewTx C.BabbageEra
+getTxBodyContent :: CardanoTx -> C.TxBodyContent C.ViewTx C.ConwayEra
 getTxBodyContent (CardanoEmulatorEraTx (C.Tx (C.TxBody bodyContent) _)) = bodyContent
 
 getCardanoTxId :: CardanoTx -> C.TxId
@@ -422,7 +422,7 @@ getCardanoTxSpentOutputs = Set.fromList . getCardanoTxInputs
 getCardanoTxReturnCollateral :: CardanoTx -> Maybe TxOut
 getCardanoTxReturnCollateral = getTxBodyContentReturnCollateral . getTxBodyContent
 
-getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.Api.BabbageEra -> Maybe TxOut
+getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.Api.ConwayEra -> Maybe TxOut
 getTxBodyContentReturnCollateral C.TxBodyContent{..} =
   case txReturnCollateral of
     C.TxReturnCollateralNone -> Nothing
@@ -456,11 +456,11 @@ getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scrip
 
 txBodyContentIns
   :: Lens'
-      (C.TxBodyContent C.BuildTx C.BabbageEra)
-      [(C.TxIn, C.BuildTxWith C.BuildTx (C.Witness C.WitCtxTxIn C.BabbageEra))]
+      (C.TxBodyContent C.BuildTx C.ConwayEra)
+      [(C.TxIn, C.BuildTxWith C.BuildTx (C.Witness C.WitCtxTxIn C.ConwayEra))]
 txBodyContentIns = lens C.txIns (\bodyContent ins -> bodyContent{C.txIns = ins})
 
-txBodyContentCollateralIns :: Lens' (C.TxBodyContent C.BuildTx C.BabbageEra) [C.TxIn]
+txBodyContentCollateralIns :: Lens' (C.TxBodyContent C.BuildTx C.ConwayEra) [C.TxIn]
 txBodyContentCollateralIns =
   lens
     ( \bodyContent -> case C.txInsCollateral bodyContent of
@@ -469,11 +469,11 @@ txBodyContentCollateralIns =
     )
     ( \bodyContent ins ->
         bodyContent
-          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.AlonzoEraOnwardsBabbage ins
+          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.AlonzoEraOnwardsConway ins
           }
     )
 
-txBodyContentOuts :: Lens' (C.TxBodyContent ctx C.BabbageEra) [TxOut]
+txBodyContentOuts :: Lens' (C.TxBodyContent ctx C.ConwayEra) [TxOut]
 txBodyContentOuts = lens (map TxOut . C.txOuts) (\bodyContent outs -> bodyContent{C.txOuts = map getTxOut outs})
 
 getCardanoTxRedeemers :: CardanoTx -> V2.Tx.Redeemers
@@ -504,7 +504,7 @@ addCardanoTxSignature privKey = addSignatureCardano
     fromPaymentPrivateKey xprv txBody =
       C.Api.makeShelleyKeyWitness
         C.shelleyBasedEra
-        (C.Api.ShelleyTxBody C.Api.ShelleyBasedEraBabbage txBody notUsed notUsed notUsed notUsed)
+        (C.Api.ShelleyTxBody C.Api.ShelleyBasedEraConway txBody notUsed notUsed notUsed notUsed)
         (C.Api.WitnessPaymentExtendedKey (C.Api.PaymentExtendedSigningKey xprv))
       where
         notUsed = undefined -- hack so we can reuse code from cardano-api

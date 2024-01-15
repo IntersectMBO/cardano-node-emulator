@@ -60,10 +60,10 @@ import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty)
 
-type CardanoAddress = C.AddressInEra C.BabbageEra
+type CardanoAddress = C.AddressInEra C.ConwayEra
 
-instance ToJSONKey (C.AddressInEra C.BabbageEra)
-instance FromJSONKey (C.AddressInEra C.BabbageEra)
+instance ToJSONKey (C.AddressInEra C.ConwayEra)
+instance FromJSONKey (C.AddressInEra C.ConwayEra)
 
 cardanoAddressCredential :: C.AddressInEra era -> Credential
 cardanoAddressCredential (C.AddressInEra C.ByronAddressInAnyEra (C.ByronAddress address)) =

@@ -147,7 +147,7 @@ txInOrdInstanceEquivalenceTest = property $ do
 
 genCardanoBuildTx :: Hedgehog.Gen CardanoBuildTx
 genCardanoBuildTx = do
-  tx <- Gen.genTxBodyContent C.ShelleyBasedEraBabbage
+  tx <- Gen.genTxBodyContent C.ShelleyBasedEraConway
   let tx' =
         tx
           { C.txCertificates = C.TxCertificatesNone
@@ -171,6 +171,7 @@ genCardanoTx =
     , genMaryEraInCardanoModeTx
     , genAlonzoEraInCardanoModeTx
     , genBabbageEraInCardanoModeTx
+    , genConwayEraInCardanoModeTx
     ]
 
 genShelleyEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
@@ -197,3 +198,8 @@ genBabbageEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
 genBabbageEraInCardanoModeTx = do
   tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraBabbage
   pure $ CardanoTx tx C.ShelleyBasedEraBabbage
+
+genConwayEraInCardanoModeTx :: Hedgehog.Gen CardanoTx
+genConwayEraInCardanoModeTx = do
+  tx <- fromGenT $ Gen.genTx C.ShelleyBasedEraConway
+  pure $ CardanoTx tx C.ShelleyBasedEraConway

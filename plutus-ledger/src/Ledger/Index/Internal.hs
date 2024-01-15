@@ -49,14 +49,14 @@ instance Serialise OnChainTx where
 
 eitherTx :: (CardanoTx -> r) -> (CardanoTx -> r) -> OnChainTx -> r
 eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(AlonzoTx _ _ (IsValid isValid) _)) =
-  let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraBabbage tx)
+  let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraConway tx)
    in if isValid then ifValid ctx else ifInvalid ctx
 
 unOnChain :: OnChainTx -> CardanoTx
 unOnChain = eitherTx id id
 
 -- | The UTxOs of a blockchain indexed by their references.
-type UtxoIndex = C.UTxO C.BabbageEra
+type UtxoIndex = C.UTxO C.ConwayEra
 
 deriving newtype instance Semigroup (C.UTxO era)
 deriving newtype instance Monoid (C.UTxO era)

@@ -155,7 +155,7 @@ data ServerCommand
   | -- Set the slot number
     ModifySlot (Slot -> Slot)
   | -- Append a transaction to the transaction pool.
-    AddTx (C.Tx C.BabbageEra)
+    AddTx (C.Tx C.ConwayEra)
 
 instance Show ServerCommand where
   show = \case
@@ -192,7 +192,7 @@ modifySlot f ServerHandler{shCommandChannel} = do
         SlotChanged slot -> pure slot
         _ -> retry
 
-addTx :: (MonadIO m) => ServerHandler -> C.Tx C.BabbageEra -> m ()
+addTx :: (MonadIO m) => ServerHandler -> C.Tx C.ConwayEra -> m ()
 addTx ServerHandler{shCommandChannel} tx = do
   liftIO $ atomically $ writeTQueue (ccCommand shCommandChannel) $ AddTx tx
 
@@ -616,7 +616,7 @@ submitTx
   -> Shelley.GenTx block
   -> IO (TxSubmission.SubmitResult (ApplyTxErr block))
 submitTx state tx = case C.fromConsensusGenTx tx of
-  C.TxInMode C.ShelleyBasedEraBabbage shelleyTx -> do
+  C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
       (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ index slot _) _ _) _ _)
       _
@@ -627,7 +627,7 @@ submitTx state tx = case C.fromConsensusGenTx tx of
         pure $
           TxSubmission.SubmitFail
             ( Consensus.HardForkApplyTxErrFromEra
-                (Consensus.OneEraApplyTxErr (S (S (S (S (S (Z (WrapApplyTxErr err))))))))
+                (Consensus.OneEraApplyTxErr (S (S (S (S (S (S (Z (WrapApplyTxErr err)))))))))
             )
       Right _ -> do
         let ctx = CardanoEmulatorEraTx shelleyTx

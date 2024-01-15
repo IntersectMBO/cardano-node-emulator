@@ -36,9 +36,10 @@ import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.PParams qualified as C
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
-import Cardano.Ledger.Babbage (BabbageEra)
 import Cardano.Ledger.Babbage.PParams qualified as C
 import Cardano.Ledger.BaseTypes (EpochInterval (EpochInterval), boundRational)
+import Cardano.Ledger.BaseTypes (boundRational)
+import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Core qualified as C
 import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Plutus.CostModels (mkCostModels)
@@ -75,7 +76,7 @@ import PlutusLedgerApi.V1 (POSIXTime (POSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
 -- | The default era for the emulator
-type EmulatorEra = BabbageEra StandardCrypto
+type EmulatorEra = ConwayEra StandardCrypto
 
 type PParams = C.PParams EmulatorEra
 
@@ -108,12 +109,12 @@ makeLensesFor
   ''Params
 
 pProtocolParams :: Params -> C.ProtocolParameters
-pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraBabbage $ emulatorPParams p
+pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraConway $ emulatorPParams p
 
 pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
-pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraBabbage
+pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraConway
 
-ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.BabbageEra
+ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
 paramsWithProtocolsParameters
@@ -178,10 +179,10 @@ instance Default Params where
   def = Params def (pParamsFromProtocolParams def) testnet emulatorEpochSize
 
 instance Default C.ProtocolParameters where
-  -- The protocol parameters as they are in the Alonzo era.
+  -- The protocol parameters as they are in the Conway era.
   def =
     C.ProtocolParameters
-      { protocolParamProtocolVersion = (8, 0)
+      { protocolParamProtocolVersion = (9, 0)
       , protocolParamDecentralization = Nothing
       , protocolParamExtraPraosEntropy = Nothing
       , protocolParamMaxBlockHeaderSize = 1100
@@ -252,6 +253,7 @@ genesisDefaultsFromParams params@Params{pSlotConfig, pNetworkId} =
     , C.sgNetworkId = case pNetworkId of C.Testnet _ -> C.Ledger.Testnet; C.Mainnet -> C.Ledger.Mainnet
     , C.sgProtocolParams =
         emulatorPParams params
+          & C.downgradePParams ()
           & C.downgradePParams (C.DowngradeBabbagePParams d C.Ledger.NeutralNonce)
           & C.downgradePParams (C.DowngradeAlonzoPParams (Coin 0))
           & C.downgradePParams ()

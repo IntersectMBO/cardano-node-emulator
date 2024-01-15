@@ -214,7 +214,7 @@ genValidTransaction = genValidTransaction' generatorModel
 
 genValidTransactionBody
   :: Mockchain
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBody = genValidTransactionBody' generatorModel
 
 {- | Generate a valid transaction, using the unspent outputs provided.
@@ -243,7 +243,7 @@ genValidTransactionSpending' g ins totalVal =
 
 makeTx
   :: (MonadFail m)
-  => C.TxBodyContent C.BuildTx C.BabbageEra
+  => C.TxBodyContent C.BuildTx C.ConwayEra
   -> m CardanoTx
 makeTx bodyContent = do
   txBody <-
@@ -258,7 +258,7 @@ makeTx bodyContent = do
 genValidTransactionBody'
   :: GeneratorModel
   -> Mockchain
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBody' g (Mockchain _ ops _) = do
   -- Take a random number of UTXO from the input
   nUtxo <-
@@ -274,7 +274,7 @@ genValidTransactionBodySpending'
   :: GeneratorModel
   -> [C.TxIn]
   -> C.Value
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBodySpending' g ins totalVal = do
   mintAmount <- toInteger <$> Gen.int (Range.linear 0 maxBound)
   mintTokenName <- Gen.genAssetName
@@ -306,7 +306,7 @@ genValidTransactionBodySpending' g ins totalVal = do
             zip outVals pubKeys
   let mintWitness =
         C.PlutusScriptWitness
-          C.PlutusScriptV1InBabbage
+          C.PlutusScriptV1InConway
           C.PlutusScriptV1
           (C.PScript $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
           C.NoScriptDatumForMint
@@ -314,14 +314,14 @@ genValidTransactionBodySpending' g ins totalVal = do
           C.zeroExecutionUnits
   let txMintValue =
         C.TxMintValue
-          C.MaryEraOnwardsBabbage
+          C.MaryEraOnwardsConway
           (fromMaybe mempty mintValue)
           (C.BuildTxWith (Map.singleton alwaysSucceedPolicyId mintWitness))
       txIns = map (,C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending) ins
   txInsCollateral <-
     maybe
       (fail "Cannot gen collateral")
-      (pure . C.TxInsCollateral C.AlonzoEraOnwardsBabbage . flip take ins . fromIntegral)
+      (pure . C.TxInsCollateral C.AlonzoEraOnwardsConway . flip take ins . fromIntegral)
       (gmMaxCollateralInputs g)
   pure $
     Tx.emptyTxBodyContent

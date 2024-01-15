@@ -384,7 +384,7 @@ toCardanoBlock
   :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
 toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
 toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
-  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.BabbageEra StandardCrypto))))
+  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.ConwayEra StandardCrypto))))
   let allPoolKeys = snd $ head $ coreNodeKeys defaultConstants
       kesPeriod = 1
       keyRegKesPeriod = 1
@@ -417,8 +417,8 @@ toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
               , Praos.hbProtVer = bprotver bhBody
               }
           hSig = coerce bhSig
-  pure $ OC.BlockBabbage $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
+  pure $ OC.BlockConway $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
 
 fromCardanoBlock :: CardanoBlock StandardCrypto -> Block
-fromCardanoBlock (OC.BlockBabbage (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq
+fromCardanoBlock (OC.BlockConway (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq
 fromCardanoBlock _ = []

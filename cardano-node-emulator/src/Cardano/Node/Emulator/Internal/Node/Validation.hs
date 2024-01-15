@@ -57,10 +57,8 @@ import Cardano.Ledger.Api.Tx (
   TransactionScriptFailure (ValidationFailure),
   evalTxExUnitsWithLogs,
  )
-import Cardano.Ledger.Babbage.Rules (
-  BabbageUtxoPredFailure (AlonzoInBabbageUtxoPredFailure),
-  BabbageUtxowPredFailure (UtxoFailure),
- )
+import Cardano.Ledger.Babbage.Rules (BabbageUtxoPredFailure (AlonzoInBabbageUtxoPredFailure), BabbageUtxowPredFailure(UtxoFailure))
+import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Core qualified as Core
 import Cardano.Ledger.Plutus.Evaluate (ScriptResult (Fails, Passes))
@@ -76,7 +74,6 @@ import Cardano.Ledger.Shelley.API (
  )
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Shelley.LedgerState (LedgerState (LedgerState), smartUTxOState, utxosUtxo)
-import Cardano.Ledger.Shelley.Rules (ShelleyLedgerPredFailure (UtxowFailure))
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params (emulatorPParams),
@@ -131,7 +128,7 @@ There are also some limitations of the emulator's functionality that could be
 addressed by extending the emulator, without having to bring in the full block
 validating machinery.
 
-\* We cannot represent different eras - everything is 'BabbageEra'.
+\* We cannot represent different eras - everything is 'ConwayEra'.
 \* There is no handling of epoch boundaries, rewards, etc.
 \* The block size is unlimited - we simply take all transactions from the
   mempool when we make a block. There is however a limit on the size of
@@ -212,7 +209,7 @@ applyTx params oldState@EmulatedLedgerState{_ledgerEnv, _memPoolState} tx = do
   (newMempool, vtx) <- C.Ledger.applyTx (emulatorGlobals params) _ledgerEnv _memPoolState tx
   return (oldState & memPoolState .~ newMempool & over currentBlock ((:) vtx), vtx)
 
-hasValidationErrors :: Params -> SlotNo -> P.UtxoIndex -> C.Tx C.BabbageEra -> P.ValidationResult
+hasValidationErrors :: Params -> SlotNo -> P.UtxoIndex -> C.Tx C.ConwayEra -> P.ValidationResult
 hasValidationErrors params slotNo utxoIndex tx =
   case res of
     Left err -> P.FailPhase1 (CardanoEmulatorEraTx tx) err
@@ -232,7 +229,7 @@ validateAndApplyTx
   :: Params
   -> SlotNo
   -> UTxO EmulatorEra
-  -> C.Tx C.BabbageEra
+  -> C.Tx C.ConwayEra
   -> Either (ApplyTxError EmulatorEra) (Validated (Core.Tx EmulatorEra))
 validateAndApplyTx params slotNo utxo (C.ShelleyTx _ tx) = res
   where
@@ -269,7 +266,7 @@ constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
     Left errs ->
       throwError
         ( ApplyTxError
-            [UtxowFailure (UtxoFailure (AlonzoInBabbageUtxoPredFailure (UtxosFailure (CollectErrors errs))))]
+            [ConwayUtxowFailure (UtxoFailure (AlonzoInBabbageUtxoPredFailure (UtxosFailure (CollectErrors errs))))]
         )
     Right sLst ->
       let scriptEvalResult = evalPlutusScripts @EmulatorEra tx sLst
@@ -305,7 +302,7 @@ validateCardanoTx params slot utxo ctx@(CardanoEmulatorEraTx tx@(C.Tx (C.TxBody 
     else hasValidationErrors params (fromIntegral slot) utxo tx
 
 getTxExUnitsWithLogs
-  :: Params -> UTxO EmulatorEra -> C.Tx C.BabbageEra -> Either P.ValidationErrorInPhase P.RedeemerReport
+  :: Params -> UTxO EmulatorEra -> C.Tx C.ConwayEra -> Either P.ValidationErrorInPhase P.RedeemerReport
 getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
   case evalTxExUnitsWithLogs (emulatorPParams params) tx utxo ei ss of
     Left e -> Left . (P.Phase1,) . P.CardanoLedgerValidationError . Text.pack . show $ e
@@ -321,7 +318,7 @@ getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
 createAndValidateTransactionBody
   :: Params
   -> P.CardanoBuildTx
-  -> Either CardanoLedgerError (C.TxBody C.BabbageEra)
+  -> Either CardanoLedgerError (C.TxBody C.ConwayEra)
 createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
   let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
    in first (Right . P.TxBodyError . C.displayError) $

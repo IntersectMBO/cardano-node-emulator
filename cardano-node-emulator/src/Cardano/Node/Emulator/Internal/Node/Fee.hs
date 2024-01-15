@@ -120,7 +120,7 @@ makeAutoBalancedTransaction
   -> CardanoBuildTx
   -> CardanoAddress
   -- ^ Change address
-  -> Either CardanoLedgerError (C.Api.Tx C.Api.BabbageEra)
+  -> Either CardanoLedgerError (C.Api.Tx C.Api.ConwayEra)
 makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAddr = first Right $ do
   -- Compute the change.
   C.Api.BalancedTxBody _ _ change _ <- first (TxBodyError . C.Api.displayError) $ balance []
@@ -183,7 +183,7 @@ makeAutoBalancedTransactionWithUtxoProvider
   -> (forall a. CardanoLedgerError -> m a)
   -- ^ How to handle errors
   -> CardanoBuildTx
-  -> m (C.Tx C.BabbageEra)
+  -> m (C.Tx C.ConwayEra)
 makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvider errorReporter (CardanoBuildTx unbalancedBodyContent) = do
   let
     -- Set the params alreay since it makes the tx bigger and so influences the fee
@@ -226,7 +226,7 @@ handleBalanceTx
   => Params
   -> UtxoIndex
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
-  -> C.AddressInEra C.BabbageEra
+  -> C.AddressInEra C.ConwayEra
   -- ^ Change address
   -> UtxoProvider m
   -- ^ The utxo provider
@@ -234,8 +234,8 @@ handleBalanceTx
   -- ^ How to handle errors
   -> C.Lovelace
   -- ^ Estimated fee value to use.
-  -> C.TxBodyContent C.BuildTx C.BabbageEra
-  -> m (C.TxBodyContent C.BuildTx C.BabbageEra, UtxoIndex)
+  -> C.TxBodyContent C.BuildTx C.ConwayEra
+  -> m (C.TxBodyContent C.BuildTx C.ConwayEra, UtxoIndex)
 handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fees utx = do
   let theFee = toCardanoFee fees
 
@@ -273,7 +273,7 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
   let returnCollateral = Tx.getTxBodyContentReturnCollateral txWithinputsAdded
 
   if isZero (fold collateral)
-    && null (C.collectTxBodyScriptWitnesses C.ShelleyBasedEraBabbage txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
+    && null (C.collectTxBodyScriptWitnesses C.ShelleyBasedEraConway txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
     && null returnCollateral
     then -- Don't add collateral if there are no plutus scripts that can fail
     -- and there are no collateral inputs or outputs already
@@ -310,7 +310,7 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
         , newInputs <> newColInputs
         )
 
-removeEmptyOutputsBuildTx :: C.TxBodyContent ctx C.BabbageEra -> C.TxBodyContent ctx C.BabbageEra
+removeEmptyOutputsBuildTx :: C.TxBodyContent ctx C.ConwayEra -> C.TxBodyContent ctx C.ConwayEra
 removeEmptyOutputsBuildTx bodyContent@C.TxBodyContent{C.txOuts} = bodyContent{C.txOuts = txOuts'}
   where
     txOuts' = filter (not . isEmpty' . Tx.TxOut) txOuts
@@ -320,7 +320,7 @@ removeEmptyOutputsBuildTx bodyContent@C.TxBodyContent{C.txOuts} = bodyContent{C.
 calculateTxChanges
   :: (Monad m)
   => Params
-  -> C.AddressInEra C.BabbageEra
+  -> C.AddressInEra C.ConwayEra
   -- ^ The address for the change output
   -> UtxoProvider m
   -- ^ The utxo provider
@@ -458,17 +458,17 @@ takeUntil p (x : xs)
 
 fromLedgerUTxO
   :: UTxO EmulatorEra
-  -> C.Api.UTxO C.Api.BabbageEra
+  -> C.Api.UTxO C.Api.ConwayEra
 fromLedgerUTxO (UTxO utxo) =
   C.Api.UTxO
     . Map.fromList
-    . map (bimap C.Api.fromShelleyTxIn (C.Api.fromShelleyTxOut C.Api.ShelleyBasedEraBabbage))
+    . map (bimap C.Api.fromShelleyTxIn (C.Api.fromShelleyTxOut C.Api.ShelleyBasedEraConway))
     . Map.toList
     $ utxo
 
 evaluateTransactionFee
   :: Params
-  -> C.Api.TxBody C.Api.BabbageEra
+  -> C.Api.TxBody C.Api.ConwayEra
   -> Word
   -> C.Api.Lovelace
 evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee C.shelleyBasedEra (emulatorPParams params) txbody keywitcount 0

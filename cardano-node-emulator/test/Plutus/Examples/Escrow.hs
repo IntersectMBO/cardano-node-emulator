@@ -160,24 +160,24 @@ targetValue = \case
   PaymentPubKeyTarget _ vl -> vl
   ScriptTarget _ _ vl -> vl
 
-toTxOutValue :: Value -> C.TxOutValue C.BabbageEra
+toTxOutValue :: Value -> C.TxOutValue C.ConwayEra
 toTxOutValue = either (error . show) C.toCardanoTxOutValue . C.toCardanoValue
 
 toHashableScriptData :: (PlutusTx.ToData a) => a -> C.HashableScriptData
 toHashableScriptData = C.unsafeHashableScriptData . C.fromPlutusData . PlutusTx.toData
 
-toTxOutInlineDatum :: (PlutusTx.ToData a) => a -> C.TxOutDatum C.CtxTx C.BabbageEra
-toTxOutInlineDatum = C.TxOutDatumInline C.BabbageEraOnwardsBabbage . toHashableScriptData
+toTxOutInlineDatum :: (PlutusTx.ToData a) => a -> C.TxOutDatum C.CtxTx C.ConwayEra
+toTxOutInlineDatum = C.TxOutDatumInline C.BabbageEraOnwardsConway . toHashableScriptData
 
 toValidityRange
   :: SlotConfig
   -> Interval.Interval POSIXTime
-  -> (C.TxValidityLowerBound C.BabbageEra, C.TxValidityUpperBound C.BabbageEra)
+  -> (C.TxValidityLowerBound C.ConwayEra, C.TxValidityUpperBound C.ConwayEra)
 toValidityRange slotConfig =
   either (error . show) id . C.toCardanoValidityRange . posixTimeRangeToContainedSlotRange slotConfig
 
 -- | Create a 'Ledger.TxOut' value for the target
-mkTxOutput :: EscrowTarget Datum -> C.TxOut C.CtxTx C.BabbageEra
+mkTxOutput :: EscrowTarget Datum -> C.TxOut C.CtxTx C.ConwayEra
 mkTxOutput = \case
   PaymentPubKeyTarget pkh vl ->
     C.TxOut
@@ -394,7 +394,7 @@ mkRefundTx escrow wallet = do
           { C.txIns = txIns
           , C.txValidityLowerBound = fst validityRange
           , C.txValidityUpperBound = snd validityRange
-          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.AlonzoEraOnwardsBabbage [extraKeyWit]
+          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.AlonzoEraOnwardsConway [extraKeyWit]
           }
   if null txIns
     then throwError $ E.CustomError $ show RefundFailed

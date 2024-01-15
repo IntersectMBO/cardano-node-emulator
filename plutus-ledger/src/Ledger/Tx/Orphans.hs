@@ -38,17 +38,17 @@ import Ledger.Tx.Orphans.V1 ()
 import Ledger.Tx.Orphans.V2 ()
 import Ledger.Value.Orphans ()
 
-instance ToJSON (C.Tx C.BabbageEra) where
+instance ToJSON (C.Tx C.ConwayEra) where
   toJSON tx =
     object ["tx" .= C.serialiseToTextEnvelope Nothing tx]
 
-instance FromJSON (C.Tx C.BabbageEra) where
+instance FromJSON (C.Tx C.ConwayEra) where
   parseJSON (Object v) = do
     envelope <- v .: "tx"
     either
-      (const $ parseFail "Failed to parse BabbageEra 'tx' field from CardanoTx")
+      (const $ parseFail "Failed to parse ConwayEra 'tx' field from CardanoTx")
       pure
-      $ C.deserialiseFromTextEnvelope (C.AsTx C.AsBabbageEra) envelope
+      $ C.deserialiseFromTextEnvelope (C.AsTx C.AsConwayEra) envelope
   parseJSON invalid =
     prependFailure "parsing CardanoTx failed, " (typeMismatch "Object" invalid)
 

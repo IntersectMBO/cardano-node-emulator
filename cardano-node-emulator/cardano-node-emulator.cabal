@@ -68,6 +68,7 @@ library
     , cardano-ledger-alonzo
     , cardano-ledger-api
     , cardano-ledger-babbage
+    , cardano-ledger-conway
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-slotting

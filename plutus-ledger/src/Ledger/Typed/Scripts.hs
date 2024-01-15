@@ -26,7 +26,7 @@ import Plutus.Script.Utils.V2.Typed.Scripts qualified as PV2
 mkForwardingMintingPolicy :: Versioned Validator -> Versioned MintingPolicy
 mkForwardingMintingPolicy vl@(Versioned _ PlutusV1) = Versioned (PV1.mkForwardingMintingPolicy (Untyped.validatorHash vl)) PlutusV1
 mkForwardingMintingPolicy vl@(Versioned _ PlutusV2) = Versioned (PV2.mkForwardingMintingPolicy (Untyped.validatorHash vl)) PlutusV2
-mkForwardingMintingPolicy (Versioned _ PlutusV3) = error "mkForwardingMintingPolicy: Plutus V3 not supported in Babbage era"
+mkForwardingMintingPolicy (Versioned _ PlutusV3) = error "mkForwardingMintingPolicy: Plutus V3 not supported in Conway era"
 
 -- | Make a 'TypedValidator' (with no type constraints) from an untyped 'Validator' script.
 unsafeMkTypedValidator :: Versioned Validator -> TypedValidator Any

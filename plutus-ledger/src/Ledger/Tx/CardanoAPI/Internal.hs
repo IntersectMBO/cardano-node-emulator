@@ -684,7 +684,9 @@ toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV1) =
 toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV2) =
   C.ScriptInEra C.PlutusScriptV2InConway . C.PlutusScript C.PlutusScriptV2 $
     C.PlutusScriptSerialised s
-toCardanoScriptInEra (P.Versioned _ P.PlutusV3) = error "toCardanoScriptInEra: Plutus V3 not supported in Conway era"
+toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV3) =
+  C.ScriptInEra C.PlutusScriptV3InConway . C.PlutusScript C.PlutusScriptV3 $
+    C.PlutusScriptSerialised s
 
 fromCardanoPlutusScript :: C.PlutusScript lang -> P.Script
 fromCardanoPlutusScript (C.PlutusScriptSerialised s) = P.Script s

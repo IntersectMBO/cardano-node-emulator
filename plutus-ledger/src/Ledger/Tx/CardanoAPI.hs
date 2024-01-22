@@ -96,7 +96,9 @@ toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
     P.PlutusV2 ->
       C.PlutusScriptWitness C.PlutusScriptV2InConway C.PlutusScriptV2 $
         C.PReferenceScript txIn Nothing
-    P.PlutusV3 -> error "toCardanoTxInReferenceWitnessHeader: Plutus V3 not supported in Conway era"
+    P.PlutusV3 ->
+      C.PlutusScriptWitness C.PlutusScriptV3InConway C.PlutusScriptV3 $
+        C.PReferenceScript txIn Nothing
 
 toCardanoTxInScriptWitnessHeader :: P.Versioned PV1.Script -> WitnessHeader witctx
 toCardanoTxInScriptWitnessHeader script =

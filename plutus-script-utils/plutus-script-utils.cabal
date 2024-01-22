@@ -83,6 +83,15 @@ library
     Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators
     Plutus.Script.Utils.V2.Typed.Scripts.Validators
+    Plutus.Script.Utils.V3.Address
+    Plutus.Script.Utils.V3.Contexts
+    Plutus.Script.Utils.V3.Generators
+    Plutus.Script.Utils.V3.Scripts
+    Plutus.Script.Utils.V3.Tx
+    Plutus.Script.Utils.V3.Typed.Scripts
+    Plutus.Script.Utils.V3.Typed.Scripts.MonetaryPolicies
+    Plutus.Script.Utils.V3.Typed.Scripts.StakeValidators
+    Plutus.Script.Utils.V3.Typed.Scripts.Validators
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 

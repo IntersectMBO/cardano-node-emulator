@@ -107,6 +107,7 @@ import Control.Lens (
  )
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
+import Data.List (genericLength)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
@@ -428,8 +429,8 @@ getTxBodyContentReturnCollateral C.TxBodyContent{..} =
     C.TxReturnCollateral _ txOut -> Just $ TxOut txOut
 
 getCardanoTxProducedReturnCollateral :: CardanoTx -> Map C.TxIn TxOut
-getCardanoTxProducedReturnCollateral tx =
-  maybe Map.empty (Map.singleton (C.TxIn (getCardanoTxId tx) (C.TxIx 0))) $
+getCardanoTxProducedReturnCollateral tx@(CardanoEmulatorEraTx (C.Tx (C.TxBody C.TxBodyContent{..}) _)) =
+  maybe Map.empty (Map.singleton (C.TxIn (getCardanoTxId tx) (C.TxIx (genericLength txOuts)))) $
     getCardanoTxReturnCollateral tx
 
 getCardanoTxTotalCollateral :: CardanoTx -> Maybe C.Lovelace

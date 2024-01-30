@@ -23,6 +23,7 @@ import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
 import Cardano.Ledger.Era qualified as CL
 import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
+import Cardano.Ledger.Slot (EpochSize)
 import Cardano.Node.Emulator.API (
   EmulatorError,
   EmulatorLogs,
@@ -33,7 +34,7 @@ import Cardano.Node.Emulator.API (
   esChainState,
  )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
-import Cardano.Node.Emulator.Internal.Node.Params (Params, testnet)
+import Cardano.Node.Emulator.Internal.Node.Params (Params, emulatorEpochSize, testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
@@ -149,6 +150,8 @@ data NodeServerConfig = NodeServerConfig
   -- ^ NetworkId that's used with the CardanoAPI.
   , nscProtocolParametersJsonPath :: Maybe FilePath
   -- ^ Path to a JSON file containing the protocol parameters
+  , nscEpochSize :: EpochSize
+  -- ^ Number of slots per epoch
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -173,6 +176,7 @@ defaultNodeServerConfig =
     , nscSlotConfig = def
     , nscNetworkId = testnet
     , nscProtocolParametersJsonPath = Nothing
+    , nscEpochSize = emulatorEpochSize
     }
 
 instance Default NodeServerConfig where

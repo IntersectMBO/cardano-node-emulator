@@ -21,13 +21,13 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   increaseTransactionLimits,
   increaseTransactionLimits',
   genesisDefaultsFromParams,
+  emulatorEpochSize,
 
   -- * cardano-ledger specific types and conversion functions
   EmulatorEra,
   PParams,
   slotLength,
   testnet,
-  emulatorEpochSize,
   emulatorGlobals,
   emulatorEraHistory,
 ) where
@@ -83,6 +83,7 @@ data Params = Params
   , emulatorPParams :: !PParams
   -- ^ Convert `Params` to cardano-ledger `PParams`
   , pNetworkId :: !C.NetworkId
+  , pEpochSize :: !EpochSize
   }
   deriving (Eq, Show, Generic)
 
@@ -114,7 +115,8 @@ pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.Shell
 ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.BabbageEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
-paramsWithProtocolsParameters :: SlotConfig -> C.ProtocolParameters -> C.NetworkId -> Params
+paramsWithProtocolsParameters
+  :: SlotConfig -> C.ProtocolParameters -> C.NetworkId -> EpochSize -> Params
 paramsWithProtocolsParameters sc p = Params sc (pParamsFromProtocolParams p)
 
 protocolParamsL :: Lens' Params C.ProtocolParameters
@@ -130,6 +132,7 @@ instance ToJSON Params where
       [ "pSlotConfig" .= toJSON (pSlotConfig p)
       , "pProtocolParams" .= toJSON (pProtocolParams p)
       , "pNetworkId" .= toJSON (pNetworkId p)
+      , "pEpochSize" .= toJSON (pEpochSize p)
       ]
 
 instance FromJSON Params where
@@ -138,6 +141,7 @@ instance FromJSON Params where
       <$> (v .: "pSlotConfig" >>= parseJSON)
       <*> (pParamsFromProtocolParams <$> (v .: "pProtocolParams" >>= parseJSON))
       <*> (v .: "pNetworkId" >>= parseJSON)
+      <*> (v .: "pEpochSize" >>= parseJSON)
   parseJSON _ = fail "Can't parse a Param"
 
 instance Pretty Params where
@@ -170,7 +174,7 @@ increaseTransactionLimits' size steps mem = over protocolParamsL fixParams
         }
 
 instance Default Params where
-  def = Params def (pParamsFromProtocolParams def) testnet
+  def = Params def (pParamsFromProtocolParams def) testnet emulatorEpochSize
 
 instance Default C.ProtocolParameters where
   -- The protocol parameters as they are in the Alonzo era.
@@ -233,10 +237,10 @@ emulatorEpochSize = EpochSize 432000
 
 -- | A sensible default 'Globals' value for the emulator
 emulatorGlobals :: Params -> Globals
-emulatorGlobals params =
+emulatorGlobals params@Params{pEpochSize} =
   mkShelleyGlobals
     (genesisDefaultsFromParams params)
-    (fixedEpochInfo emulatorEpochSize (slotLength params))
+    (fixedEpochInfo pEpochSize (slotLength params))
     (toEnum $ fromIntegral $ fst $ C.protocolParamProtocolVersion $ pProtocolParams params)
 
 genesisDefaultsFromParams :: Params -> ShelleyGenesis StandardCrypto
@@ -262,5 +266,5 @@ emulatorEraHistory params = C.EraHistory (Ouroboros.mkInterpreter $ Ouroboros.su
     one =
       Ouroboros.nonEmptyHead $
         Ouroboros.getSummary $
-          Ouroboros.neverForksSummary emulatorEpochSize (slotLength params)
+          Ouroboros.neverForksSummary (pEpochSize params) (slotLength params)
     list = Ouroboros.Exactly $ K one :* K one :* K one :* K one :* K one :* K one :* K one :* Nil

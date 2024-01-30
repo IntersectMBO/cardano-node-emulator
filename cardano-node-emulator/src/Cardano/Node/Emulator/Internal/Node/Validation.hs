@@ -23,6 +23,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   validateCardanoTx,
   getTxExUnitsWithLogs,
   unsafeMakeValid,
+  validateAndApplyTx,
 
   -- * Modifying the state
   makeBlock,
@@ -43,29 +44,30 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
 
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
-import Cardano.Ledger.Alonzo.Plutus.TxInfo (ExtendedUTxO, ScriptResult (Fails, Passes))
+import Cardano.Ledger.Alonzo.Plutus.TxInfo (ScriptResult (Fails, Passes))
 import Cardano.Ledger.Alonzo.PlutusScriptApi (
-  CollectError,
   collectPlutusScriptsWithContext,
   evalPlutusScripts,
  )
-import Cardano.Ledger.Alonzo.Scripts (AlonzoScript)
+import Cardano.Ledger.Alonzo.Rules (
+  AlonzoUtxoPredFailure (UtxosFailure),
+  AlonzoUtxosPredFailure (CollectErrors),
+ )
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Alonzo.UTxO (AlonzoEraUTxO, AlonzoScriptsNeeded)
-import Cardano.Ledger.Api.PParams (AlonzoEraPParams, ppProtocolVersionL)
+import Cardano.Ledger.Api.PParams (ppProtocolVersionL)
 import Cardano.Ledger.Api.Tx (
-  AlonzoEraTxWits,
-  MaryEraTxBody,
   TransactionScriptFailure (ValidationFailure),
   ValidationFailed (ValidationFailedV1, ValidationFailedV2),
   evalTxExUnitsWithLogs,
  )
-import Cardano.Ledger.Api.UTxO (ScriptsNeeded)
+import Cardano.Ledger.Babbage.Rules (
+  BabbageUtxoPredFailure (AlonzoInBabbageUtxoPredFailure),
+  BabbageUtxowPredFailure (UtxoFailure),
+ )
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Core qualified as Core
-import Cardano.Ledger.Plutus.Language (Language (PlutusV1))
-import Cardano.Ledger.Plutus.TxInfo (EraPlutusContext)
 import Cardano.Ledger.Shelley.API (
+  ApplyTxError (ApplyTxError),
   Coin (Coin),
   LedgerEnv (LedgerEnv, ledgerSlotNo),
   LedgerState (lsCertState, lsUTxOState),
@@ -76,6 +78,7 @@ import Cardano.Ledger.Shelley.API (
  )
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Shelley.LedgerState (LedgerState (LedgerState), smartUTxOState, utxosUtxo)
+import Cardano.Ledger.Shelley.Rules (ShelleyLedgerPredFailure (UtxowFailure))
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params (emulatorPParams),
@@ -206,36 +209,44 @@ applyTx
   :: Params
   -> EmulatedLedgerState
   -> Core.Tx EmulatorEra
-  -> Either P.ValidationError (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
+  -> Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
 applyTx params oldState@EmulatedLedgerState{_ledgerEnv, _memPoolState} tx = do
-  (newMempool, vtx) <-
-    first
-      (P.CardanoLedgerValidationError . Text.pack . show)
-      (C.Ledger.applyTx (emulatorGlobals params) _ledgerEnv _memPoolState tx)
+  (newMempool, vtx) <- C.Ledger.applyTx (emulatorGlobals params) _ledgerEnv _memPoolState tx
   return (oldState & memPoolState .~ newMempool & over currentBlock ((:) vtx), vtx)
 
 hasValidationErrors :: Params -> SlotNo -> P.UtxoIndex -> C.Tx C.BabbageEra -> P.ValidationResult
-hasValidationErrors params slotNo utxoIndex tx'@(C.ShelleyTx _ tx) =
+hasValidationErrors params slotNo utxoIndex tx =
   case res of
-    Left err -> P.FailPhase1 (CardanoEmulatorEraTx tx') err
-    Right (_, vtx) -> case getTxExUnitsWithLogs params utxo tx' of
-      Left (P.Phase1, err) -> P.FailPhase1 (CardanoEmulatorEraTx tx') err
-      Left (P.Phase2, err) -> P.FailPhase2 vtx err $ getCollateral utxoIndex (CardanoEmulatorEraTx tx')
+    Left err -> P.FailPhase1 (CardanoEmulatorEraTx tx) err
+    Right vtx -> case getTxExUnitsWithLogs params utxo tx of
+      Left (P.Phase1, err) -> P.FailPhase1 (CardanoEmulatorEraTx tx) err
+      Left (P.Phase2, err) -> P.FailPhase2 vtx err $ getCollateral utxoIndex (CardanoEmulatorEraTx tx)
       Right report -> P.Success vtx report
   where
     utxo = P.fromPlutusIndex utxoIndex
+    res =
+      OnChainTx
+        <$> first
+          (P.CardanoLedgerValidationError . Text.pack . show)
+          (validateAndApplyTx params slotNo utxo tx)
+
+validateAndApplyTx
+  :: Params
+  -> SlotNo
+  -> UTxO EmulatorEra
+  -> C.Tx C.BabbageEra
+  -> Either (ApplyTxError EmulatorEra) (Validated (Core.Tx EmulatorEra))
+validateAndApplyTx params slotNo utxo (C.ShelleyTx _ tx) = res
+  where
     state = setSlot slotNo $ setUtxo params utxo $ initialState params
     res = do
       vtx <-
-        first
-          (P.CardanoLedgerValidationError . Text.pack . show)
-          ( constructValidated
-              (emulatorGlobals params)
-              (utxoEnv params slotNo)
-              (lsUTxOState (_memPoolState state))
-              tx
-          )
-      fmap OnChainTx <$> applyTx params state vtx
+        constructValidated
+          (emulatorGlobals params)
+          (utxoEnv params slotNo)
+          (lsUTxOState (_memPoolState state))
+          tx
+      snd <$> applyTx params state vtx
 
 {- | Construct a 'AlonzoTx' from a 'Core.Tx' by setting the `IsValid`
 flag.
@@ -248,27 +259,22 @@ Copied from cardano-ledger as it was removed there
 in https://github.com/input-output-hk/cardano-ledger/commit/721adb55b39885847562437a6fe7e998f8e48c03
 -}
 constructValidated
-  :: forall era m
-   . ( MaryEraTxBody era
-     , MonadError [CollectError era] m
-     , Core.Script era ~ AlonzoScript era
-     , ScriptsNeeded era ~ AlonzoScriptsNeeded era
-     , EraPlutusContext 'PlutusV1 era
-     , AlonzoEraTxWits era
-     , AlonzoEraPParams era
-     , ExtendedUTxO era
-     , AlonzoEraUTxO era
-     )
+  :: forall m
+   . (MonadError (ApplyTxError EmulatorEra) m)
   => Globals
-  -> C.Ledger.UtxoEnv era
-  -> C.Ledger.UTxOState era
-  -> Core.Tx era
-  -> m (AlonzoTx era)
+  -> C.Ledger.UtxoEnv EmulatorEra
+  -> C.Ledger.UTxOState EmulatorEra
+  -> Core.Tx EmulatorEra
+  -> m (AlonzoTx EmulatorEra)
 constructValidated globals (C.Ledger.UtxoEnv _ pp _ _) st tx =
   case collectPlutusScriptsWithContext ei sysS pp tx utxo of
-    Left errs -> throwError errs
+    Left errs ->
+      throwError
+        ( ApplyTxError
+            [UtxowFailure (UtxoFailure (AlonzoInBabbageUtxoPredFailure (UtxosFailure (CollectErrors errs))))]
+        )
     Right sLst ->
-      let scriptEvalResult = evalPlutusScripts @era (view ppProtocolVersionL pp) tx sLst
+      let scriptEvalResult = evalPlutusScripts (view ppProtocolVersionL pp) tx sLst
           vTx =
             AlonzoTx
               (view Core.bodyTxL tx)

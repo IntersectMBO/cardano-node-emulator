@@ -10,9 +10,9 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.Default (def)
 
 fromNodeServerConfig :: NodeServerConfig -> IO Params
-fromNodeServerConfig NodeServerConfig{nscSlotConfig, nscNetworkId, nscProtocolParametersJsonPath} = do
+fromNodeServerConfig NodeServerConfig{nscSlotConfig, nscNetworkId, nscProtocolParametersJsonPath, nscEpochSize} = do
   protocolParameters <- readProtocolParameters nscProtocolParametersJsonPath
-  pure $ paramsWithProtocolsParameters nscSlotConfig protocolParameters nscNetworkId
+  pure $ paramsWithProtocolsParameters nscSlotConfig protocolParameters nscNetworkId nscEpochSize
 
 readProtocolParameters :: Maybe FilePath -> IO ProtocolParameters
 readProtocolParameters = maybe (pure def) readPP

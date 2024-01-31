@@ -38,11 +38,9 @@ import Ledger (
   OnChainTx,
   Slot (Slot),
   getCardanoTxId,
-  getCardanoTxValidityRange,
   unOnChain,
  )
 import Ledger.Index qualified as Index
-import PlutusLedgerApi.V1.Interval qualified as Interval
 import PlutusTx.Coverage (CoverageData)
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
@@ -189,10 +187,6 @@ validateBlock params slot@(Slot s) idx txns =
     events = (TxnValidation <$> results) ++ [SlotAdd nextSlot]
    in
     ValidatedBlock block events idx'
-
--- | Check whether the given transaction can be validated in the given slot.
-canValidateNow :: Slot -> CardanoTx -> Bool
-canValidateNow slot = Interval.member slot . getCardanoTxValidityRange
 
 -- | Validate a transaction in the current emulator state.
 validateEm

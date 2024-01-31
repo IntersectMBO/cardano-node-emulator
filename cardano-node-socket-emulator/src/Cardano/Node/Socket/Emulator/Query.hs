@@ -6,6 +6,8 @@ module Cardano.Node.Socket.Emulator.Query (handleQuery) where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
+import Cardano.Ledger.BaseTypes (epochInfo)
+import Cardano.Slotting.EpochInfo (epochInfoEpoch)
 import Cardano.Slotting.Slot (WithOrigin (..))
 import Control.Concurrent (MVar, readMVar)
 import Control.Lens (alaf)
@@ -29,6 +31,7 @@ import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Params (
   Params (..),
   emulatorEraHistory,
+  emulatorGlobals,
   genesisDefaultsFromParams,
  )
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
@@ -71,6 +74,12 @@ queryIfCurrentBabbage
 queryIfCurrentBabbage = \case
   GetGenesisConfig -> Shelley.compactGenesis . genesisDefaultsFromParams <$> E.getParams
   GetCurrentPParams -> emulatorPParams <$> E.getParams
+  GetEpochNo -> do
+    ei <- epochInfo . emulatorGlobals <$> E.getParams
+    slotNo <- E.currentSlot
+    case epochInfoEpoch ei (fromIntegral slotNo) of
+      Left err -> printError $ "Error calculating epoch: " ++ show err
+      Right epoch -> pure epoch
   GetStakePools -> pure mempty
   GetUTxOByAddress addrs ->
     fromPlutusIndex <$> alaf Ap foldMap (E.utxosAt . C.fromShelleyAddrIsSbe C.shelleyBasedEra) addrs

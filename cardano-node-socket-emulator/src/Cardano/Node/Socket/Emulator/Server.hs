@@ -5,6 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -56,12 +57,14 @@ import Data.Void (Void)
 import Cardano.BM.Data.Trace (Trace)
 import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import Ledger (Block, CardanoTx (..), Slot (..))
+import Ledger.Tx.CardanoAPI (fromPlutusIndex)
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.Query (Query (..))
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
 import Ouroboros.Consensus.Shelley.Eras (StandardCrypto)
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
+import Ouroboros.Consensus.TypeFamilyWrappers (WrapApplyTxErr (WrapApplyTxErr))
 import Ouroboros.Network.Block (Point (..), pointSlot)
 import Ouroboros.Network.Block qualified as O
 import Ouroboros.Network.IOManager
@@ -91,16 +94,18 @@ import Ouroboros.Network.Socket
 import Plutus.Monitoring.Util qualified as LM
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
+import Cardano.Api.InMode qualified as C
 
 import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
 import Cardano.Node.Socket.Emulator.Query (handleQuery)
 import Cardano.Node.Socket.Emulator.Types (
   AppState (..),
   BlockId (BlockId),
+  SocketEmulatorState (..),
   Tip,
   blockId,
   chainSyncCodec,
@@ -601,21 +606,36 @@ txSubmissionServer
   -> TxSubmission.LocalTxSubmissionServer (Shelley.GenTx block) (ApplyTxErr block) IO ()
 txSubmissionServer state =
   TxSubmission.LocalTxSubmissionServer
-    { TxSubmission.recvMsgSubmitTx =
-        \tx -> do
-          case tx of
-            (Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx')))))))) -> do
-              let Shelley.ShelleyTx _txid shelleyEraTx = tx'
-              let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
-              _ <-
-                modifyMVar_
-                  state
-                  (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
-              pure ()
-            _ -> pure ()
-          return (TxSubmission.SubmitSuccess, txSubmissionServer state)
+    { TxSubmission.recvMsgSubmitTx = \tx -> (,txSubmissionServer state) <$> submitTx state tx
     , TxSubmission.recvMsgDone = ()
     }
+
+submitTx
+  :: (block ~ CardanoBlock StandardCrypto)
+  => MVar AppState
+  -> Shelley.GenTx block
+  -> IO (TxSubmission.SubmitResult (ApplyTxErr block))
+submitTx state tx = case C.fromConsensusGenTx tx of
+  C.TxInMode C.ShelleyBasedEraBabbage shelleyTx -> do
+    AppState
+      (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ index slot _) _ _) _ _)
+      _
+      params <-
+      readMVar state
+    case Validation.validateAndApplyTx params (fromIntegral slot) (fromPlutusIndex index) shelleyTx of
+      Left err ->
+        pure $
+          TxSubmission.SubmitFail
+            ( Consensus.HardForkApplyTxErrFromEra
+                (Consensus.OneEraApplyTxErr (S (S (S (S (S (Z (WrapApplyTxErr err))))))))
+            )
+      Right _ -> do
+        let ctx = CardanoEmulatorEraTx shelleyTx
+        modifyMVar_
+          state
+          (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
+        pure TxSubmission.SubmitSuccess
+  _ -> pure $ TxSubmission.SubmitSuccess -- should be SubmitFail HardForkApplyTxErrWrongEra, but the Mismatch type is complicated
 
 stateQueryServer
   :: (block ~ CardanoBlock StandardCrypto)

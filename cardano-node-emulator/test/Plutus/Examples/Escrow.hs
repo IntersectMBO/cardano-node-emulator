@@ -71,6 +71,7 @@ import Cardano.Node.Emulator.Test (testnet)
 import Data.Maybe (fromJust)
 import Ledger (POSIXTime, PaymentPubKeyHash (unPaymentPubKeyHash), TxId, getCardanoTxId)
 import Ledger qualified
+import Ledger.Address (toWitness)
 import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Typed.Scripts (validatorCardanoAddress)
 import Ledger.Typed.Scripts qualified as Scripts
@@ -301,7 +302,7 @@ pay wallet privateKey escrow vl = do
   E.logInfo @String $ "Pay " <> show vl <> " to the script"
   slotConfig <- asks pSlotConfig
   let (utx, utxoIndex) = mkPayTx slotConfig escrow wallet vl
-  void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 newtype RedeemSuccess = RedeemSuccess TxId
   deriving (Eq, Show)
@@ -356,7 +357,7 @@ redeem
 redeem wallet privateKey escrow = do
   E.logInfo @String "Redeeming"
   (utx, utxoIndex) <- mkRedeemTx escrow
-  RedeemSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  RedeemSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 newtype RefundSuccess = RefundSuccess TxId
   deriving newtype (Eq, Show)
@@ -409,7 +410,7 @@ refund
 refund wallet privateKey escrow = do
   E.logInfo @String "Refunding"
   (utx, utxoIndex) <- mkRefundTx escrow wallet
-  RefundSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  RefundSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 -- Submit a transaction attempting to take the refund belonging to the given pk.
 mkBadRefundTx
@@ -450,7 +451,7 @@ badRefund
 badRefund wallet privateKey escrow pkh = do
   E.logInfo @String "Bad refund"
   (utx, utxoIndex) <- mkBadRefundTx escrow pkh
-  (void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx)
+  (void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx)
     `catchError` (\err -> E.logError $ "Caught error: " ++ show err)
 
 {- | Pay some money into the escrow contract. Then release all funds to their

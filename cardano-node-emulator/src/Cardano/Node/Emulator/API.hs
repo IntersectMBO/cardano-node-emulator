@@ -82,16 +82,17 @@ import Ledger (
   DatumHash,
   DecoratedTxOut,
   POSIXTime,
-  PaymentPrivateKey (unPaymentPrivateKey),
+  PaymentPrivateKey,
   Slot,
   TxOutRef,
   UtxoIndex,
  )
+import Ledger.Address (toWitness)
 import Ledger.AddressMap qualified as AM
 import Ledger.Index qualified as Index
 import Ledger.Tx (
   TxOut,
-  addCardanoTxSignature,
+  addCardanoTxWitness,
   cardanoTxOutValue,
   getCardanoTxData,
   getCardanoTxId,
@@ -262,13 +263,13 @@ balanceTx utxoIndex changeAddr utx = do
 -- | Sign a transaction with the given signatures.
 signTx
   :: (MonadEmulator m, Foldable f)
-  => f PaymentPrivateKey
+  => f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoTx
   -> m CardanoTx
-signTx keys tx = do
+signTx witnesses tx = do
   logMsg L.Info $ TxBalanceMsg $ SigningTx tx
-  pure $ foldr (addCardanoTxSignature . unPaymentPrivateKey) tx keys
+  pure $ foldr addCardanoTxWitness tx witnesses
 
 -- | Balance a transaction, sign it with the given signatures, and finally queue it.
 submitUnbalancedTx
@@ -277,13 +278,13 @@ submitUnbalancedTx
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
   -> CardanoAddress
   -- ^ Wallet address
-  -> f PaymentPrivateKey
+  -> f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoBuildTx
   -> m CardanoTx
-submitUnbalancedTx utxoIndex changeAddr keys utx = do
+submitUnbalancedTx utxoIndex changeAddr witnesses utx = do
   newTx <- balanceTx utxoIndex changeAddr utx
-  signedTx <- signTx keys newTx
+  signedTx <- signTx witnesses newTx
   queueTx signedTx
   pure signedTx
 
@@ -293,12 +294,12 @@ submitTxConfirmed
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
   -> CardanoAddress
   -- ^ Wallet address
-  -> f PaymentPrivateKey
+  -> f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoBuildTx
   -> m CardanoTx
-submitTxConfirmed utxoIndex addr privateKeys utx = do
-  tx <- submitUnbalancedTx utxoIndex addr privateKeys utx
+submitTxConfirmed utxoIndex addr witnesses utx = do
+  tx <- submitUnbalancedTx utxoIndex addr witnesses utx
   nextSlot
   pure tx
 
@@ -311,7 +312,7 @@ payToAddress (sourceAddr, sourcePrivKey) targetAddr value = do
           G.emptyTxBodyContent
             { C.txOuts = [C.TxOut targetAddr (toCardanoTxOutValue value) C.TxOutDatumNone C.ReferenceScriptNone]
             }
-  getCardanoTxId <$> submitUnbalancedTx mempty sourceAddr [sourcePrivKey] buildTx
+  getCardanoTxId <$> submitUnbalancedTx mempty sourceAddr [toWitness sourcePrivKey] buildTx
 
 -- | Log any message
 logMsg :: (MonadEmulator m) => L.LogLevel -> EmulatorMsg -> m ()

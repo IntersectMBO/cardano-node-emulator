@@ -25,6 +25,7 @@ import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
+import Cardano.Ledger.Shelley.TxCert (shelleyTotalDepositsTxCerts)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params (emulatorPParams),
@@ -34,6 +35,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
+  Coin (unCoin),
   UTxO (UTxO),
   createAndValidateTransactionBody,
   getTxExUnitsWithLogs,
@@ -250,8 +252,14 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
 
   inputValues <- traverse lookupValue txInputs
 
-  let left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
-      right = lovelaceToValue fees <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+  let pp = emulatorPParams params
+      txDeposits = shelleyTotalDepositsTxCerts pp (const False) (Tx.getTxBodyContentCerts utx)
+      coinToValue = lovelaceToValue . C.Lovelace . unCoin
+      left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
+      right =
+        lovelaceToValue fees
+          <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+          <> coinToValue txDeposits
       balance = left <> C.negateValue right
 
   ((neg, newInputs), (pos, mNewTxOut)) <-

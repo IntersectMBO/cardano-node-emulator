@@ -450,7 +450,7 @@ getCardanoTxValidityRange :: CardanoTx -> SlotRange
 getCardanoTxValidityRange (CardanoTx (C.Tx (C.TxBody C.TxBodyContent{..}) _) _) = CardanoAPI.fromCardanoValidityRange txValidityLowerBound txValidityUpperBound
 
 getCardanoTxData :: CardanoTx -> Map V1.DatumHash V1.Datum
-getCardanoTxData (CardanoTx (C.Tx txBody _) _) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
+getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
 
 -- TODO: add txMetaData
 
@@ -477,7 +477,7 @@ txBodyContentOuts :: Lens' (C.TxBodyContent ctx C.BabbageEra) [TxOut]
 txBodyContentOuts = lens (map TxOut . C.txOuts) (\bodyContent outs -> bodyContent{C.txOuts = map getTxOut outs})
 
 getCardanoTxRedeemers :: CardanoTx -> V2.Tx.Redeemers
-getCardanoTxRedeemers (CardanoTx (C.Tx txBody _) _) = snd $ CardanoAPI.scriptDataFromCardanoTxBody txBody
+getCardanoTxRedeemers (CardanoEmulatorEraTx (C.Tx txBody _)) = snd $ CardanoAPI.scriptDataFromCardanoTxBody txBody
 
 getCardanoTxExtraKeyWitnesses :: CardanoTx -> [C.Hash C.PaymentKey]
 getCardanoTxExtraKeyWitnesses (CardanoEmulatorEraTx (C.Tx (C.TxBody C.TxBodyContent{..}) _)) = case txExtraKeyWits of

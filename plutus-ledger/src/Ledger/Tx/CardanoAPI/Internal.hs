@@ -88,17 +88,20 @@ module Ledger.Tx.CardanoAPI.Internal (
   zeroExecutionUnits,
   tag,
   withIsCardanoEra,
+  EmulatorEra,
 ) where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Byron qualified as C
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
-import Cardano.Api.TxBody qualified as C
+import Cardano.Api.Tx.Body qualified as C
 import Cardano.BM.Data.Tracer (ToObject)
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
+import Cardano.Ledger.Babbage (BabbageEra)
+import Cardano.Ledger.Crypto (StandardCrypto)
 
 import Cardano.Ledger.Core qualified as Ledger
 import Control.Lens ((<&>))
@@ -127,6 +130,8 @@ import PlutusLedgerApi.V1.Tx qualified as PV1
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
+
+type EmulatorEra = BabbageEra StandardCrypto
 
 newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.BabbageEra}
   deriving (Eq, Show, Generic)
@@ -237,7 +242,7 @@ withShelleyBasedEraConstraintsForLedger = \case
 with their hashes.
 -}
 scriptDataFromCardanoTxBody
-  :: C.TxBody era
+  :: C.TxBody C.BabbageEra
   -> (Map P.DatumHash P.Datum, PV1.Redeemers)
 -- scriptDataFromCardanoTxBody C.ByronTxBody{} = (mempty, mempty)
 scriptDataFromCardanoTxBody (C.ShelleyTxBody _ _ _ C.TxBodyNoScriptData _ _) =
@@ -269,14 +274,11 @@ scriptDataFromCardanoTxBody
                 $ Map.toList reds
          in (datums, redeemers)
 
-redeemerPtrFromCardanoRdmrPtr :: Alonzo.RdmrPtr -> PV1.RedeemerPtr
-redeemerPtrFromCardanoRdmrPtr (Alonzo.RdmrPtr rdmrTag ptr) = PV1.RedeemerPtr t (toInteger ptr)
-  where
-    t = case rdmrTag of
-      Alonzo.Spend -> PV1.Spend
-      Alonzo.Mint -> PV1.Mint
-      Alonzo.Cert -> PV1.Cert
-      Alonzo.Rewrd -> PV1.Reward
+redeemerPtrFromCardanoRdmrPtr :: Alonzo.PlutusPurpose Alonzo.AsIndex EmulatorEra -> PV1.RedeemerPtr
+redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoSpending (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoMinting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoCertifying (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoRewarding (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
 
 {- | Extract plutus scripts from a Cardano API tx body.
 

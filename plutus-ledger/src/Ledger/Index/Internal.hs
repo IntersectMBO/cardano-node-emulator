@@ -20,12 +20,9 @@ import Prelude hiding (lookup)
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Binary qualified as CBOR
-import Cardano.Ledger.Alonzo.Scripts (ExUnits)
+import Cardano.Ledger.Alonzo.Scripts (AsIndex, ExUnits, PlutusPurpose)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Alonzo.TxWits (RdmrPtr)
-import Cardano.Ledger.Babbage (BabbageEra)
 import Cardano.Ledger.Core (Tx)
-import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Shelley.API (Validated, extractTx)
 import Codec.Serialise (Serialise (..))
 import Control.Lens (makePrisms)
@@ -34,7 +31,7 @@ import Data.Map qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Ledger.Orphans ()
-import Ledger.Tx.CardanoAPI.Internal (CardanoTx, pattern CardanoEmulatorEraTx)
+import Ledger.Tx.CardanoAPI.Internal (CardanoTx, EmulatorEra, pattern CardanoEmulatorEraTx)
 import PlutusLedgerApi.V1.Scripts qualified as Scripts
 import Prettyprinter (Pretty (..), hang, vsep, (<+>))
 import Prettyprinter.Extras (PrettyShow (..))
@@ -57,8 +54,6 @@ eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(AlonzoTx _ _ (IsVali
 
 unOnChain :: OnChainTx -> CardanoTx
 unOnChain = eitherTx id id
-
-type EmulatorEra = BabbageEra StandardCrypto
 
 -- | The UTxOs of a blockchain indexed by their references.
 type UtxoIndex = C.UTxO C.BabbageEra
@@ -89,7 +84,7 @@ data ValidationPhase = Phase1 | Phase2 deriving (Eq, Show, Generic, FromJSON, To
 deriving via (PrettyShow ValidationPhase) instance Pretty ValidationPhase
 type ValidationErrorInPhase = (ValidationPhase, ValidationError)
 type ValidationSuccess = (RedeemerReport, Validated (Tx EmulatorEra))
-type RedeemerReport = Map.Map RdmrPtr ([Text], ExUnits)
+type RedeemerReport = Map.Map (PlutusPurpose AsIndex EmulatorEra) ([Text], ExUnits)
 
 data ValidationResult
   = -- | A transaction failed to validate in phase 1.

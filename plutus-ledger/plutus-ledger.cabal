@@ -1,4 +1,4 @@
-cabal-version:   3.0
+cabal-version:   3.8
 name:            plutus-ledger
 version:         1.3.0.0
 license:         Apache-2.0
@@ -175,9 +175,9 @@ test-suite plutus-ledger-test
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen}
-    , plutus-ledger-api               >=1.0.0
-    , plutus-tx                       >=1.0.0
+    , cardano-api
+    , plutus-ledger-api  >=1.0.0
+    , plutus-tx          >=1.0.0
 
   ------------------------
   -- Non-IOG dependencies

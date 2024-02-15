@@ -83,8 +83,10 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     first Right $
       C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody buildTx
   exUnitsMap' <-
-    bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
-      getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
+    bimap
+      Left
+      (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsBabbage) . fmap (C.fromAlonzoExUnits . snd))
+      $ getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
     mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
   where
@@ -92,7 +94,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
       -> C.ScriptWitnessIndex
       -> C.ScriptWitness witctx era
-      -> Either C.TxBodyErrorAutoBalance (C.ScriptWitness witctx era)
+      -> Either (C.TxBodyErrorAutoBalance era) (C.ScriptWitness witctx era)
     mapWitness _ _ wit@C.SimpleScriptWitness{} = Right wit
     mapWitness eum idx (C.PlutusScriptWitness langInEra version script datum redeemer _) =
       case Map.lookup idx eum of

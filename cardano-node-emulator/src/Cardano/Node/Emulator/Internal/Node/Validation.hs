@@ -44,8 +44,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
 
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
-import Cardano.Ledger.Alonzo.Plutus.TxInfo (ScriptResult (Fails, Passes))
-import Cardano.Ledger.Alonzo.PlutusScriptApi (
+import Cardano.Ledger.Alonzo.Plutus.Evaluate (
   collectPlutusScriptsWithContext,
   evalPlutusScripts,
  )
@@ -54,10 +53,8 @@ import Cardano.Ledger.Alonzo.Rules (
   AlonzoUtxosPredFailure (CollectErrors),
  )
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Api.PParams (ppProtocolVersionL)
 import Cardano.Ledger.Api.Tx (
   TransactionScriptFailure (ValidationFailure),
-  ValidationFailed (ValidationFailedV1, ValidationFailedV2),
   evalTxExUnitsWithLogs,
  )
 import Cardano.Ledger.Babbage.Rules (
@@ -66,6 +63,7 @@ import Cardano.Ledger.Babbage.Rules (
  )
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Core qualified as Core
+import Cardano.Ledger.Plutus.Evaluate (ScriptResult (Fails, Passes))
 import Cardano.Ledger.Shelley.API (
   ApplyTxError (ApplyTxError),
   Coin (Coin),
@@ -203,7 +201,7 @@ initialState params =
     }
 
 utxoEnv :: Params -> SlotNo -> C.Ledger.UtxoEnv EmulatorEra
-utxoEnv params slotNo = C.Ledger.UtxoEnv slotNo (emulatorPParams params) def (C.Ledger.GenDelegs mempty)
+utxoEnv params slotNo = C.Ledger.UtxoEnv slotNo (emulatorPParams params) def
 
 applyTx
   :: Params
@@ -266,7 +264,7 @@ constructValidated
   -> C.Ledger.UTxOState EmulatorEra
   -> Core.Tx EmulatorEra
   -> m (AlonzoTx EmulatorEra)
-constructValidated globals (C.Ledger.UtxoEnv _ pp _ _) st tx =
+constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
   case collectPlutusScriptsWithContext ei sysS pp tx utxo of
     Left errs ->
       throwError
@@ -274,7 +272,7 @@ constructValidated globals (C.Ledger.UtxoEnv _ pp _ _) st tx =
             [UtxowFailure (UtxoFailure (AlonzoInBabbageUtxoPredFailure (UtxosFailure (CollectErrors errs))))]
         )
     Right sLst ->
-      let scriptEvalResult = evalPlutusScripts (view ppProtocolVersionL pp) tx sLst
+      let scriptEvalResult = evalPlutusScripts @EmulatorEra tx sLst
           vTx =
             AlonzoTx
               (view Core.bodyTxL tx)
@@ -316,9 +314,7 @@ getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
     eg = emulatorGlobals params
     ss = systemStart eg
     ei = epochInfo eg
-    toCardanoLedgerError (ValidationFailure (ValidationFailedV1 (V1.CekError ce) logs _)) =
-      Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
-    toCardanoLedgerError (ValidationFailure (ValidationFailedV2 (V1.CekError ce) logs _)) =
+    toCardanoLedgerError (ValidationFailure _ (V1.CekError ce) logs _) =
       Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
     toCardanoLedgerError e = Left (P.Phase2, P.CardanoLedgerValidationError $ Text.pack $ show e)
 

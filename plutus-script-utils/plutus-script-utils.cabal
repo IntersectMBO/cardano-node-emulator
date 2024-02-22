@@ -82,6 +82,10 @@ library
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
   --------------------------
   -- Other IOG dependencies
   --------------------------

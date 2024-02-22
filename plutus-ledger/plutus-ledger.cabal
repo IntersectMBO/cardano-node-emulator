@@ -43,6 +43,10 @@ common lang
     -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
     -fplugin-opt PlutusTx.Plugin:target-version=1.0.0
 
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
 flag defer-plugin-errors
   description:
     Defer errors from the plugin, useful for things like Haddock that can't handle it.
@@ -118,6 +122,7 @@ library
     , plutus-core                          >=1.0.0
     , plutus-ledger-api                    >=1.0.0
     , plutus-tx                            >=1.0.0
+    , plutus-tx-plugin                     >=1.0.0
 
   ------------------------
   -- Non-IOG dependencies
@@ -149,9 +154,6 @@ library
 
   ghc-options:      -fprint-potential-instances
 
-  if !(impl(ghcjs) || os(ghcjs))
-    build-depends: plutus-tx-plugin >=1.0.0
-
   if flag(defer-plugin-errors)
     ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
 
@@ -175,9 +177,9 @@ test-suite plutus-ledger-test
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api
-    , plutus-ledger-api  >=1.0.0
-    , plutus-tx          >=1.0.0
+    , cardano-api:{cardano-api, gen}
+    , plutus-ledger-api               >=1.0.0
+    , plutus-tx                       >=1.0.0
 
   ------------------------
   -- Non-IOG dependencies

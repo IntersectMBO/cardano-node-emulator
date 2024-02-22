@@ -28,6 +28,10 @@ common lang
     -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
     -fplugin-opt PlutusTx.Plugin:target-version=1.0.0
 
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
 library
   import:          lang
   hs-source-dirs:  src
@@ -113,6 +117,10 @@ test-suite cardano-node-emulator-test
     Plutus.Examples.EscrowSpec
     Plutus.Examples.Game
     Plutus.Examples.GameSpec
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
 
   --------------------
   -- Local components

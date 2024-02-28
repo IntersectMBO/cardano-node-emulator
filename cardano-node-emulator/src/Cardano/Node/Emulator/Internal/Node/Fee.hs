@@ -85,7 +85,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
   exUnitsMap' <-
     bimap
       Left
-      (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsBabbage) . fmap (C.fromAlonzoExUnits . snd))
+      (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsConway) . fmap (C.fromAlonzoExUnits . snd))
       $ getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
     mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent

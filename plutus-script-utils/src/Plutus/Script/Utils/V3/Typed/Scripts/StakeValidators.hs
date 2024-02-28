@@ -60,5 +60,5 @@ forwardToValidator (ValidatorHash h) _ ScriptContext{scriptContextTxInfo = TxInf
       result = any (checkHash . txInInfoResolved) txInfoInputs
    in case scriptContextPurpose of
         Rewarding _ -> result
-        Certifying _ -> result
+        Certifying _ _ -> result
         _ -> False

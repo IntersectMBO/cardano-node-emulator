@@ -101,6 +101,7 @@ import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
 import Cardano.Ledger.Conway (ConwayEra)
+import Cardano.Ledger.Conway.Scripts qualified as Conway
 import Cardano.Ledger.Crypto (StandardCrypto)
 
 import Cardano.Ledger.Core qualified as Ledger
@@ -134,6 +135,7 @@ import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
 type EmulatorEra = ConwayEra StandardCrypto
 
 newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.ConwayEra}
+  deriving (Show, Eq, Generic)
 
 -- | Cardano tx from any era.
 data CardanoTx where
@@ -241,7 +243,7 @@ withShelleyBasedEraConstraintsForLedger = \case
 with their hashes.
 -}
 scriptDataFromCardanoTxBody
-  :: C.TxBody C.BabbageEra
+  :: C.TxBody C.ConwayEra
   -> (Map P.DatumHash P.Datum, PV1.Redeemers)
 -- scriptDataFromCardanoTxBody C.ByronTxBody{} = (mempty, mempty)
 scriptDataFromCardanoTxBody (C.ShelleyTxBody _ _ _ C.TxBodyNoScriptData _ _) =
@@ -274,10 +276,12 @@ scriptDataFromCardanoTxBody
          in (datums, redeemers)
 
 redeemerPtrFromCardanoRdmrPtr :: Alonzo.PlutusPurpose Alonzo.AsIndex EmulatorEra -> PV1.RedeemerPtr
-redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoSpending (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoMinting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoCertifying (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Alonzo.AlonzoRewarding (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwaySpending (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayMinting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayCertifying (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayRewarding (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayVoting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayProposing (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
 
 {- | Extract plutus scripts from a Cardano API tx body.
 

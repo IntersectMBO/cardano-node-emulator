@@ -38,7 +38,6 @@ import Cardano.Ledger.Alonzo.PParams qualified as C
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Babbage.PParams qualified as C
 import Cardano.Ledger.BaseTypes (EpochInterval (EpochInterval), boundRational)
-import Cardano.Ledger.BaseTypes (boundRational)
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Core qualified as C
 import Cardano.Ledger.Crypto (StandardCrypto)

@@ -20,7 +20,7 @@ import Plutus.Script.Utils.Scripts (
   mkStakeValidatorScript,
  )
 import Plutus.Script.Utils.Typed (mkUntypedStakeValidator)
-import PlutusCore.Version (plcVersion100)
+import PlutusCore.Version (plcVersion110)
 import PlutusLedgerApi.V2.Tx (TxOut (TxOut, txOutAddress))
 import PlutusLedgerApi.V3 (
   Address (Address, addressCredential),
@@ -50,7 +50,7 @@ mkForwardingStakeValidator vshsh =
               mkUntypedStakeValidator (forwardToValidator hsh)
             ||]
         )
-    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 vshsh
 
 {-# INLINEABLE forwardToValidator #-}
 forwardToValidator :: ValidatorHash -> () -> ScriptContext -> Bool

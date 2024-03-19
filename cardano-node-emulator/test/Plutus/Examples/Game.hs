@@ -33,10 +33,10 @@ import Ledger (CardanoAddress, POSIXTime, PaymentPrivateKey, UtxoIndex, Validato
 import Ledger.Address (mkValidatorCardanoAddress)
 import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Typed.Scripts qualified as Scripts
-import Plutus.Script.Utils.Typed (ScriptContextV2, Versioned)
-import Plutus.Script.Utils.V2.Typed.Scripts qualified as V2
-import PlutusLedgerApi.V2 (Address)
-import PlutusLedgerApi.V2.Contexts qualified as V2
+import Plutus.Script.Utils.Typed (ScriptContextV3, Versioned)
+import Plutus.Script.Utils.V3.Typed.Scripts qualified as V3
+import PlutusLedgerApi.V3 (Address)
+import PlutusLedgerApi.V3.Contexts qualified as V3
 import PlutusTx (FromData, ToData)
 import PlutusTx qualified
 import PlutusTx.Prelude ()
@@ -76,13 +76,13 @@ mkGameAddress = mkValidatorCardanoAddress testnet . mkGameValidator
 mkGameValidator :: GameParam -> Versioned Validator
 mkGameValidator = Scripts.vValidatorScript . mkGameInstance
 
-mkGameInstance :: GameParam -> V2.TypedValidator Game
+mkGameInstance :: GameParam -> V3.TypedValidator Game
 mkGameInstance =
-  V2.mkTypedValidatorParam @Game
+  V3.mkTypedValidatorParam @Game
     $$(PlutusTx.compile [||mkValidator||])
     $$(PlutusTx.compile [||wrap||])
   where
-    wrap = Scripts.mkUntypedValidator @ScriptContextV2 @HashedString @ClearString
+    wrap = Scripts.mkUntypedValidator @ScriptContextV3 @HashedString @ClearString
 
 {- | The validation function (Datum -> Redeemer -> ScriptContext -> Bool)
 
@@ -90,7 +90,7 @@ The 'GameParam' parameter is not used in the validation. It is meant to
 parameterize the script address depending based on the value of 'GaramParam'.
 -}
 {-# INLINEABLE mkValidator #-}
-mkValidator :: GameParam -> HashedString -> ClearString -> V2.ScriptContext -> Bool
+mkValidator :: GameParam -> HashedString -> ClearString -> V3.ScriptContext -> Bool
 mkValidator _ hs cs _ = isGoodGuess hs cs
 
 {-# INLINEABLE isGoodGuess #-}

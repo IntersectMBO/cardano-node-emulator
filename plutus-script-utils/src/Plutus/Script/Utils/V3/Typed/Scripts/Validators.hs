@@ -26,7 +26,7 @@ module Plutus.Script.Utils.V3.Typed.Scripts.Validators (
 where
 
 import Data.Kind (Type)
-import Plutus.Script.Utils.Scripts (Language (PlutusV2), Versioned (Versioned), mkValidatorScript)
+import Plutus.Script.Utils.Scripts (Language (PlutusV3), Versioned (Versioned), mkValidatorScript)
 import Plutus.Script.Utils.Typed (
   DatumType,
   RedeemerType,
@@ -45,7 +45,7 @@ import Plutus.Script.Utils.Typed (
 import Plutus.Script.Utils.V3.Scripts qualified as Scripts
 import Plutus.Script.Utils.V3.Typed.Scripts.MonetaryPolicies qualified as MPS
 import PlutusCore.Default (DefaultUni)
-import PlutusCore.Version (plcVersion100)
+import PlutusCore.Version (plcVersion110)
 import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx (CompiledCode, Lift, liftCode, unsafeApplyCode)
 
@@ -61,9 +61,9 @@ mkTypedValidator
   -> TypedValidator a
 mkTypedValidator vc wrapper =
   TypedValidator
-    { tvValidator = Versioned val PlutusV2
+    { tvValidator = Versioned val PlutusV3
     , tvValidatorHash = hsh
-    , tvForwardingMPS = Versioned mps PlutusV2
+    , tvForwardingMPS = Versioned mps PlutusV3
     , tvForwardingMPSHash = Scripts.mintingPolicyHash mps
     }
   where
@@ -83,4 +83,4 @@ mkTypedValidatorParam
   -- ^ The extra paramater for the validator script
   -> TypedValidator a
 mkTypedValidatorParam vc wrapper param =
-  mkTypedValidator (vc `unsafeApplyCode` liftCode plcVersion100 param) wrapper
+  mkTypedValidator (vc `unsafeApplyCode` liftCode plcVersion110 param) wrapper

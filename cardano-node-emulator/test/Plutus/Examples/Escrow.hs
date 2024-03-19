@@ -75,19 +75,19 @@ import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Typed.Scripts (validatorCardanoAddress)
 import Ledger.Typed.Scripts qualified as Scripts
 import Plutus.Script.Utils.Scripts (ValidatorHash, datumHash)
-import Plutus.Script.Utils.V2.Contexts (
+import Plutus.Script.Utils.V3.Contexts (
   ScriptContext (ScriptContext, scriptContextTxInfo),
   TxInfo,
   scriptOutputsAt,
   txInfoValidRange,
   txSignedBy,
  )
-import Plutus.Script.Utils.V2.Typed.Scripts qualified as V2
+import Plutus.Script.Utils.V3.Typed.Scripts qualified as V3
 import Plutus.Script.Utils.Value (Value, geq, lt)
 import PlutusLedgerApi.V1.Interval qualified as Interval
-import PlutusLedgerApi.V2 (Datum (Datum))
-import PlutusLedgerApi.V2.Contexts (valuePaidTo)
 import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatum))
+import PlutusLedgerApi.V3 (Datum (Datum))
+import PlutusLedgerApi.V3.Contexts (valuePaidTo)
 
 data RedeemFailReason = DeadlinePassed | NotEnoughFundsAtAddress
   deriving stock (Eq, Show)
@@ -254,11 +254,11 @@ validate EscrowParams{escrowDeadline, escrowTargets} contributor action ScriptCo
           "txSignedBy"
           (scriptContextTxInfo `txSignedBy` unPaymentPubKeyHash contributor)
 
-typedValidator :: EscrowParams Datum -> V2.TypedValidator Escrow
+typedValidator :: EscrowParams Datum -> V3.TypedValidator Escrow
 typedValidator = go
   where
     go =
-      V2.mkTypedValidatorParam @Escrow
+      V3.mkTypedValidatorParam @Escrow
         $$(PlutusTx.compile [||validate||])
         $$(PlutusTx.compile [||wrap||])
     wrap = Scripts.mkUntypedValidator

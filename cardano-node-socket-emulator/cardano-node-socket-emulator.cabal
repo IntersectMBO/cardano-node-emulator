@@ -1,6 +1,6 @@
 cabal-version: 3.8
 name:          cardano-node-socket-emulator
-version:       1.3.0.0
+version:       1.4.0.0
 
 common lang
   default-language:   Haskell2010
@@ -45,10 +45,10 @@ library
   -- Local components
   --------------------
   build-depends:
-    , cardano-node-emulator  ^>=1.3.0
-    , freer-extras           ^>=1.3.0
-    , plutus-ledger          ^>=1.3.0
-    , plutus-script-utils    ^>=1.3.0
+    , cardano-node-emulator  ^>=1.4.0
+    , freer-extras           ^>=1.4.0
+    , plutus-ledger          ^>=1.4.0
+    , plutus-script-utils    ^>=1.4.0
 
   --------------------------
   -- Other IOG dependencies
@@ -104,7 +104,7 @@ executable cardano-node-socket-emulator
   main-is:          Main.hs
   hs-source-dirs:   app
   default-language: Haskell2010
-  build-depends:    cardano-node-socket-emulator ^>=1.3.0
+  build-depends:    cardano-node-socket-emulator ^>=1.4.0
   build-depends:    iohk-monitoring
   build-depends:
     , base           >=4.9 && <5

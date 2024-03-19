@@ -1,6 +1,6 @@
 cabal-version: 3.8
 name:          freer-extras
-version:       1.3.0.0
+version:       1.4.0.0
 synopsis:      Useful extensions to simple-freer
 description:
   freer-extras provides logging and monitoring functions extending simple-freer
@@ -73,7 +73,7 @@ test-suite freer-extras-test
   ----------------------------
   -- Local components
   ----------------------------
-  build-depends:  freer-extras ^>=1.3.0
+  build-depends:  freer-extras ^>=1.4.0
 
   ------------------------
   -- Non-IOG dependencies

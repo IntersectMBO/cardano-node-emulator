@@ -220,8 +220,8 @@ fromEmulatorChainState state = do
       }
 
 -- | 'ChainState' with initial values
-initialChainState :: (MonadIO m) => Map.Map CardanoAddress Value -> m SocketEmulatorState
-initialChainState = fromEmulatorChainState . emptyEmulatorStateWithInitialDist
+initialChainState :: (MonadIO m) => Params -> Map.Map CardanoAddress Value -> m SocketEmulatorState
+initialChainState params = fromEmulatorChainState . emptyEmulatorStateWithInitialDist params
 
 getChannel :: (MonadIO m) => MVar AppState -> m (TChan Block)
 getChannel mv = liftIO (readMVar mv) <&> view (socketEmulatorState . channel)

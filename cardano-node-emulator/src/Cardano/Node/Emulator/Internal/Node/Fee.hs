@@ -34,7 +34,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
-  UTxO (UTxO),
+  UTxO,
   createAndValidateTransactionBody,
   getTxExUnitsWithLogs,
  )
@@ -146,7 +146,7 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
     globals = emulatorGlobals params
     ei = C.Api.LedgerEpochInfo $ epochInfo globals
     ss = systemStart globals
-    utxo' = fromLedgerUTxO utxo
+    utxo' = CardanoAPI.toPlutusIndex utxo
     balance extraOuts =
       C.Api.makeTransactionBodyAutoBalance
         C.Api.shelleyBasedEra
@@ -455,16 +455,6 @@ takeUntil _ [] = []
 takeUntil p (x : xs)
   | p x = [x]
   | otherwise = x : takeUntil p xs
-
-fromLedgerUTxO
-  :: UTxO EmulatorEra
-  -> C.Api.UTxO C.Api.ConwayEra
-fromLedgerUTxO (UTxO utxo) =
-  C.Api.UTxO
-    . Map.fromList
-    . map (bimap C.Api.fromShelleyTxIn (C.Api.fromShelleyTxOut C.Api.ShelleyBasedEraConway))
-    . Map.toList
-    $ utxo
 
 evaluateTransactionFee
   :: Params

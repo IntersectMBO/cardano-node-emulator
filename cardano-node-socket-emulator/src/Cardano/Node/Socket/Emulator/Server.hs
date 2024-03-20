@@ -35,7 +35,7 @@ import Control.Concurrent.STM (
   writeTQueue,
  )
 import Control.Exception (throwIO)
-import Control.Lens (over, (^.))
+import Control.Lens (over, (.~), (^.))
 import Control.Monad (forever, void)
 import Control.Monad.Freer (send)
 import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
@@ -57,7 +57,6 @@ import Data.Void (Void)
 import Cardano.BM.Data.Trace (Trace)
 import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import Ledger (Block, CardanoTx (..), Slot (..))
-import Ledger.Tx.CardanoAPI (fromPlutusIndex)
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.Query (Query (..))
@@ -618,24 +617,28 @@ submitTx
 submitTx state tx = case C.fromConsensusGenTx tx of
   C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
-      (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ index slot _) _ _) _ _)
+      (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ _ slot _ ls) _ _) _ _)
       _
       params <-
       readMVar state
-    case Validation.validateAndApplyTx params (fromIntegral slot) (fromPlutusIndex index) shelleyTx of
+    case Validation.validateAndApplyTx params (fromIntegral slot) ls shelleyTx of
       Left err ->
         pure $
           TxSubmission.SubmitFail
             ( Consensus.HardForkApplyTxErrFromEra
                 (Consensus.OneEraApplyTxErr (S (S (S (S (S (S (Z (WrapApplyTxErr err)))))))))
             )
-      Right _ -> do
+      Right (ls', _) -> do
         let ctx = CardanoEmulatorEraTx shelleyTx
         modifyMVar_
           state
-          (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
+          ( pure
+              . over
+                (socketEmulatorState . emulatorState . E.esChainState)
+                (Chain.addTxToPool ctx . (Chain.ledgerState .~ ls'))
+          )
         pure TxSubmission.SubmitSuccess
-  _ -> pure $ TxSubmission.SubmitSuccess -- should be SubmitFail HardForkApplyTxErrWrongEra, but the Mismatch type is complicated
+  _ -> pure TxSubmission.SubmitSuccess -- should be SubmitFail HardForkApplyTxErrWrongEra, but the Mismatch type is complicated
 
 stateQueryServer
   :: (block ~ CardanoBlock StandardCrypto)

@@ -27,6 +27,7 @@ module Ledger.Tx.CardanoAPI (
   getRequiredSigners,
 
   -- * Conversion from Plutus types
+  toPlutusIndex,
   fromPlutusIndex,
   fromPlutusTxOut,
   fromPlutusTxOutRef,
@@ -40,6 +41,8 @@ import Cardano.Ledger.Babbage.TxBody (BabbageTxBody (BabbageTxBody, btbReqSigner
 import Cardano.Ledger.BaseTypes (mkTxIxPartial)
 import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
+import Data.Bifunctor (bimap)
+import Data.Map qualified as Map
 import Ledger.Address qualified as P
 import Ledger.Index.Internal qualified as P
 import Ledger.Scripts qualified as P
@@ -129,6 +132,16 @@ getRequiredSigners (C.ShelleyTx _ (AlonzoTx BabbageTxBody{btbReqSignerHashes = r
   foldMap
     (pure . P.PaymentPubKeyHash . P.toPlutusPubKeyHash . C.PaymentKeyHash . C.Ledger.coerceKeyRole)
     rsq
+
+toPlutusIndex
+  :: C.Ledger.UTxO EmulatorEra
+  -> P.UtxoIndex
+toPlutusIndex (C.Ledger.UTxO utxo) =
+  C.UTxO
+    . Map.fromList
+    . map (bimap C.fromShelleyTxIn (C.fromShelleyTxOut C.ShelleyBasedEraBabbage))
+    . Map.toList
+    $ utxo
 
 fromPlutusIndex :: P.UtxoIndex -> C.Ledger.UTxO (Babbage.BabbageEra StandardCrypto)
 fromPlutusIndex = C.toLedgerUTxO C.ShelleyBasedEraBabbage

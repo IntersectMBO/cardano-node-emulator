@@ -67,7 +67,7 @@ import Cardano.Node.Emulator.Internal.API (
   modifySlot,
   processBlock,
  )
-import Control.Lens (use, (%~), (&), (<>~), (^.))
+import Control.Lens (use, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Freer.Extras.Log qualified as L
@@ -102,6 +102,7 @@ import Ledger.Tx (
 import Ledger.Tx.CardanoAPI (
   CardanoBuildTx (CardanoBuildTx),
   fromCardanoTxIn,
+  fromPlutusIndex,
   toCardanoTxIn,
   toCardanoTxOutValue,
  )
@@ -118,6 +119,7 @@ import Cardano.Node.Emulator.Internal.Node.Chain qualified as E (
   emptyChainState,
   getCurrentSlot,
   index,
+  ledgerState,
   queueTx,
  )
 import Cardano.Node.Emulator.Internal.Node.Fee qualified as E (
@@ -125,22 +127,24 @@ import Cardano.Node.Emulator.Internal.Node.Fee qualified as E (
   utxoProviderFromWalletOutputs,
  )
 import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
-import Cardano.Node.Emulator.Internal.Node.Validation (unsafeMakeValid)
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as E (setUtxo, unsafeMakeValid)
 import Cardano.Node.Emulator.LogMessages (
   EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
   TxBalanceMsg (BalancingUnbalancedTx, FinishedBalancing, SigningTx, SubmittingTx),
  )
 
-emptyEmulatorState :: EmulatorState
-emptyEmulatorState = EmulatorState E.emptyChainState mempty mempty
+emptyEmulatorState :: E.Params -> EmulatorState
+emptyEmulatorState params = EmulatorState (E.emptyChainState params) mempty mempty
 
-emptyEmulatorStateWithInitialDist :: Map CardanoAddress C.Value -> EmulatorState
-emptyEmulatorStateWithInitialDist initialDist =
+emptyEmulatorStateWithInitialDist :: E.Params -> Map CardanoAddress C.Value -> EmulatorState
+emptyEmulatorStateWithInitialDist params initialDist =
   let tx = Index.createGenesisTransaction initialDist
-      vtx = unsafeMakeValid tx
-   in emptyEmulatorState
+      vtx = E.unsafeMakeValid tx
+      index = Index.insertBlock [vtx] mempty
+   in emptyEmulatorState params
         & esChainState . E.chainNewestFirst %~ ([vtx] :)
-        & esChainState . E.index %~ Index.insertBlock [vtx]
+        & esChainState . E.index .~ index
+        & esChainState . E.ledgerState %~ E.setUtxo params (fromPlutusIndex index)
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 

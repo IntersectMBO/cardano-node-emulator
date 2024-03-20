@@ -50,8 +50,8 @@ main
           dist =
             Map.fromList $
               zip (getAddress <$> nscInitialTxWallets) (repeat (CardanoAPI.adaValueOf 1_000_000_000))
-      initialState <- initialChainState dist
       params <- liftIO $ Params.fromNodeServerConfig nodeServerConfig
+      initialState <- initialChainState params dist
       let appState = AppState initialState mempty params
       serverHandler <-
         liftIO $

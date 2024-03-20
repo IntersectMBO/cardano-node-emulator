@@ -274,7 +274,7 @@ defaultOptions = Options defInitialDist def (\_ _ -> Nothing) balanceChangePredi
 runEmulatorM
   :: Options state -> EmulatorM a -> (Either EmulatorError a, (EmulatorState, EmulatorLogs))
 runEmulatorM Options{..} m =
-  case runRWS (runExceptT m) params (emptyEmulatorStateWithInitialDist initialDistribution) of
+  case runRWS (runExceptT m) params (emptyEmulatorStateWithInitialDist params initialDistribution) of
     (r, s, l) -> (r, (s, l))
 
 checkPredicate

@@ -11,7 +11,6 @@
 
 -- | Transaction validation using 'cardano-ledger-specs'
 module Cardano.Node.Emulator.Internal.Node.Validation (
-  EmulatorBlock,
   EmulatedLedgerState (..),
   Coin (..),
   SlotNo (..),
@@ -26,7 +25,6 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   validateAndApplyTx,
 
   -- * Modifying the state
-  makeBlock,
   setSlot,
   nextSlot,
   UTxO (..),
@@ -35,8 +33,6 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
   -- * Lenses
   ledgerEnv,
   memPoolState,
-  currentBlock,
-  previousBlocks,
 
   -- * Etc.
   emulatorGlobals,
@@ -85,9 +81,9 @@ import Cardano.Node.Emulator.Internal.Node.Params (
   ledgerProtocolParameters,
  )
 import Cardano.Slotting.Slot (SlotNo (SlotNo))
-import Control.Lens (makeLenses, over, view, (&), (.~), (^.))
+import Control.Lens (makeLenses, over, view, (&), (.~))
 import Control.Monad.Except (MonadError (throwError))
-import Data.Bifunctor (Bifunctor (first))
+import Data.Bifunctor (Bifunctor (first), bimap)
 import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
@@ -101,8 +97,6 @@ import PlutusLedgerApi.V1 qualified as V1 hiding (TxOut (..))
 import PlutusLedgerApi.V1.Scripts qualified as P
 
 type CardanoLedgerError = Either P.ValidationErrorInPhase P.ToCardanoError
-
-type EmulatorBlock = [Validated (Core.Tx EmulatorEra)]
 
 {- Note [Emulated ledger]
 
@@ -145,8 +139,6 @@ validating machinery.
 data EmulatedLedgerState = EmulatedLedgerState
   { _ledgerEnv :: !(MempoolEnv EmulatorEra)
   , _memPoolState :: !(LedgerState EmulatorEra)
-  , _currentBlock :: !EmulatorBlock
-  , _previousBlocks :: ![EmulatorBlock]
   }
   deriving (Show)
 
@@ -171,14 +163,9 @@ setUtxo params utxo els@EmulatedLedgerState{_memPoolState} = els{_memPoolState =
         { lsUTxOState = smartUTxOState (emulatorPParams params) utxo (Coin 0) (Coin 0) def (Coin 0)
         }
 
-{- | Make a block with all transactions that have been validated in the
-current block, add the block to the blockchain, and empty the current block.
--}
-makeBlock :: EmulatedLedgerState -> EmulatedLedgerState
-makeBlock state =
-  state
-    & currentBlock .~ []
-    & over previousBlocks ((:) (reverse $ state ^. currentBlock))
+-- | Get the utxo
+getUtxo :: EmulatedLedgerState -> UTxO EmulatorEra
+getUtxo = utxosUtxo . lsUTxOState . view memPoolState
 
 -- | Initial ledger state for a distribution
 initialState :: Params -> EmulatedLedgerState
@@ -196,8 +183,6 @@ initialState params =
           { lsUTxOState = smartUTxOState (emulatorPParams params) (UTxO mempty) (Coin 0) (Coin 0) def (Coin 0)
           , lsCertState = def
           }
-    , _currentBlock = []
-    , _previousBlocks = []
     }
 
 utxoEnv :: Params -> SlotNo -> C.Ledger.UtxoEnv EmulatorEra
@@ -210,33 +195,39 @@ applyTx
   -> Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
 applyTx params oldState@EmulatedLedgerState{_ledgerEnv, _memPoolState} tx = do
   (newMempool, vtx) <- C.Ledger.applyTx (emulatorGlobals params) _ledgerEnv _memPoolState tx
-  return (oldState & memPoolState .~ newMempool & over currentBlock ((:) vtx), vtx)
+  return (oldState & memPoolState .~ newMempool, vtx)
 
-hasValidationErrors :: Params -> SlotNo -> P.UtxoIndex -> C.Tx C.BabbageEra -> P.ValidationResult
-hasValidationErrors params slotNo utxoIndex tx =
+hasValidationErrors
+  :: Params
+  -> SlotNo
+  -> EmulatedLedgerState
+  -> C.Tx C.BabbageEra
+  -> (Maybe EmulatedLedgerState, P.ValidationResult)
+hasValidationErrors params slotNo ls tx =
   case res of
-    Left err -> P.FailPhase1 (CardanoEmulatorEraTx tx) err
-    Right vtx -> case getTxExUnitsWithLogs params utxo tx of
-      Left (P.Phase1, err) -> P.FailPhase1 (CardanoEmulatorEraTx tx) err
-      Left (P.Phase2, err) -> P.FailPhase2 vtx err $ getCollateral utxoIndex (CardanoEmulatorEraTx tx)
-      Right report -> P.Success vtx report
+    Left err -> (Nothing, P.FailPhase1 (CardanoEmulatorEraTx tx) err)
+    Right (ls', vtx) -> case getTxExUnitsWithLogs params utxo tx of
+      Left (P.Phase1, err) -> (Just ls', P.FailPhase1 (CardanoEmulatorEraTx tx) err)
+      Left (P.Phase2, err) ->
+        (Just ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
+      Right report -> (Just ls', P.Success vtx report)
   where
-    utxo = P.fromPlutusIndex utxoIndex
+    utxo = getUtxo ls
     res =
-      OnChainTx
-        <$> first
-          (P.CardanoLedgerValidationError . Text.pack . show)
-          (validateAndApplyTx params slotNo utxo tx)
+      bimap
+        (P.CardanoLedgerValidationError . Text.pack . show)
+        (fmap OnChainTx)
+        (validateAndApplyTx params slotNo ls tx)
 
 validateAndApplyTx
   :: Params
   -> SlotNo
-  -> UTxO EmulatorEra
+  -> EmulatedLedgerState
   -> C.Tx C.BabbageEra
-  -> Either (ApplyTxError EmulatorEra) (Validated (Core.Tx EmulatorEra))
-validateAndApplyTx params slotNo utxo (C.ShelleyTx _ tx) = res
+  -> Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
+validateAndApplyTx params slotNo ledgerState (C.ShelleyTx _ tx) = res
   where
-    state = setSlot slotNo $ setUtxo params utxo $ initialState params
+    state = setSlot slotNo ledgerState
     res = do
       vtx <-
         constructValidated
@@ -244,7 +235,7 @@ validateAndApplyTx params slotNo utxo (C.ShelleyTx _ tx) = res
           (utxoEnv params slotNo)
           (lsUTxOState (_memPoolState state))
           tx
-      snd <$> applyTx params state vtx
+      applyTx params state vtx
 
 {- | Construct a 'AlonzoTx' from a 'Core.Tx' by setting the `IsValid`
 flag.
@@ -296,13 +287,13 @@ unsafeMakeValid (CardanoEmulatorEraTx (C.Tx txBody _)) =
 validateCardanoTx
   :: Params
   -> Slot
-  -> P.UtxoIndex
+  -> EmulatedLedgerState
   -> CardanoTx
-  -> P.ValidationResult
-validateCardanoTx params slot utxo ctx@(CardanoEmulatorEraTx tx@(C.Tx (C.TxBody bodyContent) _)) =
+  -> (Maybe EmulatedLedgerState, P.ValidationResult)
+validateCardanoTx params slot ls ctx@(CardanoEmulatorEraTx tx@(C.Tx (C.TxBody bodyContent) _)) =
   if map fst (C.txIns bodyContent) == [genesisTxIn]
-    then P.Success (unsafeMakeValid ctx) Map.empty
-    else hasValidationErrors params (fromIntegral slot) utxo tx
+    then (Just ls, P.Success (unsafeMakeValid ctx) Map.empty)
+    else hasValidationErrors params (fromIntegral slot) ls tx
 
 getTxExUnitsWithLogs
   :: Params -> UTxO EmulatorEra -> C.Tx C.BabbageEra -> Either P.ValidationErrorInPhase P.RedeemerReport

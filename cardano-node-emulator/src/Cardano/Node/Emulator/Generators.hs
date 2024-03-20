@@ -68,12 +68,18 @@ import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Internal.Node.Validation (initialState, setUtxo, validateCardanoTx)
+import Cardano.Node.Emulator.Internal.Node.Validation (
+  initialState,
+  setUtxo,
+  updateSlot,
+  validateCardanoTx,
+ )
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
 import Data.Default (Default (def), def)
 import Data.Foldable (fold, foldl')
+import Data.Function ((&))
 import Data.Functor (($>))
 import Data.List (sort)
 import Data.List qualified as List
@@ -343,8 +349,11 @@ validateMockchain :: Mockchain -> CardanoTx -> Maybe Ledger.ValidationErrorInPha
 validateMockchain (Mockchain _ utxo params) tx = result
   where
     cUtxoIndex = C.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
-    ledgerState = setUtxo params cUtxoIndex (initialState params)
-    result = case snd $ validateCardanoTx params 1 ledgerState tx of
+    ledgerState =
+      initialState params
+        & updateSlot (const 1)
+        & setUtxo params cUtxoIndex
+    result = case snd $ validateCardanoTx params ledgerState tx of
       FailPhase1 _ err -> Just (Phase1, err)
       FailPhase2 _ err _ -> Just (Phase2, err)
       _ -> Nothing

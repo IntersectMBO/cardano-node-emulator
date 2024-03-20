@@ -422,7 +422,7 @@ chainStateToContractModelChainState :: E.ChainState -> CM.ChainState
 chainStateToContractModelChainState cst =
   ChainState
     { utxo = cst ^. E.index
-    , slot = fromIntegral $ cst ^. E.chainCurrentSlot
+    , slot = E.getSlot $ cst ^. E.ledgerState
     }
 
 -- | Run QuickCheck on a property that tracks coverage and print its coverage report.

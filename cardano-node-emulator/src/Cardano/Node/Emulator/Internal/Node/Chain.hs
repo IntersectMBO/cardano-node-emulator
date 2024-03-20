@@ -73,18 +73,17 @@ data ChainState = ChainState
   -- ^ The pool of pending transactions.
   , _index :: !Index.UtxoIndex
   -- ^ The UTxO index, used for validation.
-  , _chainCurrentSlot :: !Slot
-  -- ^ The current slot number
   , _coverageData :: CoverageData
   -- ^ coverage data of validation scripts
   , _ledgerState :: Validation.EmulatedLedgerState
+  -- ^ The internal state of the ledger.
   }
   deriving (Show, Generic)
 
 makeLenses ''ChainState
 
 emptyChainState :: Params -> ChainState
-emptyChainState params = ChainState [] [] mempty 0 mempty (Validation.initialState params)
+emptyChainState params = ChainState [] [] mempty mempty (Validation.initialState params)
 
 fromBlockchain :: Params -> Blockchain -> ChainState
 fromBlockchain params bc =
@@ -124,12 +123,11 @@ handleControlChain :: (Members ChainEffs effs) => Params -> ChainControlEffect ~
 handleControlChain params = \case
   ProcessBlock -> do
     pool <- gets $ view txPool
-    slot <- gets $ view chainCurrentSlot
     idx <- gets $ view index
     ls <- gets $ view ledgerState
 
     let ValidatedBlock block events idx' ls' =
-          validateBlock params slot idx ls pool
+          validateBlock params idx ls pool
 
     modify $ txPool .~ []
     modify $ index .~ idx'
@@ -139,7 +137,14 @@ handleControlChain params = \case
 
     traverse_ logEvent events
     pure block
-  ModifySlot f -> modify @ChainState (over chainCurrentSlot f) >> gets (view chainCurrentSlot)
+  ModifySlot f -> do
+    _ <-
+      modify @ChainState
+        ( over
+            ledgerState
+            (Validation.updateSlot (\(Validation.SlotNo s) -> fromIntegral (f (fromIntegral s))))
+        )
+    gets (Validation.getSlot . view ledgerState)
 
 logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Eff effs ()
 logEvent e = case e of
@@ -155,7 +160,7 @@ getChainEventCoverageData (TxnValidation res) = getCoverageData res
 handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Eff effs
 handleChain params = \case
   QueueTx tx -> modify (addTxToPool tx)
-  GetCurrentSlot -> gets _chainCurrentSlot
+  GetCurrentSlot -> gets (Validation.getSlot . view ledgerState)
   GetParams -> pure params
 
 -- | The result of validating a block.
@@ -179,12 +184,12 @@ data ValidationCtx = ValidationCtx
   transactions, success/failure events and the updated UTxO set.
 -}
 validateBlock
-  :: Params -> Slot -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
-validateBlock params slot@(Slot s) idx ls txns =
+  :: Params -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
+validateBlock params idx ls txns =
   let
     -- Validate transactions, updating the UTXO index each time
     (results, ValidationCtx idx' _ ls') =
-      flip S.runState (ValidationCtx idx params ls) $ for txns $ validateEm slot
+      flip S.runState (ValidationCtx idx params ls) $ for txns validateEm
 
     -- The new block contains all transaction that were validated
     -- successfully
@@ -192,7 +197,7 @@ validateBlock params slot@(Slot s) idx ls txns =
 
     -- Also return an `EmulatorEvent` for each transaction that was
     -- processed
-    nextSlot = Slot (s + 1)
+    nextSlot = Validation.getSlot ls + 1
     events = (TxnValidation <$> results) ++ [SlotAdd nextSlot]
    in
     ValidatedBlock block events idx' ls'
@@ -200,13 +205,12 @@ validateBlock params slot@(Slot s) idx ls txns =
 -- | Validate a transaction in the current emulator state.
 validateEm
   :: (S.MonadState ValidationCtx m)
-  => Slot
-  -> CardanoTx
+  => CardanoTx
   -> m Index.ValidationResult
-validateEm h txn = do
+validateEm txn = do
   ctx@(ValidationCtx idx params ls) <- S.get
   let
-    (ls', res) = Validation.validateCardanoTx params h ls txn
+    (ls', res) = Validation.validateCardanoTx params ls txn
     idx' = case res of
       Index.FailPhase1{} -> idx
       Index.FailPhase2{} -> Index.insertCollateral txn idx

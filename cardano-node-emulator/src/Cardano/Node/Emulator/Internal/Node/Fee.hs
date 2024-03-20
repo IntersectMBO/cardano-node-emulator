@@ -25,6 +25,7 @@ import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
+import Cardano.Ledger.Shelley.TxCert (shelleyTotalDepositsTxCerts)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params (emulatorPParams),
@@ -34,7 +35,8 @@ import Cardano.Node.Emulator.Internal.Node.Params (
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
-  UTxO (UTxO),
+  Coin (unCoin),
+  UTxO,
   createAndValidateTransactionBody,
   getTxExUnitsWithLogs,
  )
@@ -83,8 +85,10 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     first Right $
       C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody buildTx
   exUnitsMap' <-
-    bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
-      getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
+    bimap
+      Left
+      (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsBabbage) . fmap (C.fromAlonzoExUnits . snd))
+      $ getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
     mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
   where
@@ -92,7 +96,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
       -> C.ScriptWitnessIndex
       -> C.ScriptWitness witctx era
-      -> Either C.TxBodyErrorAutoBalance (C.ScriptWitness witctx era)
+      -> Either (C.TxBodyErrorAutoBalance era) (C.ScriptWitness witctx era)
     mapWitness _ _ wit@C.SimpleScriptWitness{} = Right wit
     mapWitness eum idx (C.PlutusScriptWitness langInEra version script datum redeemer _) =
       case Map.lookup idx eum of
@@ -144,7 +148,7 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
     globals = emulatorGlobals params
     ei = C.Api.LedgerEpochInfo $ epochInfo globals
     ss = systemStart globals
-    utxo' = fromLedgerUTxO utxo
+    utxo' = CardanoAPI.toPlutusIndex utxo
     balance extraOuts =
       C.Api.makeTransactionBodyAutoBalance
         C.Api.shelleyBasedEra
@@ -248,8 +252,14 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
 
   inputValues <- traverse lookupValue txInputs
 
-  let left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
-      right = lovelaceToValue fees <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+  let pp = emulatorPParams params
+      txDeposits = shelleyTotalDepositsTxCerts pp (const False) (Tx.getTxBodyContentCerts utx)
+      coinToValue = lovelaceToValue . C.Lovelace . unCoin
+      left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
+      right =
+        lovelaceToValue fees
+          <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+          <> coinToValue txDeposits
       balance = left <> C.negateValue right
 
   ((neg, newInputs), (pos, mNewTxOut)) <-
@@ -453,16 +463,6 @@ takeUntil _ [] = []
 takeUntil p (x : xs)
   | p x = [x]
   | otherwise = x : takeUntil p xs
-
-fromLedgerUTxO
-  :: UTxO EmulatorEra
-  -> C.Api.UTxO C.Api.BabbageEra
-fromLedgerUTxO (UTxO utxo) =
-  C.Api.UTxO
-    . Map.fromList
-    . map (bimap C.Api.fromShelleyTxIn (C.Api.fromShelleyTxOut C.Api.ShelleyBasedEraBabbage))
-    . Map.toList
-    $ utxo
 
 evaluateTransactionFee
   :: Params

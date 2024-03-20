@@ -33,9 +33,9 @@
     };
 
     # Used to provide the cardano-node and cardano-cli executables.
-    cardano-node = {
-      url = "github:input-output-hk/cardano-node?ref=8.4.0-pre";
-    };
+    # cardano-node = {
+    #   url = "github:input-output-hk/cardano-node?ref=8.8.0-pre";
+    # };
 
     mithril = {
       url = "github:input-output-hk/mithril";

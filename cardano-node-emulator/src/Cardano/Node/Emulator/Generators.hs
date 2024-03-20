@@ -68,7 +68,7 @@ import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Internal.Node.Validation (validateCardanoTx)
+import Cardano.Node.Emulator.Internal.Node.Validation (initialState, setUtxo, validateCardanoTx)
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
@@ -102,10 +102,11 @@ import Ledger (
   ValidationErrorInPhase,
   ValidationPhase (Phase1, Phase2),
   ValidationResult (FailPhase1, FailPhase2),
-  addCardanoTxSignature,
+  addCardanoTxWitness,
   createGenesisTransaction,
   minLovelaceTxOutEstimated,
   pubKeyAddress,
+  toWitness,
   txOutValue,
  )
 import Ledger.CardanoWallet qualified as CW
@@ -123,8 +124,8 @@ import Test.Gen.Cardano.Api.Typed qualified as Gen
 -- | Attach signatures of all known private keys to a transaction.
 signAll :: CardanoTx -> CardanoTx
 signAll tx =
-  foldl' (flip addCardanoTxSignature) tx $
-    fmap unPaymentPrivateKey CW.knownPaymentPrivateKeys
+  foldl' (flip addCardanoTxWitness) tx $
+    fmap toWitness CW.knownPaymentPrivateKeys
 
 -- | The parameters for the generators in this module.
 data GeneratorModel = GeneratorModel
@@ -342,8 +343,9 @@ pubKeyTxOut v pk sk = do
 validateMockchain :: Mockchain -> CardanoTx -> Maybe Ledger.ValidationErrorInPhase
 validateMockchain (Mockchain _ utxo params) tx = result
   where
-    cUtxoIndex = C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
-    result = case validateCardanoTx params 1 cUtxoIndex tx of
+    cUtxoIndex = C.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
+    ledgerState = setUtxo params cUtxoIndex (initialState params)
+    result = case snd $ validateCardanoTx params 1 ledgerState tx of
       FailPhase1 _ err -> Just (Phase1, err)
       FailPhase2 _ err _ -> Just (Phase2, err)
       _ -> Nothing

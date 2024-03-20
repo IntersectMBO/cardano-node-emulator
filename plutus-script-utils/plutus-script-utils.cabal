@@ -1,4 +1,4 @@
-cabal-version:   3.0
+cabal-version:   3.8
 name:            plutus-script-utils
 version:         1.3.0.0
 license:         Apache-2.0
@@ -81,6 +81,10 @@ library
     Plutus.Script.Utils.V2.Typed.Scripts.Validators
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
 
   --------------------------
   -- Other IOG dependencies

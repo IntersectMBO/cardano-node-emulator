@@ -67,7 +67,7 @@ import Cardano.Node.Emulator.Internal.API (
   modifySlot,
   processBlock,
  )
-import Control.Lens (use, (%~), (&), (<>~), (^.))
+import Control.Lens (use, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Freer.Extras.Log qualified as L
@@ -82,16 +82,17 @@ import Ledger (
   DatumHash,
   DecoratedTxOut,
   POSIXTime,
-  PaymentPrivateKey (unPaymentPrivateKey),
+  PaymentPrivateKey,
   Slot,
   TxOutRef,
   UtxoIndex,
  )
+import Ledger.Address (toWitness)
 import Ledger.AddressMap qualified as AM
 import Ledger.Index qualified as Index
 import Ledger.Tx (
   TxOut,
-  addCardanoTxSignature,
+  addCardanoTxWitness,
   cardanoTxOutValue,
   getCardanoTxData,
   getCardanoTxId,
@@ -101,6 +102,7 @@ import Ledger.Tx (
 import Ledger.Tx.CardanoAPI (
   CardanoBuildTx (CardanoBuildTx),
   fromCardanoTxIn,
+  fromPlutusIndex,
   toCardanoTxIn,
   toCardanoTxOutValue,
  )
@@ -117,6 +119,7 @@ import Cardano.Node.Emulator.Internal.Node.Chain qualified as E (
   emptyChainState,
   getCurrentSlot,
   index,
+  ledgerState,
   queueTx,
  )
 import Cardano.Node.Emulator.Internal.Node.Fee qualified as E (
@@ -124,22 +127,24 @@ import Cardano.Node.Emulator.Internal.Node.Fee qualified as E (
   utxoProviderFromWalletOutputs,
  )
 import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
-import Cardano.Node.Emulator.Internal.Node.Validation (unsafeMakeValid)
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as E (setUtxo, unsafeMakeValid)
 import Cardano.Node.Emulator.LogMessages (
   EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
   TxBalanceMsg (BalancingUnbalancedTx, FinishedBalancing, SigningTx, SubmittingTx),
  )
 
-emptyEmulatorState :: EmulatorState
-emptyEmulatorState = EmulatorState E.emptyChainState mempty mempty
+emptyEmulatorState :: E.Params -> EmulatorState
+emptyEmulatorState params = EmulatorState (E.emptyChainState params) mempty mempty
 
-emptyEmulatorStateWithInitialDist :: Map CardanoAddress C.Value -> EmulatorState
-emptyEmulatorStateWithInitialDist initialDist =
+emptyEmulatorStateWithInitialDist :: E.Params -> Map CardanoAddress C.Value -> EmulatorState
+emptyEmulatorStateWithInitialDist params initialDist =
   let tx = Index.createGenesisTransaction initialDist
-      vtx = unsafeMakeValid tx
-   in emptyEmulatorState
+      vtx = E.unsafeMakeValid tx
+      index = Index.insertBlock [vtx] mempty
+   in emptyEmulatorState params
         & esChainState . E.chainNewestFirst %~ ([vtx] :)
-        & esChainState . E.index %~ Index.insertBlock [vtx]
+        & esChainState . E.index .~ index
+        & esChainState . E.ledgerState %~ E.setUtxo params (fromPlutusIndex index)
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 
@@ -262,13 +267,13 @@ balanceTx utxoIndex changeAddr utx = do
 -- | Sign a transaction with the given signatures.
 signTx
   :: (MonadEmulator m, Foldable f)
-  => f PaymentPrivateKey
+  => f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoTx
   -> m CardanoTx
-signTx keys tx = do
+signTx witnesses tx = do
   logMsg L.Info $ TxBalanceMsg $ SigningTx tx
-  pure $ foldr (addCardanoTxSignature . unPaymentPrivateKey) tx keys
+  pure $ foldr addCardanoTxWitness tx witnesses
 
 -- | Balance a transaction, sign it with the given signatures, and finally queue it.
 submitUnbalancedTx
@@ -277,13 +282,13 @@ submitUnbalancedTx
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
   -> CardanoAddress
   -- ^ Wallet address
-  -> f PaymentPrivateKey
+  -> f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoBuildTx
   -> m CardanoTx
-submitUnbalancedTx utxoIndex changeAddr keys utx = do
+submitUnbalancedTx utxoIndex changeAddr witnesses utx = do
   newTx <- balanceTx utxoIndex changeAddr utx
-  signedTx <- signTx keys newTx
+  signedTx <- signTx witnesses newTx
   queueTx signedTx
   pure signedTx
 
@@ -293,12 +298,12 @@ submitTxConfirmed
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
   -> CardanoAddress
   -- ^ Wallet address
-  -> f PaymentPrivateKey
+  -> f C.ShelleyWitnessSigningKey
   -- ^ Signatures
   -> CardanoBuildTx
   -> m CardanoTx
-submitTxConfirmed utxoIndex addr privateKeys utx = do
-  tx <- submitUnbalancedTx utxoIndex addr privateKeys utx
+submitTxConfirmed utxoIndex addr witnesses utx = do
+  tx <- submitUnbalancedTx utxoIndex addr witnesses utx
   nextSlot
   pure tx
 
@@ -311,7 +316,7 @@ payToAddress (sourceAddr, sourcePrivKey) targetAddr value = do
           G.emptyTxBodyContent
             { C.txOuts = [C.TxOut targetAddr (toCardanoTxOutValue value) C.TxOutDatumNone C.ReferenceScriptNone]
             }
-  getCardanoTxId <$> submitUnbalancedTx mempty sourceAddr [sourcePrivKey] buildTx
+  getCardanoTxId <$> submitUnbalancedTx mempty sourceAddr [toWitness sourcePrivKey] buildTx
 
 -- | Log any message
 logMsg :: (MonadEmulator m) => L.LogLevel -> EmulatorMsg -> m ()

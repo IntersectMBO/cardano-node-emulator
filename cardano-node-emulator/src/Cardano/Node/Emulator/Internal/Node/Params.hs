@@ -38,9 +38,10 @@ import Cardano.Ledger.Alonzo.PParams qualified as C
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Babbage (BabbageEra)
 import Cardano.Ledger.Babbage.PParams qualified as C
-import Cardano.Ledger.BaseTypes (boundRational)
+import Cardano.Ledger.BaseTypes (EpochInterval (EpochInterval), boundRational)
 import Cardano.Ledger.Core qualified as C
 import Cardano.Ledger.Crypto (StandardCrypto)
+import Cardano.Ledger.Plutus.CostModels (mkCostModels)
 import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, ShelleyGenesis, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Slot (EpochSize (EpochSize))
@@ -192,7 +193,7 @@ instance Default C.ProtocolParameters where
       , protocolParamStakeAddressDeposit = C.Lovelace 2000000
       , protocolParamStakePoolDeposit = C.Lovelace 500000000
       , protocolParamMinPoolCost = C.Lovelace 340000000
-      , protocolParamPoolRetireMaxEpoch = C.EpochNo 18
+      , protocolParamPoolRetireMaxEpoch = EpochInterval 18
       , protocolParamStakePoolTargetNum = 500
       , protocolParamPoolPledgeInfluence = 3 % 10
       , protocolParamMonetaryExpansion = 3 % 1000
@@ -211,7 +212,7 @@ instance Default C.ProtocolParameters where
               mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
               mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
               mapParamNames _ name = name
-           in C.fromAlonzoCostModels $ Alonzo.CostModels costModels mempty mempty
+           in C.fromAlonzoCostModels $ mkCostModels costModels
       , protocolParamPrices =
           Just
             (C.ExecutionUnitPrices{priceExecutionSteps = 721 % 10000000, priceExecutionMemory = 577 % 10000})

@@ -56,7 +56,7 @@ import Data.ByteString.Short qualified as BS
 import Data.Coerce (coerce)
 import Data.Default (Default, def)
 import Data.Foldable (toList)
-import Data.Functor (void, (<&>))
+import Data.Functor ((<&>))
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
 import Data.Text qualified as Text
@@ -220,8 +220,8 @@ fromEmulatorChainState state = do
       }
 
 -- | 'ChainState' with initial values
-initialChainState :: (MonadIO m) => Map.Map CardanoAddress Value -> m SocketEmulatorState
-initialChainState = fromEmulatorChainState . emptyEmulatorStateWithInitialDist
+initialChainState :: (MonadIO m) => Params -> Map.Map CardanoAddress Value -> m SocketEmulatorState
+initialChainState params = fromEmulatorChainState . emptyEmulatorStateWithInitialDist params
 
 getChannel :: (MonadIO m) => MVar AppState -> m (TChan Block)
 getChannel mv = liftIO (readMVar mv) <&> view (socketEmulatorState . channel)
@@ -411,7 +411,7 @@ toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
               , Praos.hbVk = bheaderVk bhBody
               , Praos.hbVrfVk = bheaderVrfVk bhBody
               , Praos.hbVrfRes = coerce $ bheaderEta bhBody
-              , Praos.hbBodySize = fromIntegral $ bsize bhBody
+              , Praos.hbBodySize = bsize bhBody
               , Praos.hbBodyHash = bhash bhBody
               , Praos.hbOCert = bheaderOCert bhBody
               , Praos.hbProtVer = bprotver bhBody

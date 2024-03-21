@@ -65,15 +65,18 @@ module Cardano.Node.Emulator.Generators (
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
+import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
 import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
 import Cardano.Node.Emulator.Internal.Node.Validation (
+  Coin (Coin),
   initialState,
   setUtxo,
   updateSlot,
   validateCardanoTx,
  )
+import Control.Lens (view)
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
@@ -134,7 +137,7 @@ signAll tx =
 
 -- | The parameters for the generators in this module.
 data GeneratorModel = GeneratorModel
-  { gmInitialBalance :: !(Map PaymentPubKey C.Lovelace)
+  { gmInitialBalance :: !(Map PaymentPubKey Coin)
   -- ^ Value created at the beginning of the blockchain.
   , gmPubKeys :: !(Set PaymentPubKey)
   -- ^ Public keys that are to be used for generating transactions.
@@ -145,12 +148,12 @@ data GeneratorModel = GeneratorModel
 -- | A generator model with some sensible defaults.
 generatorModel :: GeneratorModel
 generatorModel =
-  let vl = C.Lovelace $ 1_000_000 * 100
+  let vl = Coin $ 1_000_000 * 100
       pubKeys = CW.knownPaymentPublicKeys
    in GeneratorModel
         { gmInitialBalance = Map.fromList $ zip pubKeys (repeat vl)
         , gmPubKeys = Set.fromList pubKeys
-        , gmMaxCollateralInputs = C.protocolParamMaxCollateralInputs def
+        , gmMaxCollateralInputs = Just $ view (ppMaxCollateralInputsL @C.EmulatorEra) def
         }
 
 {- | Blockchain for testing the emulator implementation and traces.
@@ -285,7 +288,7 @@ genValidTransactionBodySpending' g ins totalVal = do
   mintAmount <- toInteger <$> Gen.int (Range.linear 0 maxBound)
   mintTokenName <- Gen.genAssetName
   let mintValue = guard (mintAmount == 0) $> someTokenValue mintTokenName mintAmount
-      fee' = C.Lovelace 300000
+      fee' = Coin 300000
       numOut = Set.size (gmPubKeys g) - 1
       totalValAda = C.selectLovelace totalVal
       totalValTokens = guard (Value.isZero (Value.noAdaValue totalVal)) $> Value.noAdaValue totalVal

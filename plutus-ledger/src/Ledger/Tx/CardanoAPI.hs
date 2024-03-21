@@ -110,11 +110,11 @@ toCardanoTxInScriptWitnessHeader script =
     C.ScriptInEra era (C.PlutusScript v s) ->
       C.PlutusScriptWitness era v (C.PScript s)
 
-fromCardanoTotalCollateral :: C.TxTotalCollateral C.ConwayEra -> Maybe C.Lovelace
+fromCardanoTotalCollateral :: C.TxTotalCollateral C.ConwayEra -> Maybe C.Ledger.Coin
 fromCardanoTotalCollateral C.TxTotalCollateralNone = Nothing
 fromCardanoTotalCollateral (C.TxTotalCollateral _ lv) = Just lv
 
-toCardanoTotalCollateral :: Maybe C.Lovelace -> C.TxTotalCollateral C.ConwayEra
+toCardanoTotalCollateral :: Maybe C.Ledger.Coin -> C.TxTotalCollateral C.ConwayEra
 toCardanoTotalCollateral =
   maybe
     C.TxTotalCollateralNone

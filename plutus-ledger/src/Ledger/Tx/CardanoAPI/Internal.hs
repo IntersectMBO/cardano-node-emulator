@@ -100,6 +100,7 @@ import Cardano.BM.Data.Tracer (ToObject)
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
+import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Conway.Scripts qualified as Conway
 import Cardano.Ledger.Crypto (StandardCrypto)
@@ -603,16 +604,16 @@ toCardanoAssetId (Value.AssetClass (currencySymbol, tokenName))
         <$> toCardanoPolicyId (Value.currencyMPSHash currencySymbol)
         <*> toCardanoAssetName tokenName
 
-fromCardanoFee :: C.TxFee era -> C.Lovelace
+fromCardanoFee :: C.TxFee era -> Coin
 fromCardanoFee (C.TxFeeExplicit _ lovelace) = lovelace
 
-toCardanoFee :: C.Lovelace -> C.TxFee C.ConwayEra
+toCardanoFee :: Coin -> C.TxFee C.ConwayEra
 toCardanoFee = C.TxFeeExplicit C.shelleyBasedEra
 
-fromCardanoLovelace :: C.Lovelace -> PV1.Value
-fromCardanoLovelace (C.lovelaceToQuantity -> C.Quantity lovelace) = Ada.lovelaceValueOf lovelace
+fromCardanoLovelace :: Coin -> PV1.Value
+fromCardanoLovelace (Coin lovelace) = Ada.lovelaceValueOf lovelace
 
-toCardanoLovelace :: PV1.Value -> Either ToCardanoError C.Lovelace
+toCardanoLovelace :: PV1.Value -> Either ToCardanoError Coin
 toCardanoLovelace value =
   if value == Ada.lovelaceValueOf lovelace
     then pure . C.quantityToLovelace . C.Quantity $ lovelace

@@ -90,6 +90,7 @@ import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (..))
 import Cardano.Ledger.Alonzo.TxWits (txwitsVKey)
+import Cardano.Ledger.Coin (Coin)
 import Codec.Serialise (Serialise)
 
 import Control.Lens (
@@ -433,11 +434,11 @@ getCardanoTxProducedReturnCollateral tx@(CardanoEmulatorEraTx (C.Tx (C.TxBody C.
   maybe Map.empty (Map.singleton (C.TxIn (getCardanoTxId tx) (C.TxIx (genericLength txOuts)))) $
     getCardanoTxReturnCollateral tx
 
-getCardanoTxTotalCollateral :: CardanoTx -> Maybe C.Lovelace
+getCardanoTxTotalCollateral :: CardanoTx -> Maybe Coin
 getCardanoTxTotalCollateral (CardanoEmulatorEraTx (C.Tx (C.TxBody C.TxBodyContent{..}) _)) =
   CardanoAPI.fromCardanoTotalCollateral txTotalCollateral
 
-getCardanoTxFee :: CardanoTx -> C.Lovelace
+getCardanoTxFee :: CardanoTx -> Coin
 getCardanoTxFee (CardanoTx (C.Tx (C.TxBody C.TxBodyContent{..}) _) _) = CardanoAPI.fromCardanoFee txFee
 
 getCardanoTxMint :: CardanoTx -> C.Value

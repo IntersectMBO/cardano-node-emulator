@@ -24,22 +24,24 @@ import Cardano.Api.Error qualified as C.Api
 import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
-  Params (emulatorPParams),
+  Params,
   emulatorGlobals,
+  emulatorPParams,
   ledgerProtocolParameters,
-  pProtocolParams,
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
+  Coin (Coin),
   UTxO,
   createAndValidateTransactionBody,
   getTxExUnitsWithLogs,
  )
 import Control.Arrow ((&&&))
-import Control.Lens (over, (&))
+import Control.Lens (over, view, (&))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bifunctor (bimap, first)
 import Data.Foldable (fold, foldl', toList)
@@ -71,7 +73,7 @@ import Ledger.Value.CardanoAPI (isZero, lovelaceToValue, split, valueGeq)
 estimateCardanoBuildTxFee
   :: Params
   -> CardanoBuildTx
-  -> Either CardanoLedgerError C.Lovelace
+  -> Either CardanoLedgerError Coin
 estimateCardanoBuildTxFee params txBodyContent = do
   let nkeys = C.Api.estimateTransactionKeyWitnessCount (getCardanoBuildTx txBodyContent)
   txBody <- first Right $ CardanoAPI.createTransactionBody txBodyContent
@@ -189,7 +191,7 @@ makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvid
     -- Set the params alreay since it makes the tx bigger and so influences the fee
     unbalancedBodyContent' =
       unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
-    initialFeeEstimate = C.Lovelace 300_000
+    initialFeeEstimate = Coin 300_000
 
     balanceAndFillExUnits fee = do
       (txBodyContent, utxo') <-
@@ -232,7 +234,7 @@ handleBalanceTx
   -- ^ The utxo provider
   -> (forall a. CardanoLedgerError -> m a)
   -- ^ How to handle errors
-  -> C.Lovelace
+  -> Coin
   -- ^ Estimated fee value to use.
   -> C.TxBodyContent C.BuildTx C.ConwayEra
   -> m (C.TxBodyContent C.BuildTx C.ConwayEra, UtxoIndex)
@@ -280,15 +282,15 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
       pure (txWithinputsAdded, newInputs)
     else do
       let collAddr = maybe cChangeAddr (\(Tx.TxOut (C.TxOut aie _tov _tod _rs)) -> aie) returnCollateral
-          collateralPercent = maybe 100 fromIntegral (C.protocolParamCollateralPercent (pProtocolParams params))
+          collateralPercent = fromIntegral (view C.ppCollateralPercentageL (emulatorPParams params))
           collFees = (fees * collateralPercent + 99 {- make sure to round up -}) `div` 100
           collBalance = fold collateral <> lovelaceToValue (-collFees)
 
       ((negColl, newColInputs@(C.UTxO newColInputsMap)), (_, mNewTxOutColl)) <-
         calculateTxChanges params collAddr utxoProvider $ split collBalance
 
-      case C.Api.protocolParamMaxCollateralInputs $ pProtocolParams params of
-        Just maxInputs
+      case view C.ppMaxCollateralInputsL $ emulatorPParams params of
+        maxInputs
           | length collateral + Map.size newColInputsMap > fromIntegral maxInputs ->
               errorReporter (Left (Phase1, MaxCollateralInputsExceeded))
         _ -> pure ()
@@ -460,5 +462,5 @@ evaluateTransactionFee
   :: Params
   -> C.Api.TxBody C.Api.ConwayEra
   -> Word
-  -> C.Api.Lovelace
+  -> Coin
 evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee C.shelleyBasedEra (emulatorPParams params) txbody keywitcount 0

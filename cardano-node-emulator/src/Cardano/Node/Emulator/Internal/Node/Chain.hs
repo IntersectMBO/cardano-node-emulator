@@ -36,7 +36,7 @@ import Ledger (
   Blockchain,
   CardanoTx,
   OnChainTx,
-  Slot (Slot),
+  Slot,
   getCardanoTxId,
   unOnChain,
  )

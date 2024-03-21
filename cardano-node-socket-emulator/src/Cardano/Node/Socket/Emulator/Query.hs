@@ -32,6 +32,7 @@ import Cardano.Node.Emulator.Internal.Node.Params (
   Params (..),
   emulatorEraHistory,
   emulatorGlobals,
+  emulatorPParams,
   genesisDefaultsFromParams,
  )
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)

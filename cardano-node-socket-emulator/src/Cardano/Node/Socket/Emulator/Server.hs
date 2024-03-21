@@ -341,7 +341,7 @@ findIntersect clientPoints = do
   appState <- liftIO $ readMVar mvState
   let chainState = appState ^. socketEmulatorState . emulatorState . E.esChainState
       blocks = Chain._chainNewestFirst chainState
-      slot = Chain._chainCurrentSlot chainState
+      slot = Validation.getSlot (Chain._ledgerState chainState)
   serverPoints <- getChainPoints blocks slot
   let point =
         listToMaybe $
@@ -617,11 +617,11 @@ submitTx
 submitTx state tx = case C.fromConsensusGenTx tx of
   C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
-      (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ _ slot _ ls) _ _) _ _)
+      (SocketEmulatorState (E.EmulatorState chainState _ _) _ _)
       _
       params <-
       readMVar state
-    case Validation.validateAndApplyTx params (fromIntegral slot) ls shelleyTx of
+    case Validation.validateAndApplyTx params (Chain._ledgerState chainState) shelleyTx of
       Left err ->
         pure $
           TxSubmission.SubmitFail

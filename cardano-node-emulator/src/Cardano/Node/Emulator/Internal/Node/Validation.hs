@@ -76,7 +76,7 @@ import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Shelley.LedgerState (LedgerState (LedgerState), smartUTxOState, utxosUtxo)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
-  Params (emulatorPParams),
+  Params,
   emulatorGlobals,
   emulatorPParams,
   ledgerProtocolParameters,

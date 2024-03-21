@@ -36,11 +36,12 @@ import Cardano.Node.Emulator.API (
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
 import Cardano.Node.Emulator.Internal.Node.Params (Params, emulatorEpochSize, testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
+import Cardano.Node.Emulator.Internal.Node.Validation (getSlot)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
 import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
 import Control.Concurrent.STM
-import Control.Lens (makeLenses, view, (&), (.~), (^.))
+import Control.Lens (makeLenses, to, view, (&), (.~), (^.))
 import Control.Monad (forever)
 import Control.Monad.Class.MonadST (MonadST)
 import Control.Monad.Class.MonadTimer (MonadDelay (threadDelay), MonadTimer)
@@ -206,7 +207,7 @@ fromEmulatorChainState :: (MonadIO m) => EmulatorState -> m SocketEmulatorState
 fromEmulatorChainState state = do
   ch <- liftIO $ atomically newTChan
   let chainNewestFirst = view (esChainState . EC.chainNewestFirst) state
-  let currentSlot = view (esChainState . EC.chainCurrentSlot) state
+  let currentSlot = view (esChainState . EC.ledgerState . to getSlot) state
   void $
     liftIO $
       mapM_ (atomically . writeTChan ch) chainNewestFirst
@@ -216,7 +217,7 @@ fromEmulatorChainState state = do
       , _emulatorState = state
       , _tip = case listToMaybe chainNewestFirst of
           Nothing -> Ouroboros.TipGenesis
-          Just block -> Ouroboros.Tip (fromIntegral currentSlot) (coerce $ blockId block) (fromIntegral currentSlot)
+          Just block -> Ouroboros.Tip (fromInteger currentSlot) (coerce $ blockId block) (fromInteger currentSlot)
       }
 
 -- | 'ChainState' with initial values
@@ -233,11 +234,11 @@ getTip mv = liftIO (readMVar mv) <&> view (socketEmulatorState . tip)
 -- Set the new tip
 setTip :: (MonadIO m) => MVar AppState -> Block -> m ()
 setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
-  let slot = oldState ^. socketEmulatorState . emulatorState . esChainState . EC.chainCurrentSlot
+  let slot = oldState ^. socketEmulatorState . emulatorState . esChainState . EC.ledgerState . to getSlot
   pure $
     oldState
       & socketEmulatorState . tip
-        .~ Ouroboros.Tip (fromIntegral slot) (coerce $ blockId block) (fromIntegral slot)
+        .~ Ouroboros.Tip (fromInteger slot) (coerce $ blockId block) (fromInteger slot)
 
 -- | Run all chain effects in the IO Monad
 runChainEffects

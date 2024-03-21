@@ -7,7 +7,7 @@
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
            mint: 0 lovelace
-           fee: 0 lovelace
+           fee: 0 Lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
@@ -24,7 +24,7 @@
              - 8834367 lovelace addressed to
                PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)
            mint: 0 lovelace
-           fee: 165633 lovelace
+           fee: 165633 Lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
@@ -42,7 +42,7 @@
              - 1000000 lovelace addressed to
                PubKeyCredential: 80a4f45b56b88d1139da23bc4c3c75ec6d32943c087f250b86193ca7 (no staking credential)
            mint: 0 lovelace
-           fee: 0 lovelace
+           fee: 0 Lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:
@@ -59,7 +59,7 @@
              - 7668734 lovelace addressed to
                PubKeyCredential: a2c20c77887ace1cd986193e4e75babd8993cfd56995cd5cfce609c2 (no staking credential)
            mint: 0 lovelace
-           fee: 165633 lovelace
+           fee: 165633 Lovelace
            validity range: Interval {ivFrom = LowerBound NegInf True, ivTo = UpperBound PosInf True}
            data:
            redeemers:

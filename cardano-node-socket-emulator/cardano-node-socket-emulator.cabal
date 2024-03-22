@@ -59,6 +59,7 @@ library
   --------------------------
   build-depends:
     , cardano-api:{cardano-api, internal}                         ^>=8.42
+    , cardano-ledger-api
     , cardano-ledger-byron
     , cardano-ledger-core:{cardano-ledger-core, testlib}
     , cardano-ledger-shelley-test

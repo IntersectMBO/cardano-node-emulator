@@ -6,11 +6,12 @@ module Cardano.Node.Socket.Emulator.Query (handleQuery) where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
+import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (epochInfo)
 import Cardano.Slotting.EpochInfo (epochInfoEpoch)
 import Cardano.Slotting.Slot (WithOrigin (..))
 import Control.Concurrent (MVar, readMVar)
-import Control.Lens (alaf)
+import Control.Lens (alaf, view)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Monoid (Ap (Ap))
 import Data.SOP (K (K))
@@ -33,7 +34,6 @@ import Cardano.Node.Emulator.Internal.Node.Params (
   emulatorEraHistory,
   emulatorGlobals,
   emulatorPParams,
-  genesisDefaultsFromParams,
  )
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
 import Cardano.Node.Socket.Emulator.Types (
@@ -73,7 +73,7 @@ queryIfCurrentConway
   => BlockQuery block result
   -> E.EmulatorT IO result
 queryIfCurrentConway = \case
-  GetGenesisConfig -> Shelley.compactGenesis . genesisDefaultsFromParams <$> E.getParams
+  GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams
   GetCurrentPParams -> emulatorPParams <$> E.getParams
   GetEpochNo -> do
     ei <- epochInfo . emulatorGlobals <$> E.getParams

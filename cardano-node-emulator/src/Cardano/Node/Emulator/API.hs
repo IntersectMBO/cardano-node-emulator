@@ -48,6 +48,7 @@ module Cardano.Node.Emulator.API (
   EmulatorM,
   emptyEmulatorState,
   emptyEmulatorStateWithInitialDist,
+  Params (..),
   getParams,
 ) where
 
@@ -108,7 +109,7 @@ import Ledger.Tx.CardanoAPI (
 
 import Cardano.Node.Emulator.Generators qualified as G
 import Cardano.Node.Emulator.Internal.Node (
-  pSlotConfig,
+  Params (pConfig, pSlotConfig),
   posixTimeToEnclosingSlot,
   slotToBeginPOSIXTime,
   slotToEndPOSIXTime,

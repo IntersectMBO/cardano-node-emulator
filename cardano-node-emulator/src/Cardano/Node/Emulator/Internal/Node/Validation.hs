@@ -50,6 +50,7 @@ import Cardano.Ledger.Alonzo.Rules (
   AlonzoUtxosPredFailure (CollectErrors),
  )
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
+import Cardano.Ledger.Api.Transition (createInitialState)
 import Cardano.Ledger.Api.Tx (
   TransactionScriptFailure (ValidationFailure),
   evalTxExUnitsWithLogs,
@@ -66,17 +67,17 @@ import Cardano.Ledger.Shelley.API (
   ApplyTxError (ApplyTxError),
   Coin (Coin),
   LedgerEnv (LedgerEnv, ledgerSlotNo),
-  LedgerState (lsCertState, lsUTxOState),
+  LedgerState (lsUTxOState),
   MempoolEnv,
   UTxO (UTxO),
   Validated,
   unsafeMakeValidated,
  )
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
-import Cardano.Ledger.Shelley.LedgerState (LedgerState (LedgerState), smartUTxOState, utxosUtxo)
+import Cardano.Ledger.Shelley.LedgerState (esLState, nesEs, smartUTxOState, utxosUtxo)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
-  Params,
+  Params (pConfig),
   emulatorGlobals,
   emulatorPParams,
   ledgerProtocolParameters,
@@ -182,15 +183,8 @@ initialState params =
           , C.Ledger.ledgerPp = emulatorPParams params
           , C.Ledger.ledgerAccount = C.Ledger.AccountState (Coin 0) (Coin 0)
           }
-    , _memPoolState =
-        LedgerState
-          { lsUTxOState = smartUTxOState (emulatorPParams params) (UTxO mempty) (Coin 0) (Coin 0) def (Coin 0)
-          , lsCertState = def
-          }
+    , _memPoolState = esLState (nesEs (createInitialState (pConfig params)))
     }
-
-utxoEnv :: Params -> SlotNo -> C.Ledger.UtxoEnv EmulatorEra
-utxoEnv params slotNo = C.Ledger.UtxoEnv slotNo (emulatorPParams params) def
 
 applyTx
   :: Params
@@ -229,12 +223,13 @@ validateAndApplyTx
   -> Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
 validateAndApplyTx params ledgerState (C.ShelleyTx _ tx) = res
   where
+    memPool = _memPoolState ledgerState
     res = do
       vtx <-
         constructValidated
           (emulatorGlobals params)
-          (utxoEnv params (getSlot ledgerState))
-          (lsUTxOState (_memPoolState ledgerState))
+          (C.Ledger.UtxoEnv (getSlot ledgerState) (emulatorPParams params) (C.Ledger.lsCertState memPool))
+          (lsUTxOState memPool)
           tx
       applyTx params ledgerState vtx
 

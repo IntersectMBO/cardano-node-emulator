@@ -13,6 +13,8 @@
 -- | The set of parameters, like protocol parameters and slot configuration.
 module Cardano.Node.Emulator.Internal.Node.Params (
   Params (..),
+  paramsFromConfig,
+  C.mkLatestTransitionConfig,
   slotConfigL,
   networkIdL,
   emulatorPParamsL,
@@ -23,6 +25,10 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   increaseTransactionLimits,
   increaseTransactionLimits',
   emulatorEpochSize,
+  emulatorShelleyGenesisDefaults,
+  emulatorAlonzoGenesisDefaults,
+  emulatorConwayGenesisDefaults,
+  keptBlocks,
 
   -- * cardano-ledger specific types and conversion functions
   EmulatorEra,
@@ -164,22 +170,30 @@ emulatorProtocolMajorVersion = natVersion @9
 defaultConfig :: TransitionConfig
 defaultConfig =
   C.mkLatestTransitionConfig
-    C.shelleyGenesisDefaults
-      { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm
-      , C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime
-      , C.sgProtocolParams =
-          C.sgProtocolParams C.shelleyGenesisDefaults
-            & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
-            & C.ppMinFeeBL .~ Coin 155_381
-            & C.ppMinFeeAL .~ Coin 44
-      }
-    C.alonzoGenesisDefaults
-      { C.agPrices =
-          Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
-      , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
-      , C.agCostModels = mkCostModels costModels
-      }
-    C.conwayGenesisDefaults
+    emulatorShelleyGenesisDefaults
+    emulatorAlonzoGenesisDefaults
+    emulatorConwayGenesisDefaults
+
+emulatorShelleyGenesisDefaults :: C.ShelleyGenesis StandardCrypto
+emulatorShelleyGenesisDefaults =
+  C.shelleyGenesisDefaults
+    { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm
+    , C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime
+    , C.sgProtocolParams =
+        C.sgProtocolParams C.shelleyGenesisDefaults
+          & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
+          & C.ppMinFeeBL .~ Coin 155_381
+          & C.ppMinFeeAL .~ Coin 44
+    }
+
+emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
+emulatorAlonzoGenesisDefaults =
+  C.alonzoGenesisDefaults
+    { C.agPrices =
+        Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
+    , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
+    , C.agCostModels = mkCostModels costModels
+    }
   where
     costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
     costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
@@ -194,6 +208,9 @@ defaultConfig =
     mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
     mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
     mapParamNames _ name = name
+
+emulatorConwayGenesisDefaults :: C.ConwayGenesis StandardCrypto
+emulatorConwayGenesisDefaults = C.conwayGenesisDefaults
 
 paramsFromConfig :: TransitionConfig -> Params
 paramsFromConfig tc =
@@ -215,6 +232,9 @@ paramsFromConfig tc =
 -- | Calculate the cardano-ledger `SlotLength`
 slotLength :: Params -> SlotLength
 slotLength Params{pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
+
+keptBlocks :: Params -> Integer
+keptBlocks Params{pConfig} = fromIntegral $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
 
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize

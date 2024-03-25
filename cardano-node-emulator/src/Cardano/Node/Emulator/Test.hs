@@ -21,6 +21,7 @@ module Cardano.Node.Emulator.Test (
   runEmulatorM,
   checkPredicate,
   checkPredicateOptions,
+  checkPredicateOptionsIO,
   (.&&.),
   hasValidatedTransactionCountOfTotal,
   walletFundsChange,
@@ -48,7 +49,6 @@ module Cardano.Node.Emulator.Test (
 ) where
 
 import Cardano.Api qualified as C
-import Cardano.Api qualified as CardanoAPI
 import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator.API (
   EmulatorError,
@@ -290,8 +290,17 @@ checkPredicateOptions
   -> EmulatorPredicate
   -> EmulatorM a
   -> TestTree
-checkPredicateOptions options testName test contract =
-  testCase testName $
+checkPredicateOptions options = checkPredicateOptionsIO (pure options)
+
+checkPredicateOptionsIO
+  :: IO (Options state)
+  -> TestName
+  -> EmulatorPredicate
+  -> EmulatorM a
+  -> TestTree
+checkPredicateOptionsIO optionsIO testName test contract =
+  testCase testName $ do
+    options <- optionsIO
     let (res, (st, lg)) = runEmulatorM options contract
      in case res of
           Left err -> assertFailure $ show err
@@ -378,7 +387,7 @@ prettyAddr a = fromMaybe (show a) $ lookup a prettyWalletNames
 
 -- Note, we don't store the genesis transaction in the index but put it in the before state
 -- instead to avoid showing that as a balance change in the models.
-chainStateToChainIndex :: CardanoAPI.NetworkId -> E.ChainState -> ChainIndex
+chainStateToChainIndex :: C.NetworkId -> E.ChainState -> ChainIndex
 chainStateToChainIndex nid cs =
   ChainIndex -- The Backwards order
     { transactions =

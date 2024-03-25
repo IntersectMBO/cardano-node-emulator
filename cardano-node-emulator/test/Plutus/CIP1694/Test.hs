@@ -22,7 +22,7 @@ import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString.Lazy qualified as BSL
 import Data.Functor (void)
 import Data.Map qualified as Map
-import Ledger.Address (CardanoAddress, PaymentPrivateKey)
+import Ledger.Address (CardanoAddress, PaymentPrivateKey, toWitness)
 import Ledger.Tx.CardanoAPI (CardanoBuildTx (CardanoBuildTx))
 import Ledger.Value.CardanoAPI qualified as Value
 import Test.Tasty (TestTree, testGroup)
@@ -40,7 +40,7 @@ tests =
   testGroup
     "CIP-1694"
     [ checkPredicateOptionsIO options "submit empty tx" (hasValidatedTransactionCountOfTotal 1 1) $ do
-        void $ submitUnbalancedTx mempty w1 [pk1] (CardanoBuildTx E.emptyTxBodyContent)
+        void $ submitUnbalancedTx mempty w1 [toWitness pk1] (CardanoBuildTx E.emptyTxBodyContent)
         nextSlot
     ]
 

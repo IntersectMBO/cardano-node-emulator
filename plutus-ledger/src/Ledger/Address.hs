@@ -11,8 +11,10 @@ module Ledger.Address (
   PaymentPrivateKey (..),
   PaymentPubKey (..),
   PaymentPubKeyHash (..),
+  StakePrivateKey (..),
   StakePubKey (..),
   StakePubKeyHash (..),
+  ToWitness (..),
   toPlutusAddress,
   toPlutusPubKeyHash,
   cardanoAddressCredential,
@@ -143,6 +145,8 @@ makeLift ''PaymentPubKeyHash
 xprvToPaymentPubKeyHash :: Crypto.XPrv -> PaymentPubKeyHash
 xprvToPaymentPubKeyHash = PaymentPubKeyHash . pubKeyHash . toPublicKey
 
+newtype StakePrivateKey = StakePrivateKey {unStakePrivateKey :: Crypto.XPrv}
+
 newtype StakePubKey = StakePubKey {unStakePubKey :: PubKey}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
@@ -214,3 +218,12 @@ stakePubKeyHashCredential = StakingHash . PubKeyCredential . unStakePubKeyHash
 -- | Construct a `StakingCredential` from a validator script hash.
 stakeValidatorHashCredential :: StakeValidatorHash -> StakingCredential
 stakeValidatorHashCredential (StakeValidatorHash h) = StakingHash . ScriptCredential . ScriptHash $ h
+
+class ToWitness a where
+  toWitness :: a -> C.ShelleyWitnessSigningKey
+
+instance ToWitness PaymentPrivateKey where
+  toWitness (PaymentPrivateKey xprv) = C.WitnessPaymentExtendedKey (C.PaymentExtendedSigningKey xprv)
+
+instance ToWitness StakePrivateKey where
+  toWitness (StakePrivateKey xprv) = C.WitnessStakeExtendedKey (C.StakeExtendedSigningKey xprv)

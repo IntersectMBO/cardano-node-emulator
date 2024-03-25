@@ -184,6 +184,7 @@ emulatorShelleyGenesisDefaults =
           & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
           & C.ppMinFeeBL .~ Coin 155_381
           & C.ppMinFeeAL .~ Coin 44
+          & C.ppKeyDepositL .~ Coin 2_000_000
     }
 
 emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis

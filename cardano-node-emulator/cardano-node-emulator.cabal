@@ -138,10 +138,10 @@ test-suite cardano-node-emulator-test
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api        ^>=8.42
-    , plutus-ledger-api  >=1.0.0
-    , plutus-tx          >=1.0.0
-    , plutus-tx-plugin   >=1.0.0
+    , cardano-api:{cardano-api, gen, internal}  ^>=8.42
+    , plutus-ledger-api                         >=1.0.0
+    , plutus-tx                                 >=1.0.0
+    , plutus-tx-plugin                          >=1.0.0
 
   ------------------------
   -- Non-IOG dependencies

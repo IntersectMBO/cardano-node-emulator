@@ -26,6 +26,7 @@ import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
+import Cardano.Ledger.Shelley.TxCert (shelleyTotalDepositsTxCerts)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
   Params,
@@ -252,8 +253,13 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
 
   inputValues <- traverse lookupValue txInputs
 
-  let left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
-      right = lovelaceToValue fees <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+  let pp = emulatorPParams params
+      txDeposits = shelleyTotalDepositsTxCerts pp (const False) (Tx.getTxBodyContentCerts utx)
+      left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
+      right =
+        lovelaceToValue fees
+          <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+          <> lovelaceToValue txDeposits
       balance = left <> C.negateValue right
 
   ((neg, newInputs), (pos, mNewTxOut)) <-

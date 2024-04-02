@@ -20,6 +20,8 @@ module Cardano.Node.Emulator.API (
   utxoAtTxOutRef,
   fundsAt,
   lookupDatum,
+  getMemPoolEnv,
+  getLedgerState,
 
   -- * Transactions
   balanceTx,
@@ -35,10 +37,14 @@ module Cardano.Node.Emulator.API (
   logError,
 
   -- * Types
+  EmulatorEra,
   EmulatorState (EmulatorState),
   esChainState,
   esAddressMap,
   esDatumMap,
+  EmulatedLedgerState,
+  ledgerEnv,
+  memPoolState,
   EmulatorError (..),
   EmulatorLogs,
   EmulatorMsg (..),
@@ -54,6 +60,10 @@ module Cardano.Node.Emulator.API (
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
+import Cardano.Ledger.Shelley.API (
+  LedgerState,
+  MempoolEnv,
+ )
 import Cardano.Node.Emulator.Internal.API (
   EmulatorError (BalancingError, CustomError, ToCardanoError, ValidationError),
   EmulatorLogs,
@@ -102,6 +112,7 @@ import Ledger.Tx (
  )
 import Ledger.Tx.CardanoAPI (
   CardanoBuildTx (CardanoBuildTx),
+  EmulatorEra,
   fromCardanoTxIn,
   fromPlutusIndex,
   toCardanoTxIn,
@@ -110,7 +121,10 @@ import Ledger.Tx.CardanoAPI (
 
 import Cardano.Node.Emulator.Generators qualified as G
 import Cardano.Node.Emulator.Internal.Node (
+  EmulatedLedgerState,
   Params (pConfig, pSlotConfig),
+  ledgerEnv,
+  memPoolState,
   posixTimeToEnclosingSlot,
   slotToBeginPOSIXTime,
   slotToEndPOSIXTime,
@@ -128,7 +142,12 @@ import Cardano.Node.Emulator.Internal.Node.Fee qualified as E (
   utxoProviderFromWalletOutputs,
  )
 import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
-import Cardano.Node.Emulator.Internal.Node.Validation qualified as E (setUtxo, unsafeMakeValid)
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as E (
+  ledgerEnv,
+  memPoolState,
+  setUtxo,
+  unsafeMakeValid,
+ )
 import Cardano.Node.Emulator.LogMessages (
   EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
   TxBalanceMsg (BalancingUnbalancedTx, FinishedBalancing, SigningTx, SubmittingTx),
@@ -236,6 +255,18 @@ lookupDatum :: (MonadEmulator m) => DatumHash -> m (Maybe Datum)
 lookupDatum h = do
   es <- get
   pure $ Map.lookup h (es ^. esDatumMap)
+
+-- | Get the internal ledger state.
+getLedgerState :: (MonadEmulator m) => m (LedgerState EmulatorEra)
+getLedgerState = do
+  es <- get
+  pure $ es ^. esChainState . E.ledgerState . E.memPoolState
+
+-- | Get the internal mempool environment.
+getMemPoolEnv :: (MonadEmulator m) => m (MempoolEnv EmulatorEra)
+getMemPoolEnv = do
+  es <- get
+  pure $ es ^. esChainState . E.ledgerState . E.ledgerEnv
 
 -- | Balance an unbalanced transaction, using funds from the given wallet if needed, and returning any remaining value to the same wallet.
 balanceTx

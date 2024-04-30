@@ -29,9 +29,6 @@ module Plutus.Script.Utils.V3.Scripts (
 
 import Cardano.Api qualified as Script
 import Cardano.Api.Shelley qualified as Script
-import Codec.Serialise (serialise)
-import Data.ByteString.Lazy qualified as BSL
-import Data.ByteString.Short qualified as SBS
 import Plutus.Script.Utils.Scripts qualified as P
 import Plutus.Script.Utils.Scripts qualified as PV3
 import PlutusLedgerApi.V3 qualified as PV3
@@ -84,13 +81,11 @@ scriptHash =
 For why we depend on `cardano-api`,
 see note [Hash computation of datums, redeemers and scripts]
 -}
-toCardanoApiScript :: PV3.Script -> Script.Script Script.PlutusScriptV2
+toCardanoApiScript :: PV3.Script -> Script.Script Script.PlutusScriptV3
 toCardanoApiScript =
-  Script.PlutusScript Script.PlutusScriptV2
+  Script.PlutusScript Script.PlutusScriptV3
     . Script.PlutusScriptSerialised
-    . SBS.toShort
-    . BSL.toStrict
-    . serialise
+    . PV3.unScript
 
 {-# INLINEABLE scriptCurrencySymbol #-}
 

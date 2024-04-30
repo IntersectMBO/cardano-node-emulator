@@ -29,9 +29,6 @@ module Plutus.Script.Utils.V2.Scripts (
 
 import Cardano.Api qualified as Script
 import Cardano.Api.Shelley qualified as Script
-import Codec.Serialise (serialise)
-import Data.ByteString.Lazy qualified as BSL
-import Data.ByteString.Short qualified as SBS
 import Plutus.Script.Utils.Scripts qualified as P
 import Plutus.Script.Utils.Scripts qualified as PV2
 import PlutusLedgerApi.V2 qualified as PV2
@@ -88,9 +85,7 @@ toCardanoApiScript :: PV2.Script -> Script.Script Script.PlutusScriptV2
 toCardanoApiScript =
   Script.PlutusScript Script.PlutusScriptV2
     . Script.PlutusScriptSerialised
-    . SBS.toShort
-    . BSL.toStrict
-    . serialise
+    . PV2.unScript
 
 {-# INLINEABLE scriptCurrencySymbol #-}
 

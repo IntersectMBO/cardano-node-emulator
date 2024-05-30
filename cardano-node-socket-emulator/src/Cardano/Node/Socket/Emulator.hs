@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Cardano.Node.Socket.Emulator (
   main,
@@ -9,9 +8,11 @@ module Cardano.Node.Socket.Emulator (
   startTestnet,
 ) where
 
-import Cardano.Api (NetworkId)
+import Cardano.Api (NetworkId, NetworkMagic (NetworkMagic), toNetworkMagic)
+import Cardano.Api.Genesis (ShelleyGenesis (sgNetworkMagic, sgSlotLength))
 import Cardano.BM.Trace (Trace, stdoutTrace)
 import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
+import Cardano.Node.Emulator.Internal.Node.Params (keptBlocks, pSlotConfig)
 import Cardano.Node.Socket.Emulator.Mock (slotCoordinator)
 import Cardano.Node.Socket.Emulator.Params qualified as Params
 import Cardano.Node.Socket.Emulator.Server qualified as Server
@@ -36,37 +37,39 @@ import Prettyprinter (defaultLayoutOptions, layoutPretty, pretty)
 import Prettyprinter.Render.Text (renderStrict)
 
 main :: Trace IO CNSEServerLogMsg -> NodeServerConfig -> IO ()
-main
+main trace nodeServerConfig = core trace nodeServerConfig id
+
+core :: Trace IO CNSEServerLogMsg -> NodeServerConfig -> Params.ShelleyConfigUpdater -> IO ()
+core
   trace
   nodeServerConfig@NodeServerConfig
-    { nscSlotConfig
-    , nscKeptBlocks
-    , nscInitialTxWallets
+    { nscInitialTxWallets
     , nscSocketPath
-    } =
+    }
+  updateShelley =
     LM.runLogEffects trace $ do
       -- make initial distribution of 1 billion Ada to all configured wallets
       let getAddress n = knownAddresses !! (fromIntegral n - 1)
           dist =
             Map.fromList $
               zip (getAddress <$> nscInitialTxWallets) (repeat (CardanoAPI.adaValueOf 1_000_000_000))
-      initialState <- initialChainState dist
-      params <- liftIO $ Params.fromNodeServerConfig nodeServerConfig
+      params <- liftIO $ Params.fromNodeServerConfig updateShelley nodeServerConfig
+      initialState <- initialChainState params dist
       let appState = AppState initialState mempty params
       serverHandler <-
         liftIO $
           Server.runServerNode
             (LM.convertLog ProcessingEmulatorMsg trace)
             nscSocketPath
-            nscKeptBlocks
+            (keptBlocks params)
             appState
 
-      let SlotConfig{scSlotZeroTime, scSlotLength} = nscSlotConfig
+      let SlotConfig{scSlotZeroTime, scSlotLength} = pSlotConfig params
       logInfo $
         StartingSlotCoordination
           (posixSecondsToUTCTime $ realToFrac scSlotZeroTime / 1_000)
           (fromInteger scSlotLength :: Millisecond)
-      void $ liftIO $ forkIO $ slotCoordinator nscSlotConfig serverHandler
+      void $ liftIO $ forkIO $ slotCoordinator (pSlotConfig params) serverHandler
 
       logInfo StartingCNSEServer
 
@@ -76,14 +79,10 @@ prettyTrace = LM.convertLog (renderStrict . layoutPretty defaultLayoutOptions . 
 startTestnet :: FilePath -> Integer -> NetworkId -> IO ()
 startTestnet socketPath slotLength networkId =
   let
-    config =
-      def
-        { nscSlotConfig =
-            def
-              { scSlotLength = slotLength
-              }
-        , nscSocketPath = socketPath
-        , nscNetworkId = networkId
+    updateShelley config =
+      config
+        { sgSlotLength = fromIntegral slotLength / 1000.0
+        , sgNetworkMagic = case toNetworkMagic networkId of NetworkMagic nm -> nm
         }
    in
-    main prettyTrace config
+    core prettyTrace def{nscSocketPath = socketPath} updateShelley

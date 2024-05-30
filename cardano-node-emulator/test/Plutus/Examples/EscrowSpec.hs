@@ -71,7 +71,7 @@ import PlutusTx.Monoid (inv)
 
 import Cardano.Api (
   AddressInEra (AddressInEra),
-  AllegraEraOnwards (AllegraEraOnwardsBabbage),
+  AllegraEraOnwards (AllegraEraOnwardsConway),
   IsShelleyBasedEra (shelleyBasedEra),
   TxOut (TxOut),
   TxValidityLowerBound (TxValidityLowerBound, TxValidityNoLowerBound),
@@ -348,7 +348,7 @@ validityChecks = do
     Just Impl.Redeem ->
       shouldNotValidate $
         changeValidityRange
-          ( TxValidityLowerBound AllegraEraOnwardsBabbage deadline
+          ( TxValidityLowerBound AllegraEraOnwardsConway deadline
           , TxValidityUpperBound shelleyBasedEra Nothing
           )
     Just Impl.Refund ->

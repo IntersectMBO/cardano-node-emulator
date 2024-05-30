@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -g -fplugin-opt PlutusTx.Plugin:coverage-all #-}
 
 -- | A general-purpose escrow contract in Plutus
@@ -70,23 +71,24 @@ import Cardano.Node.Emulator.Test (testnet)
 import Data.Maybe (fromJust)
 import Ledger (POSIXTime, PaymentPubKeyHash (unPaymentPubKeyHash), TxId, getCardanoTxId)
 import Ledger qualified
+import Ledger.Address (toWitness)
 import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Typed.Scripts (validatorCardanoAddress)
 import Ledger.Typed.Scripts qualified as Scripts
 import Plutus.Script.Utils.Scripts (ValidatorHash, datumHash)
-import Plutus.Script.Utils.V2.Contexts (
+import Plutus.Script.Utils.V3.Contexts (
   ScriptContext (ScriptContext, scriptContextTxInfo),
   TxInfo,
   scriptOutputsAt,
   txInfoValidRange,
   txSignedBy,
  )
-import Plutus.Script.Utils.V2.Typed.Scripts qualified as V2
+import Plutus.Script.Utils.V3.Typed.Scripts qualified as V3
 import Plutus.Script.Utils.Value (Value, geq, lt)
 import PlutusLedgerApi.V1.Interval qualified as Interval
-import PlutusLedgerApi.V2 (Datum (Datum))
-import PlutusLedgerApi.V2.Contexts (valuePaidTo)
 import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatum))
+import PlutusLedgerApi.V3 (Datum (Datum))
+import PlutusLedgerApi.V3.Contexts (valuePaidTo)
 
 data RedeemFailReason = DeadlinePassed | NotEnoughFundsAtAddress
   deriving stock (Eq, Show)
@@ -159,24 +161,24 @@ targetValue = \case
   PaymentPubKeyTarget _ vl -> vl
   ScriptTarget _ _ vl -> vl
 
-toTxOutValue :: Value -> C.TxOutValue C.BabbageEra
+toTxOutValue :: Value -> C.TxOutValue C.ConwayEra
 toTxOutValue = either (error . show) C.toCardanoTxOutValue . C.toCardanoValue
 
 toHashableScriptData :: (PlutusTx.ToData a) => a -> C.HashableScriptData
 toHashableScriptData = C.unsafeHashableScriptData . C.fromPlutusData . PlutusTx.toData
 
-toTxOutInlineDatum :: (PlutusTx.ToData a) => a -> C.TxOutDatum C.CtxTx C.BabbageEra
-toTxOutInlineDatum = C.TxOutDatumInline C.BabbageEraOnwardsBabbage . toHashableScriptData
+toTxOutInlineDatum :: (PlutusTx.ToData a) => a -> C.TxOutDatum C.CtxTx C.ConwayEra
+toTxOutInlineDatum = C.TxOutDatumInline C.BabbageEraOnwardsConway . toHashableScriptData
 
 toValidityRange
   :: SlotConfig
   -> Interval.Interval POSIXTime
-  -> (C.TxValidityLowerBound C.BabbageEra, C.TxValidityUpperBound C.BabbageEra)
+  -> (C.TxValidityLowerBound C.ConwayEra, C.TxValidityUpperBound C.ConwayEra)
 toValidityRange slotConfig =
   either (error . show) id . C.toCardanoValidityRange . posixTimeRangeToContainedSlotRange slotConfig
 
 -- | Create a 'Ledger.TxOut' value for the target
-mkTxOutput :: EscrowTarget Datum -> C.TxOut C.CtxTx C.BabbageEra
+mkTxOutput :: EscrowTarget Datum -> C.TxOut C.CtxTx C.ConwayEra
 mkTxOutput = \case
   PaymentPubKeyTarget pkh vl ->
     C.TxOut
@@ -253,11 +255,11 @@ validate EscrowParams{escrowDeadline, escrowTargets} contributor action ScriptCo
           "txSignedBy"
           (scriptContextTxInfo `txSignedBy` unPaymentPubKeyHash contributor)
 
-typedValidator :: EscrowParams Datum -> V2.TypedValidator Escrow
+typedValidator :: EscrowParams Datum -> V3.TypedValidator Escrow
 typedValidator = go
   where
     go =
-      V2.mkTypedValidatorParam @Escrow
+      V3.mkTypedValidatorParam @Escrow
         $$(PlutusTx.compile [||validate||])
         $$(PlutusTx.compile [||wrap||])
     wrap = Scripts.mkUntypedValidator
@@ -300,7 +302,7 @@ pay wallet privateKey escrow vl = do
   E.logInfo @String $ "Pay " <> show vl <> " to the script"
   slotConfig <- asks pSlotConfig
   let (utx, utxoIndex) = mkPayTx slotConfig escrow wallet vl
-  void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 newtype RedeemSuccess = RedeemSuccess TxId
   deriving (Eq, Show)
@@ -355,7 +357,7 @@ redeem
 redeem wallet privateKey escrow = do
   E.logInfo @String "Redeeming"
   (utx, utxoIndex) <- mkRedeemTx escrow
-  RedeemSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  RedeemSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 newtype RefundSuccess = RefundSuccess TxId
   deriving newtype (Eq, Show)
@@ -393,7 +395,7 @@ mkRefundTx escrow wallet = do
           { C.txIns = txIns
           , C.txValidityLowerBound = fst validityRange
           , C.txValidityUpperBound = snd validityRange
-          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.AlonzoEraOnwardsBabbage [extraKeyWit]
+          , C.txExtraKeyWits = C.TxExtraKeyWitnesses C.AlonzoEraOnwardsConway [extraKeyWit]
           }
   if null txIns
     then throwError $ E.CustomError $ show RefundFailed
@@ -408,7 +410,7 @@ refund
 refund wallet privateKey escrow = do
   E.logInfo @String "Refunding"
   (utx, utxoIndex) <- mkRefundTx escrow wallet
-  RefundSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  RefundSuccess . getCardanoTxId <$> E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 -- Submit a transaction attempting to take the refund belonging to the given pk.
 mkBadRefundTx
@@ -449,7 +451,7 @@ badRefund
 badRefund wallet privateKey escrow pkh = do
   E.logInfo @String "Bad refund"
   (utx, utxoIndex) <- mkBadRefundTx escrow pkh
-  (void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx)
+  (void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx)
     `catchError` (\err -> E.logError $ "Caught error: " ++ show err)
 
 {- | Pay some money into the escrow contract. Then release all funds to their

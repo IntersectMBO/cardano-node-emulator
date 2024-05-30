@@ -3,7 +3,7 @@
 
 module Ledger.Value.CardanoAPI (
   C.Value,
-  C.Lovelace (..),
+  Coin (Coin),
   C.AssetId (..),
   C.PolicyId,
   C.AssetName,
@@ -36,6 +36,7 @@ module Ledger.Value.CardanoAPI (
 ) where
 
 import Cardano.Api qualified as C
+import Cardano.Ledger.Coin (Coin (Coin))
 import Data.Bifunctor (bimap)
 import Data.List (partition)
 import Data.Maybe (isJust)
@@ -51,12 +52,12 @@ import Ledger.Tx.CardanoAPI.Internal (
  )
 import PlutusTx.Lattice (JoinSemiLattice (..))
 
-lovelaceToValue :: C.Lovelace -> C.Value
+lovelaceToValue :: Coin -> C.Value
 lovelaceToValue 0 = mempty
 lovelaceToValue l = C.lovelaceToValue l
 
 lovelaceValueOf :: Integer -> C.Value
-lovelaceValueOf = C.lovelaceToValue . C.Lovelace
+lovelaceValueOf = C.lovelaceToValue . Coin
 
 adaValueOf :: Rational -> C.Value
 adaValueOf r =

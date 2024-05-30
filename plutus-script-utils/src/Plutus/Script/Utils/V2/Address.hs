@@ -25,19 +25,19 @@ Plutus V2 validator script.
 mkValidatorAddress :: Validator -> Address
 mkValidatorAddress validator = Address (ScriptCredential (PV2.scriptHash $ getValidator validator)) Nothing
 
--- | Cardano address of a 'PV1.Validator' script.
+-- | Cardano address of a 'PV2.Validator' script.
 mkValidatorCardanoAddress
-  :: Script.NetworkId -> PV2.Validator -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV2.Validator -> Script.AddressInEra Script.ConwayEra
 mkValidatorCardanoAddress networkId = toScriptAddress networkId . getValidator
 
--- | Cardano address of a 'PV1.MintingPolicy' script.
+-- | Cardano address of a 'PV2.MintingPolicy' script.
 mkMintingPolicyCardanoAddress
-  :: Script.NetworkId -> PV2.MintingPolicy -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV2.MintingPolicy -> Script.AddressInEra Script.ConwayEra
 mkMintingPolicyCardanoAddress networkId = toScriptAddress networkId . getMintingPolicy
 
--- | Cardano address of a 'PV1.MintingPolicy' script.
+-- | Cardano address of a 'PV2.StakeValidator' script.
 mkStakeValidatorCardanoAddress
-  :: Script.NetworkId -> PV2.StakeValidator -> Script.AddressInEra Script.BabbageEra
+  :: Script.NetworkId -> PV2.StakeValidator -> Script.AddressInEra Script.ConwayEra
 mkStakeValidatorCardanoAddress networkId = toScriptAddress networkId . getStakeValidator
 
 {- | Convert a 'Script' to a 'cardano-api' address.
@@ -45,7 +45,7 @@ mkStakeValidatorCardanoAddress networkId = toScriptAddress networkId . getStakeV
 For why we depend on `cardano-api`,
 see note [Hash computation of datums, redeemers and scripts]
 -}
-toScriptAddress :: Script.NetworkId -> Script -> Script.AddressInEra Script.BabbageEra
+toScriptAddress :: Script.NetworkId -> Script -> Script.AddressInEra Script.ConwayEra
 toScriptAddress networkId script =
   Script.makeShelleyAddressInEra
     Script.shelleyBasedEra

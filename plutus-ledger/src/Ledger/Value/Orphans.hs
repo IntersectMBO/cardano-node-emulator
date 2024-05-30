@@ -21,7 +21,7 @@ import PlutusLedgerApi.V1.Bytes qualified as Bytes
 import PlutusLedgerApi.V1.Value
 import PlutusTx.AssocMap qualified as Map
 import PlutusTx.Prelude qualified as PlutusTx
-import Prettyprinter (Pretty (pretty), (<+>))
+import Prettyprinter (Pretty (pretty))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 import Prettyprinter.Util (reflow)
 
@@ -109,10 +109,6 @@ instance (FromJSON v, FromJSON k) => FromJSON (Map.Map k v) where
 
 deriving anyclass instance (Hashable k, Hashable v) => Hashable (Map.Map k v)
 deriving anyclass instance (Serialise k, Serialise v) => Serialise (Map.Map k v)
-
-instance Pretty C.Lovelace where
-  pretty (C.Lovelace l) = pretty l <+> "lovelace"
-deriving newtype instance Serialise C.Lovelace
 
 deriving newtype instance Serialise C.Quantity
 

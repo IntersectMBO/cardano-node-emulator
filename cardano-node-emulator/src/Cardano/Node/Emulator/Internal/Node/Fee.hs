@@ -24,22 +24,25 @@ import Cardano.Api.Error qualified as C.Api
 import Cardano.Api.Fees (mapTxScriptWitnesses)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
+import Cardano.Ledger.Shelley.TxCert (shelleyTotalDepositsTxCerts)
 import Cardano.Node.Emulator.Internal.Node.Params (
   EmulatorEra,
-  Params (emulatorPParams),
+  Params,
   emulatorGlobals,
+  emulatorPParams,
   ledgerProtocolParameters,
-  pProtocolParams,
  )
 import Cardano.Node.Emulator.Internal.Node.Validation (
   CardanoLedgerError,
-  UTxO (UTxO),
+  Coin (Coin),
+  UTxO,
   createAndValidateTransactionBody,
   getTxExUnitsWithLogs,
  )
 import Control.Arrow ((&&&))
-import Control.Lens (over, (&))
+import Control.Lens (over, view, (&))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bifunctor (bimap, first)
 import Data.Foldable (fold, foldl', toList)
@@ -71,7 +74,7 @@ import Ledger.Value.CardanoAPI (isZero, lovelaceToValue, split, valueGeq)
 estimateCardanoBuildTxFee
   :: Params
   -> CardanoBuildTx
-  -> Either CardanoLedgerError C.Lovelace
+  -> Either CardanoLedgerError Coin
 estimateCardanoBuildTxFee params txBodyContent = do
   let nkeys = C.Api.estimateTransactionKeyWitnessCount (getCardanoBuildTx txBodyContent)
   txBody <- first Right $ CardanoAPI.createTransactionBody txBodyContent
@@ -83,8 +86,10 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
     first Right $
       C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody buildTx
   exUnitsMap' <-
-    bimap Left (Map.mapKeys C.fromAlonzoRdmrPtr . fmap (C.fromAlonzoExUnits . snd)) $
-      getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
+    bimap
+      Left
+      (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsConway) . fmap (C.fromAlonzoExUnits . snd))
+      $ getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
   bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
     mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
   where
@@ -92,7 +97,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
       :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
       -> C.ScriptWitnessIndex
       -> C.ScriptWitness witctx era
-      -> Either C.TxBodyErrorAutoBalance (C.ScriptWitness witctx era)
+      -> Either (C.TxBodyErrorAutoBalance era) (C.ScriptWitness witctx era)
     mapWitness _ _ wit@C.SimpleScriptWitness{} = Right wit
     mapWitness eum idx (C.PlutusScriptWitness langInEra version script datum redeemer _) =
       case Map.lookup idx eum of
@@ -118,7 +123,7 @@ makeAutoBalancedTransaction
   -> CardanoBuildTx
   -> CardanoAddress
   -- ^ Change address
-  -> Either CardanoLedgerError (C.Api.Tx C.Api.BabbageEra)
+  -> Either CardanoLedgerError (C.Api.Tx C.Api.ConwayEra)
 makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAddr = first Right $ do
   -- Compute the change.
   C.Api.BalancedTxBody _ _ change _ <- first (TxBodyError . C.Api.displayError) $ balance []
@@ -144,7 +149,7 @@ makeAutoBalancedTransaction params utxo (CardanoBuildTx txBodyContent) cChangeAd
     globals = emulatorGlobals params
     ei = C.Api.LedgerEpochInfo $ epochInfo globals
     ss = systemStart globals
-    utxo' = fromLedgerUTxO utxo
+    utxo' = CardanoAPI.toPlutusIndex utxo
     balance extraOuts =
       C.Api.makeTransactionBodyAutoBalance
         C.Api.shelleyBasedEra
@@ -181,13 +186,13 @@ makeAutoBalancedTransactionWithUtxoProvider
   -> (forall a. CardanoLedgerError -> m a)
   -- ^ How to handle errors
   -> CardanoBuildTx
-  -> m (C.Tx C.BabbageEra)
+  -> m (C.Tx C.ConwayEra)
 makeAutoBalancedTransactionWithUtxoProvider params txUtxo cChangeAddr utxoProvider errorReporter (CardanoBuildTx unbalancedBodyContent) = do
   let
     -- Set the params alreay since it makes the tx bigger and so influences the fee
     unbalancedBodyContent' =
       unbalancedBodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
-    initialFeeEstimate = C.Lovelace 300_000
+    initialFeeEstimate = Coin 300_000
 
     balanceAndFillExUnits fee = do
       (txBodyContent, utxo') <-
@@ -224,16 +229,16 @@ handleBalanceTx
   => Params
   -> UtxoIndex
   -- ^ Just the transaction inputs, not the entire 'UTxO'.
-  -> C.AddressInEra C.BabbageEra
+  -> C.AddressInEra C.ConwayEra
   -- ^ Change address
   -> UtxoProvider m
   -- ^ The utxo provider
   -> (forall a. CardanoLedgerError -> m a)
   -- ^ How to handle errors
-  -> C.Lovelace
+  -> Coin
   -- ^ Estimated fee value to use.
-  -> C.TxBodyContent C.BuildTx C.BabbageEra
-  -> m (C.TxBodyContent C.BuildTx C.BabbageEra, UtxoIndex)
+  -> C.TxBodyContent C.BuildTx C.ConwayEra
+  -> m (C.TxBodyContent C.BuildTx C.ConwayEra, UtxoIndex)
 handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fees utx = do
   let theFee = toCardanoFee fees
 
@@ -248,8 +253,13 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
 
   inputValues <- traverse lookupValue txInputs
 
-  let left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
-      right = lovelaceToValue fees <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+  let pp = emulatorPParams params
+      txDeposits = shelleyTotalDepositsTxCerts pp (const False) (Tx.getTxBodyContentCerts utx)
+      left = Tx.getTxBodyContentMint filteredUnbalancedTxTx <> fold inputValues
+      right =
+        lovelaceToValue fees
+          <> foldMap (Tx.txOutValue . Tx.TxOut) (C.txOuts filteredUnbalancedTxTx)
+          <> lovelaceToValue txDeposits
       balance = left <> C.negateValue right
 
   ((neg, newInputs), (pos, mNewTxOut)) <-
@@ -271,22 +281,22 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
   let returnCollateral = Tx.getTxBodyContentReturnCollateral txWithinputsAdded
 
   if isZero (fold collateral)
-    && null (C.collectTxBodyScriptWitnesses C.ShelleyBasedEraBabbage txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
+    && null (C.collectTxBodyScriptWitnesses C.ShelleyBasedEraConway txWithinputsAdded) -- every script has a redeemer, no redeemers -> no scripts
     && null returnCollateral
     then -- Don't add collateral if there are no plutus scripts that can fail
     -- and there are no collateral inputs or outputs already
       pure (txWithinputsAdded, newInputs)
     else do
       let collAddr = maybe cChangeAddr (\(Tx.TxOut (C.TxOut aie _tov _tod _rs)) -> aie) returnCollateral
-          collateralPercent = maybe 100 fromIntegral (C.protocolParamCollateralPercent (pProtocolParams params))
+          collateralPercent = fromIntegral (view C.ppCollateralPercentageL (emulatorPParams params))
           collFees = (fees * collateralPercent + 99 {- make sure to round up -}) `div` 100
           collBalance = fold collateral <> lovelaceToValue (-collFees)
 
       ((negColl, newColInputs@(C.UTxO newColInputsMap)), (_, mNewTxOutColl)) <-
         calculateTxChanges params collAddr utxoProvider $ split collBalance
 
-      case C.Api.protocolParamMaxCollateralInputs $ pProtocolParams params of
-        Just maxInputs
+      case view C.ppMaxCollateralInputsL $ emulatorPParams params of
+        maxInputs
           | length collateral + Map.size newColInputsMap > fromIntegral maxInputs ->
               errorReporter (Left (Phase1, MaxCollateralInputsExceeded))
         _ -> pure ()
@@ -308,7 +318,7 @@ handleBalanceTx params (C.UTxO txUtxo) cChangeAddr utxoProvider errorReporter fe
         , newInputs <> newColInputs
         )
 
-removeEmptyOutputsBuildTx :: C.TxBodyContent ctx C.BabbageEra -> C.TxBodyContent ctx C.BabbageEra
+removeEmptyOutputsBuildTx :: C.TxBodyContent ctx C.ConwayEra -> C.TxBodyContent ctx C.ConwayEra
 removeEmptyOutputsBuildTx bodyContent@C.TxBodyContent{C.txOuts} = bodyContent{C.txOuts = txOuts'}
   where
     txOuts' = filter (not . isEmpty' . Tx.TxOut) txOuts
@@ -318,7 +328,7 @@ removeEmptyOutputsBuildTx bodyContent@C.TxBodyContent{C.txOuts} = bodyContent{C.
 calculateTxChanges
   :: (Monad m)
   => Params
-  -> C.AddressInEra C.BabbageEra
+  -> C.AddressInEra C.ConwayEra
   -- ^ The address for the change output
   -> UtxoProvider m
   -- ^ The utxo provider
@@ -454,19 +464,9 @@ takeUntil p (x : xs)
   | p x = [x]
   | otherwise = x : takeUntil p xs
 
-fromLedgerUTxO
-  :: UTxO EmulatorEra
-  -> C.Api.UTxO C.Api.BabbageEra
-fromLedgerUTxO (UTxO utxo) =
-  C.Api.UTxO
-    . Map.fromList
-    . map (bimap C.Api.fromShelleyTxIn (C.Api.fromShelleyTxOut C.Api.ShelleyBasedEraBabbage))
-    . Map.toList
-    $ utxo
-
 evaluateTransactionFee
   :: Params
-  -> C.Api.TxBody C.Api.BabbageEra
+  -> C.Api.TxBody C.Api.ConwayEra
   -> Word
-  -> C.Api.Lovelace
+  -> Coin
 evaluateTransactionFee params txbody keywitcount = C.evaluateTransactionFee C.shelleyBasedEra (emulatorPParams params) txbody keywitcount 0

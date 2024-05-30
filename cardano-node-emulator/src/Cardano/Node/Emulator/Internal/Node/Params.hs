@@ -1,31 +1,39 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | The set of parameters, like protocol parameters and slot configuration.
 module Cardano.Node.Emulator.Internal.Node.Params (
   Params (..),
-  paramsWithProtocolsParameters,
+  paramsFromConfig,
+  C.mkLatestTransitionConfig,
   slotConfigL,
+  networkIdL,
   emulatorPParamsL,
+  emulatorPParams,
   pProtocolParams,
   pParamsFromProtocolParams,
   ledgerProtocolParameters,
-  protocolParamsL,
-  networkIdL,
   increaseTransactionLimits,
   increaseTransactionLimits',
-  genesisDefaultsFromParams,
   emulatorEpochSize,
+  emulatorShelleyGenesisDefaults,
+  emulatorAlonzoGenesisDefaults,
+  emulatorConwayGenesisDefaults,
+  keptBlocks,
 
   -- * cardano-ledger specific types and conversion functions
   EmulatorEra,
   PParams,
+  TransitionConfig,
   slotLength,
   testnet,
   emulatorGlobals,
@@ -33,31 +41,39 @@ module Cardano.Node.Emulator.Internal.Node.Params (
 ) where
 
 import Cardano.Api qualified as C
+import Cardano.Api.NetworkId qualified as C
 import Cardano.Api.Shelley qualified as C
+import Cardano.Ledger.Alonzo.Genesis qualified as C
 import Cardano.Ledger.Alonzo.PParams qualified as C
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
-import Cardano.Ledger.Babbage (BabbageEra)
-import Cardano.Ledger.Babbage.PParams qualified as C
-import Cardano.Ledger.BaseTypes (boundRational)
-import Cardano.Ledger.Core qualified as C
+import Cardano.Ledger.Api.PParams qualified as C
+import Cardano.Ledger.Api.Transition qualified as C
+import Cardano.Ledger.BaseTypes (ProtVer (ProtVer), boundRational)
+import Cardano.Ledger.Binary.Version (Version, natVersion)
+import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Crypto (StandardCrypto)
-import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, ShelleyGenesis, mkShelleyGlobals)
+import Cardano.Ledger.Plutus.CostModels (mkCostModels)
+import Cardano.Ledger.Plutus.ExUnits (ExUnits (ExUnits), Prices (Prices))
+import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Slot (EpochSize (EpochSize))
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (
-  SlotConfig (scSlotLength, scSlotZeroTime),
+  SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime),
+  beginningOfTime,
+  nominalDiffTimeToPOSIXTime,
   posixTimeToNominalDiffTime,
   posixTimeToUTCTime,
+  utcTimeToPOSIXTime,
  )
 import Cardano.Slotting.EpochInfo (fixedEpochInfo)
 import Cardano.Slotting.Time (SlotLength, mkSlotLength)
-import Control.Lens (Lens', lens, makeLensesFor, over, (&), (.~))
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), Value (Object), (.:), (.=))
+import Control.Lens (makeLensesFor, over, (%~), (&), (.~), (^.))
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
 import Data.Default (Default (def))
 import Data.Map qualified as Map
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import Data.SOP (K (K))
 import Data.SOP.Counting qualified as Ouroboros
@@ -66,24 +82,26 @@ import Data.SOP.Strict (NP (Nil, (:*)))
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
-import Ledger.Test (testnet)
+import GHC.Word (Word32)
+import Ledger.Test (testNetworkMagic, testnet)
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import Plutus.Script.Utils.Scripts (Language (PlutusV1))
 import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
-import PlutusLedgerApi.V1 (POSIXTime (POSIXTime))
+import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
 -- | The default era for the emulator
-type EmulatorEra = BabbageEra StandardCrypto
+type EmulatorEra = ConwayEra StandardCrypto
 
 type PParams = C.PParams EmulatorEra
+type TransitionConfig = C.TransitionConfig EmulatorEra
 
 data Params = Params
   { pSlotConfig :: !SlotConfig
-  , emulatorPParams :: !PParams
-  -- ^ Convert `Params` to cardano-ledger `PParams`
+  , pEmulatorPParams :: !PParams
   , pNetworkId :: !C.NetworkId
   , pEpochSize :: !EpochSize
+  , pConfig :: !TransitionConfig
   }
   deriving (Eq, Show, Generic)
 
@@ -101,56 +119,34 @@ deriving newtype instance FromJSON C.NetworkMagic
 
 makeLensesFor
   [ ("pSlotConfig", "slotConfigL")
-  , ("emulatorPParams", "emulatorPParamsL")
+  , ("pEmulatorPParams", "emulatorPParamsL")
   , ("pNetworkId", "networkIdL")
   ]
   ''Params
 
-pProtocolParams :: Params -> C.ProtocolParameters
-pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraBabbage $ emulatorPParams p
-
-pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
-pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraBabbage
-
-ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.BabbageEra
-ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
-
-paramsWithProtocolsParameters
-  :: SlotConfig -> C.ProtocolParameters -> C.NetworkId -> EpochSize -> Params
-paramsWithProtocolsParameters sc p = Params sc (pParamsFromProtocolParams p)
-
-protocolParamsL :: Lens' Params C.ProtocolParameters
-protocolParamsL =
-  let
-    set p pParam = p & emulatorPParamsL .~ pParamsFromProtocolParams pParam
-   in
-    lens pProtocolParams set
-
-instance ToJSON Params where
-  toJSON p =
-    JSON.object
-      [ "pSlotConfig" .= toJSON (pSlotConfig p)
-      , "pProtocolParams" .= toJSON (pProtocolParams p)
-      , "pNetworkId" .= toJSON (pNetworkId p)
-      , "pEpochSize" .= toJSON (pEpochSize p)
-      ]
-
-instance FromJSON Params where
-  parseJSON (Object v) =
-    Params
-      <$> (v .: "pSlotConfig" >>= parseJSON)
-      <*> (pParamsFromProtocolParams <$> (v .: "pProtocolParams" >>= parseJSON))
-      <*> (v .: "pNetworkId" >>= parseJSON)
-      <*> (v .: "pEpochSize" >>= parseJSON)
-  parseJSON _ = fail "Can't parse a Param"
+instance Default Params where
+  def = paramsFromConfig defaultConfig
 
 instance Pretty Params where
-  pretty p@Params{..} =
+  pretty Params{..} =
     vsep
       [ "Slot config:" <+> pretty pSlotConfig
       , "Network ID:" <+> viaShow pNetworkId
-      , "Protocol Parameters:" <+> viaShow (pProtocolParams p)
+      , "Protocol Parameters:" <+> viaShow pEmulatorPParams
       ]
+
+-- | Convert `Params` to cardano-ledger `PParams`
+emulatorPParams :: Params -> PParams
+emulatorPParams = pEmulatorPParams
+
+pProtocolParams :: Params -> C.ProtocolParameters
+pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraConway $ emulatorPParams p
+
+pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
+pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraConway
+
+ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
+ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
 {- | Set higher limits on transaction size and execution units.
 This can be used to work around @MaxTxSizeUTxO@ and @ExUnitsTooBigUTxO@ errors.
@@ -159,105 +155,99 @@ Note that if you need this your Plutus script will probably not validate on Main
 increaseTransactionLimits :: Params -> Params
 increaseTransactionLimits = increaseTransactionLimits' 2 10 10
 
-increaseTransactionLimits' :: Natural -> Natural -> Natural -> Params -> Params
-increaseTransactionLimits' size steps mem = over protocolParamsL fixParams
+increaseTransactionLimits' :: Word32 -> Natural -> Natural -> Params -> Params
+increaseTransactionLimits' size steps mem =
+  over emulatorPParamsL $
+    (C.ppMaxTxSizeL %~ (size *)) . (C.ppMaxTxExUnitsL %~ f)
   where
-    fixParams pp =
-      pp
-        { C.protocolParamMaxTxSize = size * C.protocolParamMaxTxSize pp
-        , C.protocolParamMaxTxExUnits =
-            C.protocolParamMaxTxExUnits pp
-              >>= ( \C.ExecutionUnits{executionSteps, executionMemory} ->
-                      pure $
-                        C.ExecutionUnits{executionSteps = steps * executionSteps, executionMemory = mem * executionMemory}
-                  )
-        }
+    f :: ExUnits -> ExUnits
+    f (ExUnits executionSteps executionMemory) =
+      ExUnits (steps * executionSteps) (mem * executionMemory)
 
-instance Default Params where
-  def = Params def (pParamsFromProtocolParams def) testnet emulatorEpochSize
+emulatorProtocolMajorVersion :: Version
+emulatorProtocolMajorVersion = natVersion @9
 
-instance Default C.ProtocolParameters where
-  -- The protocol parameters as they are in the Alonzo era.
-  def =
-    C.ProtocolParameters
-      { protocolParamProtocolVersion = (8, 0)
-      , protocolParamDecentralization = Nothing
-      , protocolParamExtraPraosEntropy = Nothing
-      , protocolParamMaxBlockHeaderSize = 1100
-      , protocolParamMaxBlockBodySize = 90112
-      , protocolParamMaxTxSize = 16384
-      , protocolParamTxFeeFixed = 155381
-      , protocolParamTxFeePerByte = 44
-      , protocolParamMinUTxOValue = Nothing
-      , protocolParamStakeAddressDeposit = C.Lovelace 2000000
-      , protocolParamStakePoolDeposit = C.Lovelace 500000000
-      , protocolParamMinPoolCost = C.Lovelace 340000000
-      , protocolParamPoolRetireMaxEpoch = C.EpochNo 18
-      , protocolParamStakePoolTargetNum = 500
-      , protocolParamPoolPledgeInfluence = 3 % 10
-      , protocolParamMonetaryExpansion = 3 % 1000
-      , protocolParamTreasuryCut = 1 % 5
-      , protocolParamCostModels =
-          let costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
-              costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
-              projectLangParams lang m =
-                Map.restrictKeys
-                  (Map.mapKeys (mapParamNames lang) m)
-                  (Set.fromList (Alonzo.costModelParamNames lang))
-              mapParamNames PlutusV1 "blake2b_256-cpu-arguments-intercept" = "blake2b-cpu-arguments-intercept"
-              mapParamNames PlutusV1 "blake2b_256-cpu-arguments-slope" = "blake2b-cpu-arguments-slope"
-              mapParamNames PlutusV1 "blake2b_256-memory-arguments" = "blake2b-memory-arguments"
-              mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-intercept" = "verifySignature-cpu-arguments-intercept"
-              mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
-              mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
-              mapParamNames _ name = name
-           in C.fromAlonzoCostModels $ Alonzo.CostModels costModels mempty mempty
-      , protocolParamPrices =
-          Just
-            (C.ExecutionUnitPrices{priceExecutionSteps = 721 % 10000000, priceExecutionMemory = 577 % 10000})
-      , protocolParamMaxTxExUnits =
-          Just (C.ExecutionUnits{executionSteps = 10000000000, executionMemory = 14000000})
-      , protocolParamMaxBlockExUnits =
-          Just (C.ExecutionUnits{executionSteps = 40000000000, executionMemory = 62000000})
-      , protocolParamMaxValueSize = Just 5000
-      , protocolParamCollateralPercent = Just 150
-      , protocolParamMaxCollateralInputs = Just 3
-      , protocolParamUTxOCostPerByte =
-          let (Coin coinsPerUTxOByte) = Coin 4310
-           in Just $ C.Lovelace coinsPerUTxOByte
-      }
+defaultConfig :: TransitionConfig
+defaultConfig =
+  C.mkLatestTransitionConfig
+    emulatorShelleyGenesisDefaults
+    emulatorAlonzoGenesisDefaults
+    emulatorConwayGenesisDefaults
+
+emulatorShelleyGenesisDefaults :: C.ShelleyGenesis StandardCrypto
+emulatorShelleyGenesisDefaults =
+  C.shelleyGenesisDefaults
+    { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm
+    , C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime
+    , C.sgProtocolParams =
+        C.sgProtocolParams C.shelleyGenesisDefaults
+          & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
+          & C.ppMinFeeBL .~ Coin 155_381
+          & C.ppMinFeeAL .~ Coin 44
+          & C.ppKeyDepositL .~ Coin 2_000_000
+    }
+
+emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
+emulatorAlonzoGenesisDefaults =
+  C.alonzoGenesisDefaults
+    { C.agPrices =
+        Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
+    , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
+    , C.agCostModels = mkCostModels costModels
+    }
+  where
+    costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
+    costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
+    projectLangParams lang m =
+      Map.restrictKeys
+        (Map.mapKeys (mapParamNames lang) m)
+        (Set.fromList (Alonzo.costModelParamNames lang))
+    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-intercept" = "blake2b-cpu-arguments-intercept"
+    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-slope" = "blake2b-cpu-arguments-slope"
+    mapParamNames PlutusV1 "blake2b_256-memory-arguments" = "blake2b-memory-arguments"
+    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-intercept" = "verifySignature-cpu-arguments-intercept"
+    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
+    mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
+    mapParamNames _ name = name
+
+emulatorConwayGenesisDefaults :: C.ConwayGenesis StandardCrypto
+emulatorConwayGenesisDefaults = C.conwayGenesisDefaults
+
+paramsFromConfig :: TransitionConfig -> Params
+paramsFromConfig tc =
+  Params
+    { pSlotConfig =
+        SlotConfig
+          { scSlotZeroTime = utcTimeToPOSIXTime $ C.sgSystemStart sg
+          , scSlotLength =
+              getPOSIXTime $ nominalDiffTimeToPOSIXTime $ C.Ledger.fromNominalDiffTimeMicro $ C.sgSlotLength sg
+          }
+    , pEmulatorPParams = tc ^. C.tcInitialPParamsG
+    , pNetworkId = C.fromShelleyNetwork (C.sgNetworkId sg) (C.NetworkMagic $ C.sgNetworkMagic sg)
+    , pEpochSize = C.sgEpochLength sg
+    , pConfig = tc
+    }
+  where
+    sg = tc ^. C.tcShelleyGenesisL
 
 -- | Calculate the cardano-ledger `SlotLength`
 slotLength :: Params -> SlotLength
 slotLength Params{pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
 
+keptBlocks :: Params -> Integer
+keptBlocks Params{pConfig} = fromIntegral $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
+
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize
-emulatorEpochSize = EpochSize 432000
+emulatorEpochSize = EpochSize 432_000
 
 -- | A sensible default 'Globals' value for the emulator
 emulatorGlobals :: Params -> Globals
-emulatorGlobals params@Params{pEpochSize} =
+emulatorGlobals params@Params{pEpochSize, pConfig} =
   mkShelleyGlobals
-    (genesisDefaultsFromParams params)
+    (pConfig ^. C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))
-    (toEnum $ fromIntegral $ fst $ C.protocolParamProtocolVersion $ pProtocolParams params)
-
-genesisDefaultsFromParams :: Params -> ShelleyGenesis StandardCrypto
-genesisDefaultsFromParams params@Params{pSlotConfig, pNetworkId} =
-  C.shelleyGenesisDefaults
-    { C.sgSystemStart = posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
-    , C.sgNetworkMagic = case pNetworkId of C.Testnet (C.NetworkMagic nm) -> nm; _ -> 0
-    , C.sgNetworkId = case pNetworkId of C.Testnet _ -> C.Ledger.Testnet; C.Mainnet -> C.Ledger.Mainnet
-    , C.sgProtocolParams =
-        emulatorPParams params
-          & C.downgradePParams (C.DowngradeBabbagePParams d C.Ledger.NeutralNonce)
-          & C.downgradePParams (C.DowngradeAlonzoPParams (Coin 0))
-          & C.downgradePParams ()
-          & C.downgradePParams ()
-    }
-  where
-    d = fromMaybe (error "3 % 5 should be valid UnitInterval") $ boundRational (3 % 5)
+    emulatorProtocolMajorVersion
 
 -- | A sensible default 'EraHistory' value for the emulator
 emulatorEraHistory :: Params -> C.EraHistory

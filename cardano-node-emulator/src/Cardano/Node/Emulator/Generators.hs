@@ -65,15 +65,24 @@ module Cardano.Node.Emulator.Generators (
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
+import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
 import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
-import Cardano.Node.Emulator.Internal.Node.Validation (validateCardanoTx)
+import Cardano.Node.Emulator.Internal.Node.Validation (
+  Coin (Coin),
+  initialState,
+  setUtxo,
+  updateSlot,
+  validateCardanoTx,
+ )
+import Control.Lens (view)
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
 import Data.Default (Default (def), def)
 import Data.Foldable (fold, foldl')
+import Data.Function ((&))
 import Data.Functor (($>))
 import Data.List (sort)
 import Data.List qualified as List
@@ -102,10 +111,11 @@ import Ledger (
   ValidationErrorInPhase,
   ValidationPhase (Phase1, Phase2),
   ValidationResult (FailPhase1, FailPhase2),
-  addCardanoTxSignature,
+  addCardanoTxWitness,
   createGenesisTransaction,
   minLovelaceTxOutEstimated,
   pubKeyAddress,
+  toWitness,
   txOutValue,
  )
 import Ledger.CardanoWallet qualified as CW
@@ -123,12 +133,12 @@ import Test.Gen.Cardano.Api.Typed qualified as Gen
 -- | Attach signatures of all known private keys to a transaction.
 signAll :: CardanoTx -> CardanoTx
 signAll tx =
-  foldl' (flip addCardanoTxSignature) tx $
-    fmap unPaymentPrivateKey CW.knownPaymentPrivateKeys
+  foldl' (flip addCardanoTxWitness) tx $
+    fmap toWitness CW.knownPaymentPrivateKeys
 
 -- | The parameters for the generators in this module.
 data GeneratorModel = GeneratorModel
-  { gmInitialBalance :: !(Map PaymentPubKey C.Lovelace)
+  { gmInitialBalance :: !(Map PaymentPubKey Coin)
   -- ^ Value created at the beginning of the blockchain.
   , gmPubKeys :: !(Set PaymentPubKey)
   -- ^ Public keys that are to be used for generating transactions.
@@ -139,12 +149,12 @@ data GeneratorModel = GeneratorModel
 -- | A generator model with some sensible defaults.
 generatorModel :: GeneratorModel
 generatorModel =
-  let vl = C.Lovelace $ 1_000_000 * 100
+  let vl = Coin $ 1_000_000 * 100
       pubKeys = CW.knownPaymentPublicKeys
    in GeneratorModel
         { gmInitialBalance = Map.fromList $ zip pubKeys (repeat vl)
         , gmPubKeys = Set.fromList pubKeys
-        , gmMaxCollateralInputs = C.protocolParamMaxCollateralInputs def
+        , gmMaxCollateralInputs = Just $ view (ppMaxCollateralInputsL @C.EmulatorEra) def
         }
 
 {- | Blockchain for testing the emulator implementation and traces.
@@ -214,7 +224,7 @@ genValidTransaction = genValidTransaction' generatorModel
 
 genValidTransactionBody
   :: Mockchain
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBody = genValidTransactionBody' generatorModel
 
 {- | Generate a valid transaction, using the unspent outputs provided.
@@ -243,7 +253,7 @@ genValidTransactionSpending' g ins totalVal =
 
 makeTx
   :: (MonadFail m)
-  => C.TxBodyContent C.BuildTx C.BabbageEra
+  => C.TxBodyContent C.BuildTx C.ConwayEra
   -> m CardanoTx
 makeTx bodyContent = do
   txBody <-
@@ -258,7 +268,7 @@ makeTx bodyContent = do
 genValidTransactionBody'
   :: GeneratorModel
   -> Mockchain
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBody' g (Mockchain _ ops _) = do
   -- Take a random number of UTXO from the input
   nUtxo <-
@@ -274,12 +284,12 @@ genValidTransactionBodySpending'
   :: GeneratorModel
   -> [C.TxIn]
   -> C.Value
-  -> Gen (C.TxBodyContent C.BuildTx C.BabbageEra)
+  -> Gen (C.TxBodyContent C.BuildTx C.ConwayEra)
 genValidTransactionBodySpending' g ins totalVal = do
   mintAmount <- toInteger <$> Gen.int (Range.linear 0 maxBound)
   mintTokenName <- Gen.genAssetName
   let mintValue = guard (mintAmount == 0) $> someTokenValue mintTokenName mintAmount
-      fee' = C.Lovelace 300000
+      fee' = Coin 300000
       numOut = Set.size (gmPubKeys g) - 1
       totalValAda = C.selectLovelace totalVal
       totalValTokens = guard (Value.isZero (Value.noAdaValue totalVal)) $> Value.noAdaValue totalVal
@@ -306,7 +316,7 @@ genValidTransactionBodySpending' g ins totalVal = do
             zip outVals pubKeys
   let mintWitness =
         C.PlutusScriptWitness
-          C.PlutusScriptV1InBabbage
+          C.PlutusScriptV1InConway
           C.PlutusScriptV1
           (C.PScript $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
           C.NoScriptDatumForMint
@@ -314,14 +324,14 @@ genValidTransactionBodySpending' g ins totalVal = do
           C.zeroExecutionUnits
   let txMintValue =
         C.TxMintValue
-          C.MaryEraOnwardsBabbage
+          C.MaryEraOnwardsConway
           (fromMaybe mempty mintValue)
           (C.BuildTxWith (Map.singleton alwaysSucceedPolicyId mintWitness))
       txIns = map (,C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending) ins
   txInsCollateral <-
     maybe
       (fail "Cannot gen collateral")
-      (pure . C.TxInsCollateral C.AlonzoEraOnwardsBabbage . flip take ins . fromIntegral)
+      (pure . C.TxInsCollateral C.AlonzoEraOnwardsConway . flip take ins . fromIntegral)
       (gmMaxCollateralInputs g)
   pure $
     Tx.emptyTxBodyContent
@@ -342,8 +352,12 @@ pubKeyTxOut v pk sk = do
 validateMockchain :: Mockchain -> CardanoTx -> Maybe Ledger.ValidationErrorInPhase
 validateMockchain (Mockchain _ utxo params) tx = result
   where
-    cUtxoIndex = C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
-    result = case validateCardanoTx params 1 cUtxoIndex tx of
+    cUtxoIndex = C.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
+    ledgerState =
+      initialState params
+        & updateSlot (const 1)
+        & setUtxo params cUtxoIndex
+    result = case snd $ validateCardanoTx params ledgerState tx of
       FailPhase1 _ err -> Just (Phase1, err)
       FailPhase2 _ err _ -> Just (Phase2, err)
       _ -> Nothing

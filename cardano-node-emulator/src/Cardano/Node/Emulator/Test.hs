@@ -21,6 +21,7 @@ module Cardano.Node.Emulator.Test (
   runEmulatorM,
   checkPredicate,
   checkPredicateOptions,
+  checkPredicateOptionsIO,
   (.&&.),
   hasValidatedTransactionCountOfTotal,
   walletFundsChange,
@@ -48,7 +49,6 @@ module Cardano.Node.Emulator.Test (
 ) where
 
 import Cardano.Api qualified as C
-import Cardano.Api qualified as CardanoAPI
 import Cardano.Api.Shelley qualified as C
 import Cardano.Node.Emulator.API (
   EmulatorError,
@@ -262,7 +262,7 @@ data Options state = Options
   -- ^ Node parameters
   , finalPred :: ModelState state -> EmulatorLogs -> Maybe String
   -- ^ Predicate to check at the end of execution
-  , modelPred :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
+  , modelPred :: C.LedgerProtocolParameters C.ConwayEra -> ContractModelResult state -> Property
   -- ^ Predicate to run on the contract model
   , coverageIndex :: CoverageIndex
   , coverageRef :: Maybe (IORef CoverageData)
@@ -274,7 +274,7 @@ defaultOptions = Options defInitialDist def (\_ _ -> Nothing) balanceChangePredi
 runEmulatorM
   :: Options state -> EmulatorM a -> (Either EmulatorError a, (EmulatorState, EmulatorLogs))
 runEmulatorM Options{..} m =
-  case runRWS (runExceptT m) params (emptyEmulatorStateWithInitialDist initialDistribution) of
+  case runRWS (runExceptT m) params (emptyEmulatorStateWithInitialDist params initialDistribution) of
     (r, s, l) -> (r, (s, l))
 
 checkPredicate
@@ -290,8 +290,17 @@ checkPredicateOptions
   -> EmulatorPredicate
   -> EmulatorM a
   -> TestTree
-checkPredicateOptions options testName test contract =
-  testCase testName $
+checkPredicateOptions options = checkPredicateOptionsIO (pure options)
+
+checkPredicateOptionsIO
+  :: IO (Options state)
+  -> TestName
+  -> EmulatorPredicate
+  -> EmulatorM a
+  -> TestTree
+checkPredicateOptionsIO optionsIO testName test contract =
+  testCase testName $ do
+    options <- optionsIO
     let (res, (st, lg)) = runEmulatorM options contract
      in case res of
           Left err -> assertFailure $ show err
@@ -343,7 +352,7 @@ propRunActionsWithOptions opts@Options{..} actions =
               (Right prop, Nothing) -> return $ counterexample logs prop
 
 balanceChangePredicate
-  :: C.LedgerProtocolParameters C.BabbageEra -> ContractModelResult state -> Property
+  :: C.LedgerProtocolParameters C.ConwayEra -> ContractModelResult state -> Property
 balanceChangePredicate ledgerPP =
   assertBalanceChangesMatch (BalanceChangeOptions False signerPaysFees ledgerPP prettyAddr)
 
@@ -378,7 +387,7 @@ prettyAddr a = fromMaybe (show a) $ lookup a prettyWalletNames
 
 -- Note, we don't store the genesis transaction in the index but put it in the before state
 -- instead to avoid showing that as a balance change in the models.
-chainStateToChainIndex :: CardanoAPI.NetworkId -> E.ChainState -> ChainIndex
+chainStateToChainIndex :: C.NetworkId -> E.ChainState -> ChainIndex
 chainStateToChainIndex nid cs =
   ChainIndex -- The Backwards order
     { transactions =
@@ -422,7 +431,7 @@ chainStateToContractModelChainState :: E.ChainState -> CM.ChainState
 chainStateToContractModelChainState cst =
   ChainState
     { utxo = cst ^. E.index
-    , slot = fromIntegral $ cst ^. E.chainCurrentSlot
+    , slot = E.getSlot $ cst ^. E.ledgerState
     }
 
 -- | Run QuickCheck on a property that tracks coverage and print its coverage report.

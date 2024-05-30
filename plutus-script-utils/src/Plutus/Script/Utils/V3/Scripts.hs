@@ -1,22 +1,22 @@
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Plutus.Script.Utils.V2.Scripts (
+module Plutus.Script.Utils.V3.Scripts (
   -- * Script data hashes
-  PV2.Datum,
-  PV2.DatumHash,
-  PV2.Redeemer,
-  PV2.RedeemerHash,
+  PV3.Datum,
+  PV3.DatumHash,
+  PV3.Redeemer,
+  PV3.RedeemerHash,
   P.datumHash,
   P.redeemerHash,
   P.dataHash,
 
   -- * Script hashes
-  PV2.Validator,
-  PV2.ValidatorHash,
-  PV2.MintingPolicy,
-  PV2.MintingPolicyHash,
-  PV2.StakeValidator,
-  PV2.StakeValidatorHash,
+  PV3.Validator,
+  PV3.ValidatorHash,
+  PV3.MintingPolicy,
+  PV3.MintingPolicyHash,
+  PV3.StakeValidator,
+  PV3.StakeValidatorHash,
   validatorHash,
   mintingPolicyHash,
   stakeValidatorHash,
@@ -30,33 +30,33 @@ module Plutus.Script.Utils.V2.Scripts (
 import Cardano.Api qualified as Script
 import Cardano.Api.Shelley qualified as Script
 import Plutus.Script.Utils.Scripts qualified as P
-import Plutus.Script.Utils.Scripts qualified as PV2
-import PlutusLedgerApi.V2 qualified as PV2
+import Plutus.Script.Utils.Scripts qualified as PV3
+import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx.Builtins qualified as Builtins
 
--- | Hash a 'PV2.Validator' script.
-validatorHash :: PV2.Validator -> PV2.ValidatorHash
+-- | Hash a 'PV3.Validator' script.
+validatorHash :: PV3.Validator -> PV3.ValidatorHash
 validatorHash =
-  PV2.ValidatorHash
-    . PV2.getScriptHash
+  PV3.ValidatorHash
+    . PV3.getScriptHash
     . scriptHash
-    . PV2.getValidator
+    . PV3.getValidator
 
--- | Hash a 'PV2.MintingPolicy' script.
-mintingPolicyHash :: PV2.MintingPolicy -> PV2.MintingPolicyHash
+-- | Hash a 'PV3.MintingPolicy' script.
+mintingPolicyHash :: PV3.MintingPolicy -> PV3.MintingPolicyHash
 mintingPolicyHash =
-  PV2.MintingPolicyHash
-    . PV2.getScriptHash
+  PV3.MintingPolicyHash
+    . PV3.getScriptHash
     . scriptHash
-    . PV2.getMintingPolicy
+    . PV3.getMintingPolicy
 
--- | Hash a 'PV2.StakeValidator' script.
-stakeValidatorHash :: PV2.StakeValidator -> PV2.StakeValidatorHash
+-- | Hash a 'PV3.StakeValidator' script.
+stakeValidatorHash :: PV3.StakeValidator -> PV3.StakeValidatorHash
 stakeValidatorHash =
-  PV2.StakeValidatorHash
-    . PV2.getScriptHash
+  PV3.StakeValidatorHash
+    . PV3.getScriptHash
     . scriptHash
-    . PV2.getStakeValidator
+    . PV3.getStakeValidator
 
 {- | Convert a 'Builtins.BuiltinsData' value to a 'cardano-api' script
   data value.
@@ -68,9 +68,9 @@ toCardanoAPIData = Script.fromPlutusData . Builtins.builtinDataToData
 -}
 
 -- | Hash a 'Script'
-scriptHash :: PV2.Script -> PV2.ScriptHash
+scriptHash :: PV3.Script -> PV3.ScriptHash
 scriptHash =
-  PV2.ScriptHash
+  PV3.ScriptHash
     . Builtins.toBuiltin
     . Script.serialiseToRawBytes
     . Script.hashScript
@@ -81,18 +81,18 @@ scriptHash =
 For why we depend on `cardano-api`,
 see note [Hash computation of datums, redeemers and scripts]
 -}
-toCardanoApiScript :: PV2.Script -> Script.Script Script.PlutusScriptV2
+toCardanoApiScript :: PV3.Script -> Script.Script Script.PlutusScriptV3
 toCardanoApiScript =
-  Script.PlutusScript Script.PlutusScriptV2
+  Script.PlutusScript Script.PlutusScriptV3
     . Script.PlutusScriptSerialised
-    . PV2.unScript
+    . PV3.unScript
 
 {-# INLINEABLE scriptCurrencySymbol #-}
 
 -- | The 'CurrencySymbol' of a 'MintingPolicy'.
-scriptCurrencySymbol :: PV2.MintingPolicy -> PV2.CurrencySymbol
+scriptCurrencySymbol :: PV3.MintingPolicy -> PV3.CurrencySymbol
 scriptCurrencySymbol scrpt =
-  let (PV2.MintingPolicyHash hsh) = mintingPolicyHash scrpt in PV2.CurrencySymbol hsh
+  let (PV3.MintingPolicyHash hsh) = mintingPolicyHash scrpt in PV3.CurrencySymbol hsh
 
 {- See Note [Hash computation of datums, redeemers and scripts] -}
 

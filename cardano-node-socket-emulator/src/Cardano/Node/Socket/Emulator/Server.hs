@@ -35,7 +35,7 @@ import Control.Concurrent.STM (
   writeTQueue,
  )
 import Control.Exception (throwIO)
-import Control.Lens (over, (^.))
+import Control.Lens (over, (.~), (^.))
 import Control.Monad (forever, void)
 import Control.Monad.Freer (send)
 import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
@@ -57,7 +57,6 @@ import Data.Void (Void)
 import Cardano.BM.Data.Trace (Trace)
 import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import Ledger (Block, CardanoTx (..), Slot (..))
-import Ledger.Tx.CardanoAPI (fromPlutusIndex)
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.Query (Query (..))
@@ -155,7 +154,7 @@ data ServerCommand
   | -- Set the slot number
     ModifySlot (Slot -> Slot)
   | -- Append a transaction to the transaction pool.
-    AddTx (C.Tx C.BabbageEra)
+    AddTx (C.Tx C.ConwayEra)
 
 instance Show ServerCommand where
   show = \case
@@ -192,7 +191,7 @@ modifySlot f ServerHandler{shCommandChannel} = do
         SlotChanged slot -> pure slot
         _ -> retry
 
-addTx :: (MonadIO m) => ServerHandler -> C.Tx C.BabbageEra -> m ()
+addTx :: (MonadIO m) => ServerHandler -> C.Tx C.ConwayEra -> m ()
 addTx ServerHandler{shCommandChannel} tx = do
   liftIO $ atomically $ writeTQueue (ccCommand shCommandChannel) $ AddTx tx
 
@@ -342,7 +341,7 @@ findIntersect clientPoints = do
   appState <- liftIO $ readMVar mvState
   let chainState = appState ^. socketEmulatorState . emulatorState . E.esChainState
       blocks = Chain._chainNewestFirst chainState
-      slot = Chain._chainCurrentSlot chainState
+      slot = Validation.getSlot (Chain._ledgerState chainState)
   serverPoints <- getChainPoints blocks slot
   let point =
         listToMaybe $
@@ -616,26 +615,30 @@ submitTx
   -> Shelley.GenTx block
   -> IO (TxSubmission.SubmitResult (ApplyTxErr block))
 submitTx state tx = case C.fromConsensusGenTx tx of
-  C.TxInMode C.ShelleyBasedEraBabbage shelleyTx -> do
+  C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
-      (SocketEmulatorState (E.EmulatorState (Chain.ChainState _ _ index slot _) _ _) _ _)
+      (SocketEmulatorState (E.EmulatorState chainState _ _) _ _)
       _
       params <-
       readMVar state
-    case Validation.validateAndApplyTx params (fromIntegral slot) (fromPlutusIndex index) shelleyTx of
+    case Validation.validateAndApplyTx params (Chain._ledgerState chainState) shelleyTx of
       Left err ->
         pure $
           TxSubmission.SubmitFail
             ( Consensus.HardForkApplyTxErrFromEra
-                (Consensus.OneEraApplyTxErr (S (S (S (S (S (Z (WrapApplyTxErr err))))))))
+                (Consensus.OneEraApplyTxErr (S (S (S (S (S (S (Z (WrapApplyTxErr err)))))))))
             )
-      Right _ -> do
+      Right (ls', _) -> do
         let ctx = CardanoEmulatorEraTx shelleyTx
         modifyMVar_
           state
-          (pure . over (socketEmulatorState . emulatorState . E.esChainState) (Chain.addTxToPool ctx))
+          ( pure
+              . over
+                (socketEmulatorState . emulatorState . E.esChainState)
+                (Chain.addTxToPool ctx . (Chain.ledgerState .~ ls'))
+          )
         pure TxSubmission.SubmitSuccess
-  _ -> pure $ TxSubmission.SubmitSuccess -- should be SubmitFail HardForkApplyTxErrWrongEra, but the Mismatch type is complicated
+  _ -> pure TxSubmission.SubmitSuccess -- should be SubmitFail HardForkApplyTxErrWrongEra, but the Mismatch type is complicated
 
 stateQueryServer
   :: (block ~ CardanoBlock StandardCrypto)

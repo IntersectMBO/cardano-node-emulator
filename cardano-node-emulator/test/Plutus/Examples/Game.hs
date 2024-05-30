@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -g -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
 {- | A guessing game. A simplified version of 'Plutus.Contract.GameStateMachine'
 using 'Cardano.Node.Emulator.MTL'.
@@ -30,7 +31,7 @@ import Data.ByteString.Char8 qualified as C
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Ledger (CardanoAddress, POSIXTime, PaymentPrivateKey, UtxoIndex, Validator, getValidator)
-import Ledger.Address (mkValidatorCardanoAddress)
+import Ledger.Address (mkValidatorCardanoAddress, toWitness)
 import Ledger.Tx.CardanoAPI qualified as C
 import Ledger.Typed.Scripts qualified as Scripts
 import Plutus.Script.Utils.Typed (ScriptContextV2, Versioned)
@@ -136,7 +137,7 @@ mkLockTx LockArgs{lockArgsGameParam, lockArgsSecret, lockArgsValue} =
         C.TxOut
           gameAddr
           (C.toCardanoTxOutValue lockArgsValue)
-          (C.TxOutDatumInline C.BabbageEraOnwardsBabbage datum)
+          (C.TxOutDatumInline C.BabbageEraOnwardsConway datum)
           C.ReferenceScriptNone
       tx =
         E.emptyTxBodyContent
@@ -168,11 +169,11 @@ submitLockTx :: (E.MonadEmulator m) => CardanoAddress -> PaymentPrivateKey -> Lo
 submitLockTx wallet privateKey lockArgs@LockArgs{lockArgsValue} = do
   E.logInfo @String $ "Pay " <> show lockArgsValue <> " to the script"
   let (utx, utxoIndex) = mkLockTx lockArgs
-  void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx
 
 submitGuessTx :: (E.MonadEmulator m) => CardanoAddress -> PaymentPrivateKey -> GuessArgs -> m ()
 submitGuessTx wallet privateKey guessArgs@GuessArgs{guessArgsGameParam} = do
   E.logInfo @String "Taking a guess"
   utxos <- E.utxosAt (mkGameAddress guessArgsGameParam)
   let (utx, utxoIndex) = mkGuessTx utxos guessArgs
-  void $ E.submitTxConfirmed utxoIndex wallet [privateKey] utx
+  void $ E.submitTxConfirmed utxoIndex wallet [toWitness privateKey] utx

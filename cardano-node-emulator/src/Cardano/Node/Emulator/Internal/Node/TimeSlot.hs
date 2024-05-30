@@ -22,6 +22,7 @@ module Cardano.Node.Emulator.Internal.Node.TimeSlot (
   posixTimeToUTCTime,
   nominalDiffTimeToPOSIXTime,
   posixTimeToNominalDiffTime,
+  beginningOfTime,
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)

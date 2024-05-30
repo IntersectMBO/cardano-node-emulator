@@ -18,12 +18,11 @@
 -- | This module exports data types for logging, events and configuration
 module Cardano.Node.Socket.Emulator.Types where
 
-import Cardano.Api (NetworkId, Value)
+import Cardano.Api (Value)
 import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
 import Cardano.Ledger.Era qualified as CL
 import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
-import Cardano.Ledger.Slot (EpochSize)
 import Cardano.Node.Emulator.API (
   EmulatorError,
   EmulatorLogs,
@@ -34,13 +33,13 @@ import Cardano.Node.Emulator.API (
   esChainState,
  )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
-import Cardano.Node.Emulator.Internal.Node.Params (Params, emulatorEpochSize, testnet)
-import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
+import Cardano.Node.Emulator.Internal.Node.Params (Params)
+import Cardano.Node.Emulator.Internal.Node.Validation (getSlot)
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
 import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
 import Control.Concurrent.STM
-import Control.Lens (makeLenses, view, (&), (.~), (^.))
+import Control.Lens (makeLenses, to, view, (&), (.~), (^.))
 import Control.Monad (forever)
 import Control.Monad.Class.MonadST (MonadST)
 import Control.Monad.Class.MonadTimer (MonadDelay (threadDelay), MonadTimer)
@@ -56,7 +55,7 @@ import Data.ByteString.Short qualified as BS
 import Data.Coerce (coerce)
 import Data.Default (Default, def)
 import Data.Foldable (toList)
-import Data.Functor (void, (<&>))
+import Data.Functor ((<&>))
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
 import Data.Text qualified as Text
@@ -103,7 +102,7 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
-import Prettyprinter (Pretty, pretty, viaShow, vsep, (<+>))
+import Prettyprinter (Pretty, pretty, viaShow, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 
 import Cardano.Protocol.TPraos.BHeader
@@ -142,16 +141,12 @@ data NodeServerConfig = NodeServerConfig
   -- ^ The wallets that receive money from the initial transaction.
   , nscSocketPath :: FilePath
   -- ^ Path to the socket used to communicate with the server.
-  , nscKeptBlocks :: Integer
-  -- ^ The number of blocks to keep for replaying to newly connected clients
-  , nscSlotConfig :: SlotConfig
-  -- ^ Beginning of slot 0.
-  , nscNetworkId :: NetworkId
-  -- ^ NetworkId that's used with the CardanoAPI.
-  , nscProtocolParametersJsonPath :: Maybe FilePath
-  -- ^ Path to a JSON file containing the protocol parameters
-  , nscEpochSize :: EpochSize
-  -- ^ Number of slots per epoch
+  , nscShelleyGenesisPath :: Maybe FilePath
+  -- ^ Path to a JSON file containing the Shelley genesis parameters
+  , nscAlonzoGenesisPath :: Maybe FilePath
+  -- ^ Path to a JSON file containing the Alonzo genesis parameters
+  , nscConwayGenesisPath :: Maybe FilePath
+  -- ^ Path to a JSON file containing the Conway genesis parameters
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -172,23 +167,13 @@ defaultNodeServerConfig =
         , WalletNumber 10
         ]
     , nscSocketPath = "/tmp/node-server.sock"
-    , nscKeptBlocks = 100
-    , nscSlotConfig = def
-    , nscNetworkId = testnet
-    , nscProtocolParametersJsonPath = Nothing
-    , nscEpochSize = emulatorEpochSize
+    , nscShelleyGenesisPath = Nothing
+    , nscAlonzoGenesisPath = Nothing
+    , nscConwayGenesisPath = Nothing
     }
 
 instance Default NodeServerConfig where
   def = defaultNodeServerConfig
-
-instance Pretty NodeServerConfig where
-  pretty NodeServerConfig{nscSocketPath, nscNetworkId, nscKeptBlocks} =
-    vsep
-      [ "Socket:" <+> pretty nscSocketPath
-      , "Network Id:" <+> viaShow nscNetworkId
-      , "Security Param:" <+> pretty nscKeptBlocks
-      ]
 
 -- | Application State
 data AppState = AppState
@@ -206,7 +191,7 @@ fromEmulatorChainState :: (MonadIO m) => EmulatorState -> m SocketEmulatorState
 fromEmulatorChainState state = do
   ch <- liftIO $ atomically newTChan
   let chainNewestFirst = view (esChainState . EC.chainNewestFirst) state
-  let currentSlot = view (esChainState . EC.chainCurrentSlot) state
+  let currentSlot = view (esChainState . EC.ledgerState . to getSlot) state
   void $
     liftIO $
       mapM_ (atomically . writeTChan ch) chainNewestFirst
@@ -216,12 +201,12 @@ fromEmulatorChainState state = do
       , _emulatorState = state
       , _tip = case listToMaybe chainNewestFirst of
           Nothing -> Ouroboros.TipGenesis
-          Just block -> Ouroboros.Tip (fromIntegral currentSlot) (coerce $ blockId block) (fromIntegral currentSlot)
+          Just block -> Ouroboros.Tip (fromInteger currentSlot) (coerce $ blockId block) (fromInteger currentSlot)
       }
 
 -- | 'ChainState' with initial values
-initialChainState :: (MonadIO m) => Map.Map CardanoAddress Value -> m SocketEmulatorState
-initialChainState = fromEmulatorChainState . emptyEmulatorStateWithInitialDist
+initialChainState :: (MonadIO m) => Params -> Map.Map CardanoAddress Value -> m SocketEmulatorState
+initialChainState params = fromEmulatorChainState . emptyEmulatorStateWithInitialDist params
 
 getChannel :: (MonadIO m) => MVar AppState -> m (TChan Block)
 getChannel mv = liftIO (readMVar mv) <&> view (socketEmulatorState . channel)
@@ -233,11 +218,11 @@ getTip mv = liftIO (readMVar mv) <&> view (socketEmulatorState . tip)
 -- Set the new tip
 setTip :: (MonadIO m) => MVar AppState -> Block -> m ()
 setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
-  let slot = oldState ^. socketEmulatorState . emulatorState . esChainState . EC.chainCurrentSlot
+  let slot = oldState ^. socketEmulatorState . emulatorState . esChainState . EC.ledgerState . to getSlot
   pure $
     oldState
       & socketEmulatorState . tip
-        .~ Ouroboros.Tip (fromIntegral slot) (coerce $ blockId block) (fromIntegral slot)
+        .~ Ouroboros.Tip (fromInteger slot) (coerce $ blockId block) (fromInteger slot)
 
 -- | Run all chain effects in the IO Monad
 runChainEffects
@@ -384,7 +369,7 @@ toCardanoBlock
   :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
 toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
 toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
-  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.BabbageEra StandardCrypto))))
+  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.ConwayEra StandardCrypto))))
   let allPoolKeys = snd $ head $ coreNodeKeys defaultConstants
       kesPeriod = 1
       keyRegKesPeriod = 1
@@ -411,14 +396,14 @@ toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
               , Praos.hbVk = bheaderVk bhBody
               , Praos.hbVrfVk = bheaderVrfVk bhBody
               , Praos.hbVrfRes = coerce $ bheaderEta bhBody
-              , Praos.hbBodySize = fromIntegral $ bsize bhBody
+              , Praos.hbBodySize = bsize bhBody
               , Praos.hbBodyHash = bhash bhBody
               , Praos.hbOCert = bheaderOCert bhBody
               , Praos.hbProtVer = bprotver bhBody
               }
           hSig = coerce bhSig
-  pure $ OC.BlockBabbage $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
+  pure $ OC.BlockConway $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy
 
 fromCardanoBlock :: CardanoBlock StandardCrypto -> Block
-fromCardanoBlock (OC.BlockBabbage (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq
+fromCardanoBlock (OC.BlockConway (Shelley.ShelleyBlock (CL.Block _ txSeq) _)) = map (OnChainTx . unsafeMakeValidated) . toList $ CL.fromTxSeq txSeq
 fromCardanoBlock _ = []

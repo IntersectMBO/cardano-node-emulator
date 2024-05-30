@@ -53,7 +53,8 @@ import Prelude hiding (lookup)
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C.Api
-import Cardano.Ledger.Babbage qualified as Babbage
+import Cardano.Ledger.Coin (Coin (Coin))
+import Cardano.Ledger.Conway qualified as Conway
 import Cardano.Ledger.Core (PParams, getMinCoinTxOut)
 import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
@@ -92,7 +93,7 @@ initialise :: Blockchain -> UtxoIndex
 initialise = (`insertBlock` mempty) . concat
 
 -- | Create an index with a single UTxO.
-singleton :: C.TxIn -> C.TxOut C.CtxUTxO C.BabbageEra -> UtxoIndex
+singleton :: C.TxIn -> C.TxOut C.CtxUTxO C.ConwayEra -> UtxoIndex
 singleton txIn txOut = C.UTxO $ Map.singleton txIn txOut
 
 -- | Update the index for the addition of a transaction.
@@ -125,7 +126,7 @@ lookup i index = case lookupUTxO i index of
   Nothing -> Nothing
 
 -- | Find an unspent transaction output (using the Ledger type) by the 'TxIn' that spends it.
-lookupUTxO :: C.TxIn -> UtxoIndex -> Maybe (C.TxOut C.CtxUTxO C.BabbageEra)
+lookupUTxO :: C.TxIn -> UtxoIndex -> Maybe (C.TxOut C.CtxUTxO C.ConwayEra)
 lookupUTxO i index = Map.lookup i $ C.unUTxO index
 
 getCollateral :: UtxoIndex -> CardanoTx -> C.Value
@@ -138,7 +139,7 @@ getCollateral idx tx = case getCardanoTxTotalCollateral tx of
 {- | Adjust a single transaction output so it contains at least the minimum amount of Ada
 and return the adjustment (if any) and the updated TxOut.
 -}
-adjustTxOut :: PParams (Babbage.BabbageEra StandardCrypto) -> TxOut -> ([C.Lovelace], Tx.TxOut)
+adjustTxOut :: PParams (Conway.ConwayEra StandardCrypto) -> TxOut -> ([Coin], Tx.TxOut)
 adjustTxOut params txOut = do
   -- Increasing the ada amount can also increase the size in bytes, so start with a rough estimated amount of ada
   let withMinAdaValue = toCardanoTxOutValue $ txOutValue txOut \/ lovelaceToValue (minAdaTxOut params txOut)
@@ -154,10 +155,10 @@ adjustTxOut params txOut = do
 {- | Exact computation of the mimimum Ada required for a given TxOut.
 TODO: Should be moved to cardano-api-extended once created
 -}
-minAdaTxOut :: PParams (Babbage.BabbageEra StandardCrypto) -> TxOut -> C.Lovelace
+minAdaTxOut :: PParams (Conway.ConwayEra StandardCrypto) -> TxOut -> Coin
 minAdaTxOut params txOut =
   let
-    toLovelace = C.Lovelace . C.Ledger.unCoin
+    toLovelace = Coin . C.Ledger.unCoin
     initialValue = txOutValue txOut
     firstEstimate = toLovelace . getMinCoinTxOut params $ fromPlutusTxOut txOut -- if the estimate is above the initialValue, we run minAdaAgain, just to be sure that the
     -- new amount didn't change the TxOut size and requires more ada.
@@ -186,8 +187,8 @@ minAdaTxOut params txOut =
 minAdaTxOutEstimated :: Ada
 minAdaTxOutEstimated = Ada.lovelaceOf minTxOut
 
-minLovelaceTxOutEstimated :: C.Lovelace
-minLovelaceTxOutEstimated = C.Lovelace minTxOut
+minLovelaceTxOutEstimated :: Coin
+minLovelaceTxOutEstimated = Coin minTxOut
 
 {-# INLINEABLE minTxOut #-}
 minTxOut :: Integer

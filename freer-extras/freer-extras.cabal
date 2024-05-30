@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 3.8
 name:          freer-extras
 version:       1.3.0.0
 synopsis:      Useful extensions to simple-freer

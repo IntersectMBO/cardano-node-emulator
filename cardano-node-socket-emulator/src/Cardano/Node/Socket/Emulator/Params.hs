@@ -2,27 +2,33 @@
 
 module Cardano.Node.Socket.Emulator.Params where
 
-import Cardano.Api.Shelley (ProtocolParameters)
+import Cardano.Api.Genesis (ShelleyGenesis)
+import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Node.Emulator.Internal.Node.Params
 import Cardano.Node.Socket.Emulator.Types
-import Data.Aeson (eitherDecode)
+import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString.Lazy qualified as BSL
-import Data.Default (def)
 
-fromNodeServerConfig :: NodeServerConfig -> IO Params
-fromNodeServerConfig NodeServerConfig{nscSlotConfig, nscNetworkId, nscProtocolParametersJsonPath, nscEpochSize} = do
-  protocolParameters <- readProtocolParameters nscProtocolParametersJsonPath
-  pure $ paramsWithProtocolsParameters nscSlotConfig protocolParameters nscNetworkId nscEpochSize
+type ShelleyConfigUpdater = ShelleyGenesis StandardCrypto -> ShelleyGenesis StandardCrypto
 
-readProtocolParameters :: Maybe FilePath -> IO ProtocolParameters
-readProtocolParameters = maybe (pure def) readPP
+fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO Params
+fromNodeServerConfig updateShelley NodeServerConfig{nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do
+  shelleyConfig <- readConfig emulatorShelleyGenesisDefaults nscShelleyGenesisPath
+  alonzoConfig <- readConfig emulatorAlonzoGenesisDefaults nscAlonzoGenesisPath
+  conwayConfig <- readConfig emulatorConwayGenesisDefaults nscConwayGenesisPath
+  pure $
+    paramsFromConfig $
+      mkLatestTransitionConfig (updateShelley shelleyConfig) alonzoConfig conwayConfig
+
+readConfig :: (FromJSON a) => a -> Maybe FilePath -> IO a
+readConfig a = maybe (pure a) readPP
   where
     readPP path = do
       bs <- BSL.readFile path
       case eitherDecode bs of
         Left err ->
           error $
-            "Error reading protocol parameters JSON file: "
+            "Error reading JSON file: "
               ++ show path
               ++ " ("
               ++ err

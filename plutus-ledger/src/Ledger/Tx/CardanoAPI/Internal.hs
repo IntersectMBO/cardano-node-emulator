@@ -88,17 +88,22 @@ module Ledger.Tx.CardanoAPI.Internal (
   zeroExecutionUnits,
   tag,
   withIsCardanoEra,
+  EmulatorEra,
 ) where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Byron qualified as C
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
-import Cardano.Api.TxBody qualified as C
+import Cardano.Api.Tx.Body qualified as C
 import Cardano.BM.Data.Tracer (ToObject)
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
+import Cardano.Ledger.Coin (Coin (Coin))
+import Cardano.Ledger.Conway (ConwayEra)
+import Cardano.Ledger.Conway.Scripts qualified as Conway
+import Cardano.Ledger.Crypto (StandardCrypto)
 
 import Cardano.Ledger.Core qualified as Ledger
 import Control.Lens ((<&>))
@@ -128,18 +133,20 @@ import PlutusLedgerApi.V2 qualified as PV2
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
 
-newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.BabbageEra}
-  deriving (Eq, Show, Generic)
+type EmulatorEra = ConwayEra StandardCrypto
+
+newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.ConwayEra}
+  deriving (Show, Eq, Generic)
 
 -- | Cardano tx from any era.
 data CardanoTx where
   CardanoTx :: C.Tx era -> C.ShelleyBasedEra era -> CardanoTx
 
-getEmulatorEraTx :: CardanoTx -> C.Tx C.BabbageEra
-getEmulatorEraTx (CardanoTx tx C.ShelleyBasedEraBabbage) = tx
-getEmulatorEraTx _ = error "getEmulatorEraTx: Expected a Babbage tx"
+getEmulatorEraTx :: CardanoTx -> C.Tx C.ConwayEra
+getEmulatorEraTx (CardanoTx tx C.ShelleyBasedEraConway) = tx
+getEmulatorEraTx _ = error "getEmulatorEraTx: Expected a Conway tx"
 
-pattern CardanoEmulatorEraTx :: C.Tx C.BabbageEra -> CardanoTx
+pattern CardanoEmulatorEraTx :: C.Tx C.ConwayEra -> CardanoTx
 pattern CardanoEmulatorEraTx tx <- (getEmulatorEraTx -> tx)
   where
     CardanoEmulatorEraTx tx = CardanoTx tx C.shelleyBasedEra
@@ -237,7 +244,7 @@ withShelleyBasedEraConstraintsForLedger = \case
 with their hashes.
 -}
 scriptDataFromCardanoTxBody
-  :: C.TxBody era
+  :: C.TxBody C.ConwayEra
   -> (Map P.DatumHash P.Datum, PV1.Redeemers)
 -- scriptDataFromCardanoTxBody C.ByronTxBody{} = (mempty, mempty)
 scriptDataFromCardanoTxBody (C.ShelleyTxBody _ _ _ C.TxBodyNoScriptData _ _) =
@@ -269,14 +276,13 @@ scriptDataFromCardanoTxBody
                 $ Map.toList reds
          in (datums, redeemers)
 
-redeemerPtrFromCardanoRdmrPtr :: Alonzo.RdmrPtr -> PV1.RedeemerPtr
-redeemerPtrFromCardanoRdmrPtr (Alonzo.RdmrPtr rdmrTag ptr) = PV1.RedeemerPtr t (toInteger ptr)
-  where
-    t = case rdmrTag of
-      Alonzo.Spend -> PV1.Spend
-      Alonzo.Mint -> PV1.Mint
-      Alonzo.Cert -> PV1.Cert
-      Alonzo.Rewrd -> PV1.Reward
+redeemerPtrFromCardanoRdmrPtr :: Alonzo.PlutusPurpose Alonzo.AsIndex EmulatorEra -> PV1.RedeemerPtr
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwaySpending (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayMinting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayCertifying (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayRewarding (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayVoting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayProposing (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
 
 {- | Extract plutus scripts from a Cardano API tx body.
 
@@ -302,10 +308,10 @@ fromLedgerScript e s = fromCardanoScriptInEra $ C.fromShelleyBasedScript e s
 
 createTransactionBody
   :: CardanoBuildTx
-  -> Either ToCardanoError (C.TxBody C.BabbageEra)
+  -> Either ToCardanoError (C.TxBody C.ConwayEra)
 createTransactionBody (CardanoBuildTx txBodyContent) =
   first (TxBodyError . C.displayError) $
-    C.createTransactionBody C.ShelleyBasedEraBabbage txBodyContent
+    C.createTransactionBody C.ShelleyBasedEraConway txBodyContent
 
 fromCardanoTxIn :: C.TxIn -> PV1.TxOutRef
 fromCardanoTxIn (C.TxIn txId (C.TxIx txIx)) = PV1.TxOutRef (fromCardanoTxId txId) (toInteger txIx)
@@ -361,7 +367,7 @@ refScriptToScriptHash (C.ReferenceScript _ (C.ScriptInAnyLang _ s)) =
 toCardanoTxOut
   :: C.NetworkId
   -> PV2.TxOut
-  -> Either ToCardanoError (C.TxOut C.CtxTx C.BabbageEra)
+  -> Either ToCardanoError (C.TxOut C.CtxTx C.ConwayEra)
 toCardanoTxOut networkId (PV2.TxOut addr value datum _rsHash) =
   C.TxOut
     <$> toCardanoAddressInEra networkId addr
@@ -392,9 +398,9 @@ fromCardanoAddress (C.ShelleyAddress _ paymentCredential stakeAddressReference) 
     fromCardanoStakeAddressReference (C.fromShelleyStakeReference stakeAddressReference)
 
 toCardanoAddressInEra
-  :: C.NetworkId -> P.Address -> Either ToCardanoError (C.AddressInEra C.BabbageEra)
+  :: C.NetworkId -> P.Address -> Either ToCardanoError (C.AddressInEra C.ConwayEra)
 toCardanoAddressInEra networkId (P.Address addressCredential addressStakingCredential) =
-  C.AddressInEra (C.ShelleyAddressInEra C.ShelleyBasedEraBabbage)
+  C.AddressInEra (C.ShelleyAddressInEra C.ShelleyBasedEraConway)
     <$> ( C.makeShelleyAddress networkId
             <$> toCardanoPaymentCredential addressCredential
             <*> toCardanoStakeAddressReference addressStakingCredential
@@ -460,7 +466,7 @@ toCardanoStakeKeyHash (PV1.PubKeyHash bs) =
 fromCardanoTxOutValue :: C.TxOutValue era -> C.Value
 fromCardanoTxOutValue = C.txOutValueToValue
 
-toCardanoTxOutValue :: C.Value -> C.TxOutValue C.BabbageEra
+toCardanoTxOutValue :: C.Value -> C.TxOutValue C.ConwayEra
 toCardanoTxOutValue = C.TxOutValueShelleyBased C.shelleyBasedEra . C.toMaryValue
 
 fromCardanoTxOutDatumHash :: C.TxOutDatum C.CtxTx era -> Maybe P.DatumHash
@@ -499,38 +505,38 @@ fromCardanoTxOutDatum' (C.TxOutDatumHash _ h) =
 fromCardanoTxOutDatum' (C.TxOutDatumInline _ d) =
   PV2.OutputDatum $ PV2.Datum $ fromCardanoScriptData d
 
-toCardanoTxOutNoDatum :: C.TxOutDatum C.CtxTx C.BabbageEra
+toCardanoTxOutNoDatum :: C.TxOutDatum C.CtxTx C.ConwayEra
 toCardanoTxOutNoDatum = C.TxOutDatumNone
 
-toCardanoTxOutDatumInTx :: PV2.Datum -> C.TxOutDatum C.CtxTx C.BabbageEra
+toCardanoTxOutDatumInTx :: PV2.Datum -> C.TxOutDatum C.CtxTx C.ConwayEra
 toCardanoTxOutDatumInTx =
-  C.TxOutDatumInTx C.AlonzoEraOnwardsBabbage
+  C.TxOutDatumInTx C.AlonzoEraOnwardsConway
     . C.unsafeHashableScriptData
     . C.fromPlutusData
     . PV2.builtinDataToData
     . PV2.getDatum
 
-toCardanoTxOutDatumInline :: PV2.Datum -> C.TxOutDatum C.CtxTx C.BabbageEra
+toCardanoTxOutDatumInline :: PV2.Datum -> C.TxOutDatum C.CtxTx C.ConwayEra
 toCardanoTxOutDatumInline =
-  C.TxOutDatumInline C.BabbageEraOnwardsBabbage
+  C.TxOutDatumInline C.BabbageEraOnwardsConway
     . C.unsafeHashableScriptData
     . C.fromPlutusData
     . PV2.builtinDataToData
     . PV2.getDatum
 
-toCardanoTxOutDatumHashFromDatum :: PV2.Datum -> C.TxOutDatum ctx C.BabbageEra
+toCardanoTxOutDatumHashFromDatum :: PV2.Datum -> C.TxOutDatum ctx C.ConwayEra
 toCardanoTxOutDatumHashFromDatum =
-  C.TxOutDatumHash C.AlonzoEraOnwardsBabbage
+  C.TxOutDatumHash C.AlonzoEraOnwardsConway
     . C.hashScriptDataBytes
     . C.unsafeHashableScriptData
     . C.fromPlutusData
     . PV2.builtinDataToData
     . PV2.getDatum
 
-toCardanoTxOutDatumHash :: P.DatumHash -> Either ToCardanoError (C.TxOutDatum ctx C.BabbageEra)
-toCardanoTxOutDatumHash datumHash = C.TxOutDatumHash C.AlonzoEraOnwardsBabbage <$> toCardanoScriptDataHash datumHash
+toCardanoTxOutDatumHash :: P.DatumHash -> Either ToCardanoError (C.TxOutDatum ctx C.ConwayEra)
+toCardanoTxOutDatumHash datumHash = C.TxOutDatumHash C.AlonzoEraOnwardsConway <$> toCardanoScriptDataHash datumHash
 
-toCardanoTxOutDatum :: PV2.OutputDatum -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.BabbageEra)
+toCardanoTxOutDatum :: PV2.OutputDatum -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.ConwayEra)
 toCardanoTxOutDatum PV2.NoOutputDatum = pure toCardanoTxOutNoDatum
 toCardanoTxOutDatum (PV2.OutputDatum d) = pure $ toCardanoTxOutDatumInline d
 toCardanoTxOutDatum (PV2.OutputDatumHash dh) = toCardanoTxOutDatumHash dh
@@ -598,16 +604,16 @@ toCardanoAssetId (Value.AssetClass (currencySymbol, tokenName))
         <$> toCardanoPolicyId (Value.currencyMPSHash currencySymbol)
         <*> toCardanoAssetName tokenName
 
-fromCardanoFee :: C.TxFee era -> C.Lovelace
+fromCardanoFee :: C.TxFee era -> Coin
 fromCardanoFee (C.TxFeeExplicit _ lovelace) = lovelace
 
-toCardanoFee :: C.Lovelace -> C.TxFee C.BabbageEra
+toCardanoFee :: Coin -> C.TxFee C.ConwayEra
 toCardanoFee = C.TxFeeExplicit C.shelleyBasedEra
 
-fromCardanoLovelace :: C.Lovelace -> PV1.Value
-fromCardanoLovelace (C.lovelaceToQuantity -> C.Quantity lovelace) = Ada.lovelaceValueOf lovelace
+fromCardanoLovelace :: Coin -> PV1.Value
+fromCardanoLovelace (Coin lovelace) = Ada.lovelaceValueOf lovelace
 
-toCardanoLovelace :: PV1.Value -> Either ToCardanoError C.Lovelace
+toCardanoLovelace :: PV1.Value -> Either ToCardanoError Coin
 toCardanoLovelace value =
   if value == Ada.lovelaceValueOf lovelace
     then pure . C.quantityToLovelace . C.Quantity $ lovelace
@@ -620,7 +626,7 @@ fromCardanoValidityRange l u = PV1.Interval (fromCardanoValidityLowerBound l) (f
 
 toCardanoValidityRange
   :: P.SlotRange
-  -> Either ToCardanoError (C.TxValidityLowerBound C.BabbageEra, C.TxValidityUpperBound C.BabbageEra)
+  -> Either ToCardanoError (C.TxValidityLowerBound C.ConwayEra, C.TxValidityUpperBound C.ConwayEra)
 toCardanoValidityRange (PV1.Interval l u) = (,) <$> toCardanoValidityLowerBound l <*> toCardanoValidityUpperBound u
 
 fromCardanoValidityLowerBound :: C.TxValidityLowerBound era -> PV1.LowerBound P.Slot
@@ -628,11 +634,11 @@ fromCardanoValidityLowerBound C.TxValidityNoLowerBound = PV1.LowerBound PV1.NegI
 fromCardanoValidityLowerBound (C.TxValidityLowerBound _ slotNo) = PV1.LowerBound (PV1.Finite $ fromCardanoSlotNo slotNo) True
 
 toCardanoValidityLowerBound
-  :: PV1.LowerBound P.Slot -> Either ToCardanoError (C.TxValidityLowerBound C.BabbageEra)
+  :: PV1.LowerBound P.Slot -> Either ToCardanoError (C.TxValidityLowerBound C.ConwayEra)
 toCardanoValidityLowerBound (PV1.LowerBound PV1.NegInf _) = pure C.TxValidityNoLowerBound
 toCardanoValidityLowerBound (PV1.LowerBound (PV1.Finite slotNo) closed) =
   pure
-    . C.TxValidityLowerBound C.AllegraEraOnwardsBabbage
+    . C.TxValidityLowerBound C.AllegraEraOnwardsConway
     . toCardanoSlotNo
     $ if slotNo < 0 then 0 else if closed then slotNo else slotNo + 1
 toCardanoValidityLowerBound (PV1.LowerBound PV1.PosInf _) = Left InvalidValidityRange
@@ -642,7 +648,7 @@ fromCardanoValidityUpperBound (C.TxValidityUpperBound _ Nothing) = PV1.UpperBoun
 fromCardanoValidityUpperBound (C.TxValidityUpperBound _ (Just slotNo)) = PV1.UpperBound (PV1.Finite $ fromCardanoSlotNo slotNo) False
 
 toCardanoValidityUpperBound
-  :: PV1.UpperBound P.Slot -> Either ToCardanoError (C.TxValidityUpperBound C.BabbageEra)
+  :: PV1.UpperBound P.Slot -> Either ToCardanoError (C.TxValidityUpperBound C.ConwayEra)
 toCardanoValidityUpperBound (PV1.UpperBound PV1.PosInf _) = pure $ C.TxValidityUpperBound C.shelleyBasedEra Nothing
 toCardanoValidityUpperBound (PV1.UpperBound (PV1.Finite slotNo) closed) =
   pure . C.TxValidityUpperBound C.shelleyBasedEra . Just . toCardanoSlotNo $
@@ -676,14 +682,16 @@ fromCardanoScriptInEra (C.ScriptInEra C.PlutusScriptV3InConway (C.PlutusScript C
   Just (P.Versioned (fromCardanoPlutusScript script) P.PlutusV3)
 fromCardanoScriptInEra (C.ScriptInEra _ C.SimpleScript{}) = Nothing
 
-toCardanoScriptInEra :: P.Versioned P.Script -> C.ScriptInEra C.BabbageEra
+toCardanoScriptInEra :: P.Versioned P.Script -> C.ScriptInEra C.ConwayEra
 toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV1) =
-  C.ScriptInEra C.PlutusScriptV1InBabbage . C.PlutusScript C.PlutusScriptV1 $
+  C.ScriptInEra C.PlutusScriptV1InConway . C.PlutusScript C.PlutusScriptV1 $
     C.PlutusScriptSerialised s
 toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV2) =
-  C.ScriptInEra C.PlutusScriptV2InBabbage . C.PlutusScript C.PlutusScriptV2 $
+  C.ScriptInEra C.PlutusScriptV2InConway . C.PlutusScript C.PlutusScriptV2 $
     C.PlutusScriptSerialised s
-toCardanoScriptInEra (P.Versioned _ P.PlutusV3) = error "toCardanoScriptInEra: Plutus V3 not supported in Babbage era"
+toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV3) =
+  C.ScriptInEra C.PlutusScriptV3InConway . C.PlutusScript C.PlutusScriptV3 $
+    C.PlutusScriptSerialised s
 
 fromCardanoPlutusScript :: C.PlutusScript lang -> P.Script
 fromCardanoPlutusScript (C.PlutusScriptSerialised s) = P.Script s
@@ -706,13 +714,13 @@ toCardanoScriptInAnyLang (P.Versioned (P.Script s) P.PlutusV3) =
   C.ScriptInAnyLang (C.PlutusScriptLanguage C.PlutusScriptV3) . C.PlutusScript C.PlutusScriptV3 $
     C.PlutusScriptSerialised s
 
-fromCardanoReferenceScript :: C.ReferenceScript C.BabbageEra -> Maybe (P.Versioned P.Script)
+fromCardanoReferenceScript :: C.ReferenceScript C.ConwayEra -> Maybe (P.Versioned P.Script)
 fromCardanoReferenceScript C.ReferenceScriptNone = Nothing
 fromCardanoReferenceScript (C.ReferenceScript _ script) = fromCardanoScriptInAnyLang script
 
-toCardanoReferenceScript :: Maybe (P.Versioned P.Script) -> C.ReferenceScript C.BabbageEra
+toCardanoReferenceScript :: Maybe (P.Versioned P.Script) -> C.ReferenceScript C.ConwayEra
 toCardanoReferenceScript (Just script) =
-  C.ReferenceScript C.BabbageEraOnwardsBabbage $ toCardanoScriptInAnyLang script
+  C.ReferenceScript C.BabbageEraOnwardsConway $ toCardanoScriptInAnyLang script
 toCardanoReferenceScript Nothing = C.ReferenceScriptNone
 
 deserialiseFromRawBytes

@@ -257,7 +257,7 @@ mkStakeValidatorScript = StakeValidator . Script . serialiseCompiledCode
 unStakeValidatorScript :: StakeValidator -> Script
 unStakeValidatorScript = getStakeValidator
 
-toScriptAddress :: C.Api.NetworkId -> Versioned Script -> C.Api.AddressInEra C.Api.BabbageEra
+toScriptAddress :: C.Api.NetworkId -> Versioned Script -> C.Api.AddressInEra C.Api.ConwayEra
 toScriptAddress networkId script =
   C.Api.makeShelleyAddressInEra
     C.Api.shelleyBasedEra
@@ -267,7 +267,7 @@ toScriptAddress networkId script =
 
 -- | Cardano address of a versioned 'Validator' script.
 mkValidatorCardanoAddress
-  :: C.Api.NetworkId -> Versioned Validator -> C.Api.AddressInEra C.Api.BabbageEra
+  :: C.Api.NetworkId -> Versioned Validator -> C.Api.AddressInEra C.Api.ConwayEra
 mkValidatorCardanoAddress networkId = toScriptAddress networkId . fmap getValidator
 
 makeLift ''ValidatorHash

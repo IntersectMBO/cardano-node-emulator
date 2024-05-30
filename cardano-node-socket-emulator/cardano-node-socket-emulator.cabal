@@ -1,4 +1,4 @@
-cabal-version: 3.0
+cabal-version: 3.8
 name:          cardano-node-socket-emulator
 version:       1.3.0.0
 
@@ -23,7 +23,11 @@ common lang
     -Wall -Widentities -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
     -Wredundant-constraints -fplugin-opt
-    PlutusTx.Plugin:target-version=1.0.0
+    PlutusTx.Plugin:target-version=1.1.0
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
 
 library
   import:          lang
@@ -36,6 +40,10 @@ library
     Cardano.Node.Socket.Emulator.Server
     Cardano.Node.Socket.Emulator.Types
     Plutus.Monitoring.Util
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
 
   --------------------
   -- Local components
@@ -50,7 +58,8 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, internal}
+    , cardano-api:{cardano-api, internal}                         ^>=8.42
+    , cardano-ledger-api
     , cardano-ledger-byron
     , cardano-ledger-core:{cardano-ledger-core, testlib}
     , cardano-ledger-shelley-test

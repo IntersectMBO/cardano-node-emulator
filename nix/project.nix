@@ -5,14 +5,14 @@ let
   cabalProject = pkgs.haskell-nix.cabalProject' {
     name = "cardano-node-emulator";
     src = ../.;
-    compiler-nix-name = lib.mkDefault "ghc962";
-    flake.variants.ghc928.compiler-nix-name = "ghc928";
+    # If you change this version number, adapt the GHA CI accordingly (.github/workflows/haskell.yml)
+    compiler-nix-name = lib.mkDefault "ghc965";
     shell.withHoogle = false;
     inputMap = {
-      "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.iogx.inputs.CHaP;
+      "https://chap.intersectmbo.org/" = inputs.CHaP;
     };
     sha256map = {
-      "https://github.com/input-output-hk/cardano-node"."a158a679690ed8b003ee06e1216ac8acd5ab823d" = "sha256-uY7wPyCgKuIZcGu0+vGacjGw2kox8H5ZsVGsfTNtU0c=";
+      "https://github.com/IntersectMBO/cardano-node"."a158a679690ed8b003ee06e1216ac8acd5ab823d" = "sha256-uY7wPyCgKuIZcGu0+vGacjGw2kox8H5ZsVGsfTNtU0c=";
     };
     modules = [{
       packages = {

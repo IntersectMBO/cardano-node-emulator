@@ -1,0 +1,193 @@
+# Inspired from cardano-cli's CI: https://github.com/IntersectMBO/cardano-cli/blob/main/.github/workflows/haskell.yml
+name: Haskell CI
+
+on:
+  merge_group:
+  pull_request:
+  push:
+    # we need this to populate cache for `main` branch to make it available to the child branches, see
+    # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
+    branches:
+      - main
+  # GH caches are removed when not accessed within 7 days - this schedule runs the job every 6 days making
+  # sure that we always have some caches on main
+  schedule:
+    - cron: '0 0 */6 * *'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.sys.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: ["9.6.2"] # Same version as in Nix shell
+        cabal: ["3.10.3.0"]
+        sys:
+          - { os: windows-latest, shell: 'C:/msys64/usr/bin/bash.exe -e {0}' }
+          - { os: ubuntu-latest,  shell: bash }
+
+    defaults:
+      run:
+        shell: ${{ matrix.sys.shell }}
+
+    env:
+      # Modify this value to "invalidate" the cabal cache.
+      CABAL_CACHE_VERSION: "2024-02-23-4"
+      # these two are msys2 env vars, they have no effect on non-msys2 installs.
+      MSYS2_PATH_TYPE: inherit
+      MSYSTEM: MINGW64
+
+    concurrency:
+      group: >
+        a+${{ github.event_name }}
+        b+${{ github.workflow_ref }}
+        c+${{ github.job }}
+        d+${{ matrix.ghc }}
+        e+${{ matrix.cabal }}
+        f+${{ matrix.sys.os }}
+        g+${{ (startsWith(github.ref, 'refs/heads/gh-readonly-queue/') && github.run_id) || github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+
+    steps:
+    - name: Concurrency group
+      run: >
+        echo
+        a+${{ github.event_name }}
+        b+${{ github.workflow_ref }}
+        c+${{ github.job }}
+        d+${{ matrix.ghc }}
+        e+${{ matrix.cabal }}
+        f+${{ matrix.sys.os }}
+        g+${{ (startsWith(github.ref, 'refs/heads/gh-readonly-queue/') && github.run_id) || github.event.pull_request.number || github.ref }}
+
+    - name: Install Haskell
+      uses: input-output-hk/actions/haskell@latest
+      id: setup-haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+
+    - name: Install system dependencies
+      uses: input-output-hk/actions/base@latest
+      with:
+        use-sodium-vrf: true # default is true
+
+    - uses: actions/checkout@v4
+
+    - name: Cabal update
+      run: cabal update
+
+    # A dry run `build all` operation does *NOT* downlaod anything, it just looks at the package
+    # indices to generate an install plan.
+    - name: Build dry run
+      run: cabal build all --enable-tests --dry-run --minimize-conflict-set
+
+    # From the install plan we generate a dependency list.
+    - name: Record dependencies
+      id: record-deps
+      run: |
+        cat dist-newstyle/cache/plan.json | jq -r '."install-plan"[] | select(.style != "local") | .id' | sort | uniq > dependencies.txt
+
+    # Use a fresh cache each month
+    - name: Store month number as environment variable used in cache version
+      run:  echo "MONTHNUM=$(/usr/bin/date -u '+%m')" >> $GITHUB_ENV
+
+    # From the dependency list we restore the cached dependencies.
+    # We use the hash of `dependencies.txt` as part of the cache key because that will be stable
+    # until the `index-state` values in the `cabal.project` file changes.
+    - name: Restore cached dependencies
+      uses: actions/cache/restore@v4
+      id: cache
+      with:
+        path: |
+          ${{ steps.setup-haskell.outputs.cabal-store }}
+          dist-newstyle
+        key:
+          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-${{ hashFiles('dependencies.txt') }}
+        # try to restore previous cache from this month if there's no cache for the dependencies set
+        restore-keys: |
+          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-
+
+    # Now we install the dependencies. If the cache was found and restored in the previous step,
+    # this should be a no-op, but if the cache key was not found we need to build stuff so we can
+    # cache it for the next step.
+    - name: Install dependencies
+      run: cabal build all --enable-tests --only-dependencies -j --ghc-option=-j4
+
+    # Always store the cabal cache.
+    # This can fail (benign failure) if there is already a hash at that key.
+    - name: Cache Cabal store
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ steps.setup-haskell.outputs.cabal-store }}
+          dist-newstyle
+        key:
+          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-${{ hashFiles('dependencies.txt') }}
+
+    # Now we build.
+    - name: Build all
+      run: cabal build all --enable-tests
+
+    - name: Run tests
+      if: ${{ matrix.sys.os != 'windows-latest' }} # Some tests don't pass on Windows
+      env:
+        TMPDIR: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        KEEP_WORKSPACE: 1
+      run: cabal test all --enable-tests --test-show-details=direct -j1
+
+    - name: "Tar artifacts"
+      run: |
+        mkdir -p artifacts
+
+        for exe in $(cat dist-newstyle/cache/plan.json | jq -r '."install-plan"[] | select(.style == "local" and (."component-name" | startswith("exe:"))) | ."bin-file"'); do
+          if [ -f $exe ]; then
+            echo "Including artifact $exe"
+
+            ( cd artifacts
+              tar -C "$(dirname $exe)" -czf "$(basename $exe).tar.gz" "$(basename $exe)"
+            )
+          else
+            echo "Skipping artifact $exe"
+          fi
+        done
+
+    - name: Save Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts-${{ matrix.sys.os }}-${{ matrix.ghc }}
+        path: ./artifacts
+
+    # Uncomment the following back in for debugging. Remember to launch a `pwsh` from
+    # the tmux session to debug `pwsh` issues. And be reminded that the `/msys2` and
+    # `/msys2/mingw64` paths are not in PATH by default for the workflow, but tmate
+    # will put them in.
+    # You may also want to run
+    #
+    #   $env:PATH=("C:\Program Files\PowerShell\7;{0}" -f $env:ORIGINAL_PATH)
+    #
+    # to restore the original path.  Do note that some test might need msys2
+    # and will silently fail if msys2 is not in path. See the "Run tests" step.
+    #
+    # - name: Setup tmate session
+    #  if: ${{ failure() }}
+    #  uses: mxschmitt/action-tmate@v3
+    #  with:
+    #     limit-access-to-actor: true
+
+  build-complete:
+    needs: [build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check if any previous job failed
+      run: |
+        if [[ "${{ needs.build.result }}" == "failure" ]]; then
+          # this ignores skipped dependencies
+          echo 'Required jobs failed to build.'
+          exit 1
+        else
+          echo 'Build complete'
+        fi

@@ -1,0 +1,29 @@
+name: Actionlint
+
+on:
+  merge_group:
+  pull_request:
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Actionlint
+        run: |
+          # This install the "actionlint" binary in the current folder
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Run Actionlint
+        run: |
+          for file in $(git ls-files ".github/workflows/*.y*ml")
+          do
+            if grep -q "$file" ".github/workflows/actionlint-exceptions.txt"
+            then
+              echo "⚠️ $file is ignored from actionlint's verifications. Please consider fixing it."
+            else
+              echo "./actionlint $file"
+              ./actionlint "$file"
+            fi
+          done

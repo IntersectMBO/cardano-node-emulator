@@ -16,7 +16,7 @@ If you _really_ cannot use Nix and still want to contribute, then xref:develop-w
 
 This repository uses Nix to provide the development and build environment.
 
-For instructions on how to install and configure Nix (including how to enable access to our binary caches), refer to link:https://github.com/input-output-hk/iogx/blob/main/doc/nix-setup-guide.md[this document]. 
+For instructions on how to install and configure Nix (including how to enable access to our binary caches), refer to link:https://github.com/input-output-hk/iogx/blob/main/doc/nix-setup-guide.md[this document].
 
 If you already have Nix installed and configured, you may enter the development shell by running `nix develop`.
 
@@ -114,8 +114,8 @@ Note that `cabal` itself keeps track of what index states it knows about, so whe
 The Nix code which builds our packages also cares about the index state.
 This is represented by some pinned inputs in our flake (see xref:update-nix-pins[here] for more details)
 You can update these by running:
-- `nix flake lock --update-input hackage` for Hackage
-- `nix flake lock --update-input CHaP` for CHaP
+- `nix flake update hackage` for Hackage
+- `nix flake update CHaP` for CHaP
 
 After updating these, you should also consider updating `haskell.nix` with `nix flake lock --update-input haskell-nix` (although that is not mandatory).
 

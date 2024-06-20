@@ -46,9 +46,11 @@ instance FromJSON CurrencySymbol where
       pure $ CurrencySymbol $ PlutusTx.toBuiltin bytes
 
 deriving anyclass instance Hashable CurrencySymbol
+
 deriving newtype instance Serialise CurrencySymbol
 
 deriving anyclass instance Hashable TokenName
+
 deriving newtype instance Serialise TokenName
 
 {- note [Roundtripping token names]
@@ -91,37 +93,49 @@ instance FromJSON TokenName where
         _ -> pure . fromText $ t
 
 deriving anyclass instance ToJSON AssetClass
+
 deriving anyclass instance FromJSON AssetClass
+
 deriving anyclass instance Hashable AssetClass
+
 deriving newtype instance Serialise AssetClass
 
 deriving anyclass instance ToJSON Value
+
 deriving anyclass instance FromJSON Value
+
 deriving anyclass instance Hashable Value
+
 deriving newtype instance Serialise Value
 
 -- Orphan instances for 'PlutusTx.Map' to make this work
 instance (ToJSON v, ToJSON k) => ToJSON (Map.Map k v) where
   toJSON = JSON.toJSON . Map.toList
 
-instance (FromJSON v, FromJSON k) => FromJSON (Map.Map k v) where
-  parseJSON v = Map.fromList <$> JSON.parseJSON v
+instance (FromJSON v, FromJSON k, PlutusTx.Eq k) => FromJSON (Map.Map k v) where
+  parseJSON v = Map.safeFromList <$> JSON.parseJSON v
 
 deriving anyclass instance (Hashable k, Hashable v) => Hashable (Map.Map k v)
+
 deriving anyclass instance (Serialise k, Serialise v) => Serialise (Map.Map k v)
 
 deriving newtype instance Serialise C.Quantity
 
 instance Pretty C.Value where
   pretty = reflow . C.renderValuePretty
+
 instance Serialise C.Value where
   decode = C.valueFromList <$> decode
   encode = encode . C.valueToList
 
 deriving stock instance Generic C.AssetId
+
 deriving anyclass instance FromJSON C.AssetId
+
 deriving anyclass instance ToJSON C.AssetId
+
 deriving anyclass instance Serialise C.AssetId
+
 deriving via (PrettyShow C.AssetId) instance Pretty C.AssetId
 
 instance Serialise C.PolicyId where

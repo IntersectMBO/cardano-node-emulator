@@ -20,7 +20,7 @@ import Prelude hiding (lookup)
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Binary qualified as CBOR
-import Cardano.Ledger.Alonzo.Scripts (AsIndex, ExUnits, PlutusPurpose)
+import Cardano.Ledger.Alonzo.Scripts (AsIx, ExUnits, PlutusPurpose)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
 import Cardano.Ledger.Core (Tx)
 import Cardano.Ledger.Shelley.API (Validated, extractTx)
@@ -84,7 +84,7 @@ data ValidationPhase = Phase1 | Phase2 deriving (Eq, Show, Generic, FromJSON, To
 deriving via (PrettyShow ValidationPhase) instance Pretty ValidationPhase
 type ValidationErrorInPhase = (ValidationPhase, ValidationError)
 type ValidationSuccess = (RedeemerReport, Validated (Tx EmulatorEra))
-type RedeemerReport = Map.Map (PlutusPurpose AsIndex EmulatorEra) ([Text], ExUnits)
+type RedeemerReport = Map.Map (PlutusPurpose AsIx EmulatorEra) ([Text], ExUnits)
 
 data ValidationResult
   = -- | A transaction failed to validate in phase 1.

@@ -276,13 +276,13 @@ scriptDataFromCardanoTxBody
                 $ Map.toList reds
          in (datums, redeemers)
 
-redeemerPtrFromCardanoRdmrPtr :: Alonzo.PlutusPurpose Alonzo.AsIndex EmulatorEra -> PV1.RedeemerPtr
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwaySpending (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwayMinting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwayCertifying (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwayRewarding (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwayVoting (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
-redeemerPtrFromCardanoRdmrPtr (Conway.ConwayProposing (Alonzo.AsIndex ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr :: Alonzo.PlutusPurpose Alonzo.AsIx EmulatorEra -> PV1.RedeemerPtr
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwaySpending (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Spend (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayMinting (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Mint (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayCertifying (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Cert (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayRewarding (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayVoting (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
+redeemerPtrFromCardanoRdmrPtr (Conway.ConwayProposing (Alonzo.AsIx ix)) = PV1.RedeemerPtr PV1.Reward (toInteger ix)
 
 {- | Extract plutus scripts from a Cardano API tx body.
 

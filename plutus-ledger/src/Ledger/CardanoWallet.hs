@@ -29,6 +29,7 @@ module Ledger.CardanoWallet (
   stakingCredential,
   stakePubKeyHash,
   stakePubKey,
+  stakePrivateKey,
   knownAddresses,
   knownPaymentKeys,
   knownPaymentPublicKeys,
@@ -55,6 +56,7 @@ import Ledger.Address (
   PaymentPrivateKey (PaymentPrivateKey, unPaymentPrivateKey),
   PaymentPubKey (PaymentPubKey, unPaymentPubKey),
   PaymentPubKeyHash (PaymentPubKeyHash, unPaymentPubKeyHash),
+  StakePrivateKey (StakePrivateKey, unStakePrivateKey),
   StakePubKey (StakePubKey, unStakePubKey),
   StakePubKeyHash (StakePubKeyHash, unStakePubKeyHash),
   stakePubKeyHashCredential,
@@ -177,7 +179,11 @@ stakePubKeyHash w = StakePubKeyHash . Crypto.pubKeyHash . unStakePubKey <$> stak
 
 -- | The mock wallet's stake public key
 stakePubKey :: MockWallet -> Maybe StakePubKey
-stakePubKey w = StakePubKey . Crypto.toPublicKey . unMockPrivateKey <$> mwStakeKey w
+stakePubKey w = StakePubKey . Crypto.toPublicKey . unStakePrivateKey <$> stakePrivateKey w
+
+-- | The mock wallet's stake private key
+stakePrivateKey :: MockWallet -> Maybe StakePrivateKey
+stakePrivateKey w = StakePrivateKey . unMockPrivateKey <$> mwStakeKey w
 
 -- | The mock wallet's staking credentials
 stakingCredential :: MockWallet -> Maybe StakingCredential

@@ -118,6 +118,7 @@ library
     , base           >=4.9 && <5
     , bytestring
     , mtl
+    , optics-core
     , prettyprinter
     , serialise
     , tagged

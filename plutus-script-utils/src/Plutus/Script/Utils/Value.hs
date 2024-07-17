@@ -1,15 +1,23 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Plutus.Script.Utils.Value (
   module Export,
+  adaAssetClass,
+  lovelace,
+  ada,
   noAdaValue,
   adaOnlyValue,
   isAdaOnlyValue,
   currencyValueOf,
   mpsSymbol,
   currencyMPSHash,
-) where
+  adaL,
+  flattenValueI,
+)
+where
 
+import Optics.Core (Iso', Lens', iso, lens, over)
 import Plutus.Script.Utils.Ada qualified as Ada
 import Plutus.Script.Utils.Scripts (MintingPolicyHash (MintingPolicyHash))
 import PlutusLedgerApi.V1.Value as Export (
@@ -39,7 +47,40 @@ import PlutusLedgerApi.V1.Value as Export (
   valueOf,
  )
 import PlutusTx.AssocMap qualified as Map
-import PlutusTx.Prelude (Bool, Eq ((==)), Maybe (Just, Nothing), mempty, (-))
+import PlutusTx.Prelude (
+  Bool,
+  Eq ((==)),
+  Integer,
+  Maybe (Just, Nothing),
+  filter,
+  foldl,
+  fst,
+  map,
+  mempty,
+  (*),
+  (-),
+  (.),
+  (/=),
+  (<>),
+ )
+
+{-# INLINEABLE adaAssetClass #-}
+
+-- | Ada asset class
+adaAssetClass :: AssetClass
+adaAssetClass = assetClass adaSymbol adaToken
+
+{-# INLINEABLE lovelace #-}
+
+-- | Create a value from a certain amount of lovelace
+lovelace :: Integer -> Value
+lovelace = Ada.toValue . Ada.Lovelace
+
+{-# INLINEABLE ada #-}
+
+-- | Create a value from a certain amount of ada
+ada :: Integer -> Value
+ada = lovelace . (* 1_000_000)
 
 {-# INLINEABLE noAdaValue #-}
 
@@ -54,6 +95,8 @@ adaOnlyValue :: Value -> Value
 adaOnlyValue v = Ada.toValue (Ada.fromValue v)
 
 {-# INLINEABLE isAdaOnlyValue #-}
+
+-- | Check if a value only contains ada
 isAdaOnlyValue :: Value -> Bool
 isAdaOnlyValue v = adaOnlyValue v == v
 
@@ -79,3 +122,26 @@ mpsSymbol (MintingPolicyHash h) = CurrencySymbol h
 -- | The minting policy hash of a currency symbol
 currencyMPSHash :: CurrencySymbol -> MintingPolicyHash
 currencyMPSHash (CurrencySymbol h) = MintingPolicyHash h
+
+{-# INLINEABLE flattenValueI #-}
+
+-- | Isomorphism between values and lists of pairs AssetClass and Integers
+flattenValueI :: Iso' Value [(AssetClass, Integer)]
+flattenValueI =
+  iso
+    (map (\(cSymbol, tName, amount) -> (assetClass cSymbol tName, amount)) . flattenValue)
+    (foldl (\v (ac, amount) -> v <> assetClassValue ac amount) mempty)
+
+{-# INLINEABLE adaL #-}
+
+-- | Focus the Ada part in a value.
+adaL :: Lens' Value Ada.Ada
+adaL =
+  lens
+    Ada.fromValue
+    ( \value (Ada.Lovelace amount) ->
+        over flattenValueI (insertAssocList adaAssetClass amount) value
+    )
+  where
+    insertAssocList :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+    insertAssocList a b l = (a, b) : filter ((/= a) . fst) l

@@ -140,8 +140,8 @@ adaL =
   lens
     Ada.fromValue
     ( \value (Ada.Lovelace amount) ->
-        over flattenValueI (insertAssocList adaAssetClass amount) value
+        over
+          flattenValueI
+          (((adaAssetClass, amount) :) . filter ((/= adaAssetClass) . fst))
+          value
     )
-  where
-    insertAssocList :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
-    insertAssocList a b l = (a, b) : filter ((/= a) . fst) l

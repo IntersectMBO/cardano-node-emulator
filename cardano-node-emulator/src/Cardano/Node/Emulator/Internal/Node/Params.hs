@@ -254,7 +254,7 @@ emulatorGenesisWindow :: GenesisWindow
 emulatorGenesisWindow = GenesisWindow window
   where
     -- A good default value for eras that never fork is
-    -- 3k/f, with k = 2160 and f = 1/20 (given by the Genesis team).
+    -- 3k/f, with k = 2160 and f = 20 (given by the Genesis team).
     window = (3 * 2160) `div` 20
 
 -- | A sensible default 'EraHistory' value for the emulator

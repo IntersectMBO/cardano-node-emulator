@@ -20,8 +20,6 @@ where
 
 import Control.Monad.Except (MonadError (throwError))
 import Plutus.Script.Utils.Scripts (MintingPolicy, StakeValidator, Validator, datumHash)
-import Plutus.Script.Utils.V1.Typed.Scripts.Validators (ConnectionError (..))
-import Plutus.Script.Utils.V1.Typed.Scripts.Validators qualified as V1
 import Plutus.Script.Utils.V3.Typed.Scripts.MonetaryPolicies hiding (forwardToValidator)
 import Plutus.Script.Utils.V3.Typed.Scripts.StakeValidators hiding (forwardToValidator)
 import Plutus.Script.Utils.V3.Typed.Scripts.Validators
@@ -76,18 +74,18 @@ typeScriptTxOut
 typeScriptTxOut tv txOutRef txOut datum = do
   case addressCredential (txOutAddress txOut) of
     PubKeyCredential _ ->
-      throwError $ V1.WrongOutType V1.ExpectedScriptGotPubkey
+      throwError $ WrongOutType ExpectedScriptGotPubkey
     ScriptCredential _vh ->
       case txOutDatum txOut of
         OutputDatum d | datumHash datum == datumHash d -> do
-          V1.checkValidatorAddress tv (txOutAddress txOut)
-          dsVal <- V1.checkDatum tv datum
+          checkValidatorAddress tv (txOutAddress txOut)
+          dsVal <- checkDatum tv datum
           pure $ TypedScriptTxOut @out txOut dsVal
         OutputDatumHash dh | datumHash datum == dh -> do
-          V1.checkValidatorAddress tv (txOutAddress txOut)
-          dsVal <- V1.checkDatum tv datum
+          checkValidatorAddress tv (txOutAddress txOut)
+          dsVal <- checkDatum tv datum
           pure $ TypedScriptTxOut @out txOut dsVal
-        _ -> throwError $ V1.NoDatum txOutRef (datumHash datum)
+        _ -> throwError $ NoDatum txOutRef (datumHash datum)
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
 typeScriptTxOutRef

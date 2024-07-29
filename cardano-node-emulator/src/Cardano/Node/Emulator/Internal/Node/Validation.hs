@@ -55,10 +55,6 @@ import Cardano.Ledger.Api.Tx (
   TransactionScriptFailure (ValidationFailure),
   evalTxExUnitsWithLogs,
  )
-import Cardano.Ledger.Babbage.Rules (
-  BabbageUtxoPredFailure (AlonzoInBabbageUtxoPredFailure),
-  BabbageUtxowPredFailure (UtxoFailure),
- )
 import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
 import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
 import Cardano.Ledger.Core qualified as Core
@@ -87,6 +83,7 @@ import Control.Lens (makeLenses, over, view, (&), (.~))
 import Control.Monad.Except (MonadError (throwError))
 import Data.Bifunctor (Bifunctor (first), bimap)
 import Data.Default (def)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Ledger.Blockchain (OnChainTx (OnChainTx))
@@ -256,9 +253,11 @@ constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
     Left errs ->
       throwError
         ( ApplyTxError
-            [ ConwayUtxowFailure
-                (UtxoFailure (AlonzoInBabbageUtxoPredFailure (UtxosFailure (CollectErrors errs))))
-            ]
+            ( ( ConwayUtxowFailure
+                  (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
+              )
+                :| []
+            )
         )
     Right sLst ->
       let scriptEvalResult = evalPlutusScripts @EmulatorEra tx sLst

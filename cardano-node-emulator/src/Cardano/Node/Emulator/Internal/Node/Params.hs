@@ -84,6 +84,7 @@ import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
 import Ledger.Test (testNetworkMagic, testnet)
+import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import Plutus.Script.Utils.Scripts (Language (PlutusV1))
 import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
@@ -249,6 +250,13 @@ emulatorGlobals params@Params{pEpochSize, pConfig} =
     (fixedEpochInfo pEpochSize (slotLength params))
     emulatorProtocolMajorVersion
 
+emulatorGenesisWindow :: GenesisWindow
+emulatorGenesisWindow = GenesisWindow window
+  where
+    -- A good default value for eras that never fork is
+    -- 3k/f, with k = 2160 and f = 20 (given by the Genesis team).
+    window = (3 * 2160) `div` 20
+
 -- | A sensible default 'EraHistory' value for the emulator
 emulatorEraHistory :: Params -> C.EraHistory
 emulatorEraHistory params = C.EraHistory (Ouroboros.mkInterpreter $ Ouroboros.summaryWithExactly list)
@@ -256,5 +264,5 @@ emulatorEraHistory params = C.EraHistory (Ouroboros.mkInterpreter $ Ouroboros.su
     one =
       Ouroboros.nonEmptyHead $
         Ouroboros.getSummary $
-          Ouroboros.neverForksSummary (pEpochSize params) (slotLength params)
+          Ouroboros.neverForksSummary (pEpochSize params) (slotLength params) emulatorGenesisWindow
     list = Ouroboros.Exactly $ K one :* K one :* K one :* K one :* K one :* K one :* K one :* Nil

@@ -41,18 +41,12 @@ common lang
     -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wredundant-constraints -Widentities -fobject-code
     -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
-    -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+    -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
+    PlutusTx.Plugin:defer-errors
 
   -- The limitation of plutus-tx-plugin
   if (impl(ghc <9.6) || impl(ghc >=9.7))
     buildable: False
-
-flag defer-plugin-errors
-  description:
-    Defer errors from the plugin, useful for things like Haddock that can't handle it.
-
-  default:     False
-  manual:      True
 
 library
   import:           lang
@@ -157,9 +151,6 @@ library
     , vector
 
   ghc-options:      -fprint-potential-instances
-
-  if flag(defer-plugin-errors)
-    ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
 
 test-suite plutus-ledger-test
   import:             lang

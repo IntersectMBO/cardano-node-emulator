@@ -44,18 +44,12 @@ common lang
     -Wredundant-constraints -Widentities -Wmissing-import-lists
     -fobject-code -fno-ignore-interface-pragmas
     -fno-omit-interface-pragmas -fplugin-opt
-    PlutusTx.Plugin:target-version=1.1.0
+    PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
+    PlutusTx.Plugin:defer-errors
 
   -- The limitation of plutus-tx-plugin
   if (impl(ghc <9.6) || impl(ghc >=9.7))
     buildable: False
-
-flag defer-plugin-errors
-  description:
-    Defer errors from the plugin, useful for things like Haddock that can't handle it.
-
-  default:     False
-  manual:      True
 
 library
   import:           lang
@@ -125,9 +119,6 @@ library
 
   -- TODO This needs to be changed to 1.35 once cardano-node creates the tag
   ghc-options:      -fprint-potential-instances
-
-  if flag(defer-plugin-errors)
-    ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
 
 test-suite plutus-ledger-test
   import:             lang

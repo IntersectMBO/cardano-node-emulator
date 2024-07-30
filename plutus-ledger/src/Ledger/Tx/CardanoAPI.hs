@@ -51,10 +51,11 @@ import Ledger.Tx.CardanoAPI.Internal
 import Ledger.Tx.Internal qualified as P
 import Plutus.Script.Utils.Scripts qualified as PV1
 import PlutusLedgerApi.V1 qualified as PV1
+import PlutusLedgerApi.V3 qualified as PV3
 
 toCardanoMintWitness
   :: PV1.Redeemer
-  -> Maybe (P.Versioned PV1.TxOutRef)
+  -> Maybe (P.Versioned PV3.TxOutRef)
   -> Maybe (P.Versioned PV1.MintingPolicy)
   -> Either ToCardanoError (C.ScriptWitness C.WitCtxMint C.ConwayEra)
 toCardanoMintWitness _ Nothing Nothing = Left MissingMintingPolicy
@@ -67,7 +68,7 @@ toCardanoScriptWitness
   :: (PV1.ToData a)
   => C.ScriptDatum witctx
   -> a
-  -> Either (P.Versioned PV1.Script) (P.Versioned PV1.TxOutRef)
+  -> Either (P.Versioned PV1.Script) (P.Versioned PV3.TxOutRef)
   -> Either ToCardanoError (C.ScriptWitness witctx C.ConwayEra)
 toCardanoScriptWitness datum redeemer scriptOrRef =
   ( case scriptOrRef of
@@ -89,7 +90,7 @@ type WitnessHeader witctx =
   C.ScriptDatum witctx -> C.ScriptRedeemer -> C.ExecutionUnits -> C.ScriptWitness witctx C.ConwayEra
 
 toCardanoTxInReferenceWitnessHeader
-  :: P.Versioned PV1.TxOutRef -> Either ToCardanoError (WitnessHeader witctx)
+  :: P.Versioned PV3.TxOutRef -> Either ToCardanoError (WitnessHeader witctx)
 toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
   txIn <- toCardanoTxIn ref
   pure $ case lang of
@@ -149,10 +150,10 @@ toPlutusIndex (C.Ledger.UTxO utxo) =
 fromPlutusIndex :: P.UtxoIndex -> C.Ledger.UTxO (Conway.ConwayEra StandardCrypto)
 fromPlutusIndex = C.toLedgerUTxO C.ShelleyBasedEraConway
 
-fromPlutusTxOutRef :: P.TxOutRef -> Either ToCardanoError (C.Ledger.TxIn StandardCrypto)
-fromPlutusTxOutRef (P.TxOutRef txId i) = C.Ledger.TxIn <$> fromPlutusTxId txId <*> pure (mkTxIxPartial i)
+fromPlutusTxOutRef :: PV3.TxOutRef -> Either ToCardanoError (C.Ledger.TxIn StandardCrypto)
+fromPlutusTxOutRef (PV3.TxOutRef txId i) = C.Ledger.TxIn <$> fromPlutusTxId txId <*> pure (mkTxIxPartial i)
 
-fromPlutusTxId :: PV1.TxId -> Either ToCardanoError (C.Ledger.TxId StandardCrypto)
+fromPlutusTxId :: PV3.TxId -> Either ToCardanoError (C.Ledger.TxId StandardCrypto)
 fromPlutusTxId = fmap C.toShelleyTxId . toCardanoTxId
 
 fromPlutusTxOut :: P.TxOut -> Ledger.TxOut (Conway.ConwayEra StandardCrypto)

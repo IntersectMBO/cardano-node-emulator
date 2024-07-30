@@ -40,7 +40,7 @@ import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts
-import PlutusLedgerApi.V1.Tx hiding (TxOut (..))
+import PlutusLedgerApi.V3.Tx (TxOutRef (..))
 import PlutusTx (FromData (..), fromData)
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty (..), viaShow)

@@ -130,6 +130,7 @@ import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Credential qualified as Credential
 import PlutusLedgerApi.V1.Tx qualified as PV1
 import PlutusLedgerApi.V2 qualified as PV2
+import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
 
@@ -202,14 +203,14 @@ parseSomeCardanoTx invalid =
     "parsing CardanoTx failed, "
     (typeMismatch "Object" invalid)
 
-txOutRefs :: CardanoTx -> [(PV1.TxOut, PV1.TxOutRef)]
+txOutRefs :: CardanoTx -> [(PV1.TxOut, PV3.TxOutRef)]
 txOutRefs (CardanoTx (C.Tx txBody@(C.TxBody C.TxBodyContent{..}) _) _) =
   mkOut <$> zip [0 ..] plutusTxOuts
   where
-    mkOut (i, o) = (o, PV1.TxOutRef (fromCardanoTxId $ C.getTxId txBody) i)
+    mkOut (i, o) = (o, PV3.TxOutRef (fromCardanoTxId $ C.getTxId txBody) i)
     plutusTxOuts = fromCardanoTxOutToPV1TxInfoTxOut <$> txOuts
 
-unspentOutputsTx :: CardanoTx -> Map PV1.TxOutRef PV1.TxOut
+unspentOutputsTx :: CardanoTx -> Map PV3.TxOutRef PV1.TxOut
 unspentOutputsTx tx = Map.fromList $ swap <$> txOutRefs tx
 
 {- | Given a 'C.TxScriptValidity era', if the @era@ supports scripts, return a
@@ -313,17 +314,17 @@ createTransactionBody (CardanoBuildTx txBodyContent) =
   first (TxBodyError . C.displayError) $
     C.createTransactionBody C.ShelleyBasedEraConway txBodyContent
 
-fromCardanoTxIn :: C.TxIn -> PV1.TxOutRef
-fromCardanoTxIn (C.TxIn txId (C.TxIx txIx)) = PV1.TxOutRef (fromCardanoTxId txId) (toInteger txIx)
+fromCardanoTxIn :: C.TxIn -> PV3.TxOutRef
+fromCardanoTxIn (C.TxIn txId (C.TxIx txIx)) = PV3.TxOutRef (fromCardanoTxId txId) (toInteger txIx)
 
-toCardanoTxIn :: PV1.TxOutRef -> Either ToCardanoError C.TxIn
-toCardanoTxIn (PV1.TxOutRef txId txIx) = C.TxIn <$> toCardanoTxId txId <*> pure (C.TxIx (fromInteger txIx))
+toCardanoTxIn :: PV3.TxOutRef -> Either ToCardanoError C.TxIn
+toCardanoTxIn (PV3.TxOutRef txId txIx) = C.TxIn <$> toCardanoTxId txId <*> pure (C.TxIx (fromInteger txIx))
 
-fromCardanoTxId :: C.TxId -> PV1.TxId
-fromCardanoTxId txId = PV1.TxId $ PlutusTx.toBuiltin $ C.serialiseToRawBytes txId
+fromCardanoTxId :: C.TxId -> PV3.TxId
+fromCardanoTxId txId = PV3.TxId $ PlutusTx.toBuiltin $ C.serialiseToRawBytes txId
 
-toCardanoTxId :: PV1.TxId -> Either ToCardanoError C.TxId
-toCardanoTxId (PV1.TxId bs) =
+toCardanoTxId :: PV3.TxId -> Either ToCardanoError C.TxId
+toCardanoTxId (PV3.TxId bs) =
   tag "toCardanoTxId" $
     deserialiseFromRawBytes C.AsTxId $
       PlutusTx.fromBuiltin bs

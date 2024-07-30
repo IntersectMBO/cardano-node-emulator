@@ -23,7 +23,8 @@ common lang
     -Wall -Widentities -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
     -Wredundant-constraints -fplugin-opt
-    PlutusTx.Plugin:target-version=1.1.0
+    PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
+    PlutusTx.Plugin:defer-errors
 
   -- The limitation of plutus-tx-plugin
   if (impl(ghc <9.6) || impl(ghc >=9.7))

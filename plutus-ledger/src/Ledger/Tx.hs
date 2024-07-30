@@ -128,7 +128,7 @@ import Ledger.Tx.CardanoAPI (
 import Ledger.Tx.CardanoAPI qualified as CardanoAPI
 
 import Plutus.Script.Utils.Scripts (Script, Validator, ValidatorHash (..), scriptHash)
-import PlutusLedgerApi.V1 qualified as V1
+import PlutusLedgerApi.V1 qualified as V1 hiding (TxOutRef (..))
 import PlutusLedgerApi.V2 qualified as V2
 import PlutusLedgerApi.V2.Tx qualified as V2.Tx hiding (TxId (..))
 
@@ -142,6 +142,7 @@ import Ledger.Tx.Internal as Export
 import PlutusLedgerApi.V1.Tx as Export hiding (
   TxId (..),
   TxOut (..),
+  TxOutRef (..),
   outAddress,
   outValue,
   txOutDatum,

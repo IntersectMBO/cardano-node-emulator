@@ -64,7 +64,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen, internal}  ^>=8.46
+    , cardano-api:{cardano-api, gen, internal}  ^>=9.1
     , cardano-crypto
     , cardano-ledger-alonzo
     , cardano-ledger-api
@@ -138,7 +138,7 @@ test-suite cardano-node-emulator-test
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen, internal}  ^>=8.46
+    , cardano-api:{cardano-api, gen, internal}  ^>=9.1
     , plutus-ledger-api                         >=1.0.0
     , plutus-tx                                 >=1.0.0
     , plutus-tx-plugin                          >=1.0.0

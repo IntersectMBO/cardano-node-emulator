@@ -20,14 +20,15 @@ import PlutusTx qualified
 
 import Plutus.Script.Utils.V1.Generators qualified as PV1
 import Plutus.Script.Utils.V2.Scripts qualified as Scripts
+import PlutusTx.Prelude (check)
 
 alwaysSucceedValidator :: Validator
 alwaysSucceedValidator =
-  mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> ()||])
+  mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> check True||])
 
 alwaysSucceedValidatorHash :: ValidatorHash
 alwaysSucceedValidatorHash = Scripts.validatorHash alwaysSucceedValidator
 
 alwaysSucceedPolicy :: MintingPolicy
 alwaysSucceedPolicy =
-  mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> ()||])
+  mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> check True||])

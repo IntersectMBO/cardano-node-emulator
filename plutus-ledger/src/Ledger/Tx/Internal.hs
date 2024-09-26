@@ -30,7 +30,6 @@ import Data.Map qualified as Map
 import GHC.Generics (Generic)
 
 import Ledger.Address (CardanoAddress, cardanoPubKeyHash)
-import Ledger.Contexts.Orphans ()
 import Ledger.Crypto
 import Ledger.DCert.Orphans ()
 import Ledger.Tx.Orphans ()
@@ -216,4 +215,6 @@ emptyTxBodyContent =
     , txUpdateProposal = C.TxUpdateProposalNone
     , txProposalProcedures = Nothing
     , txVotingProcedures = Nothing
+    , txCurrentTreasuryValue = Nothing
+    , txTreasuryDonation = Nothing
     }

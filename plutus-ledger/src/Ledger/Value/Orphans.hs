@@ -115,7 +115,7 @@ instance (ToJSON v, ToJSON k) => ToJSON (Map.Map k v) where
 instance (FromJSON v, FromJSON k, PlutusTx.Eq k) => FromJSON (Map.Map k v) where
   parseJSON v = Map.safeFromList <$> JSON.parseJSON v
 
-deriving anyclass instance (Hashable k, Hashable v) => Hashable (Map.Map k v)
+deriving anyclass instance (Hashable k, Hashable v, Ord k) => Hashable (Map.Map k v)
 
 deriving anyclass instance (Serialise k, Serialise v) => Serialise (Map.Map k v)
 

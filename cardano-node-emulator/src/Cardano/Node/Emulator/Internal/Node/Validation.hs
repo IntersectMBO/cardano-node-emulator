@@ -253,14 +253,13 @@ constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
     Left errs ->
       throwError
         ( ApplyTxError
-            ( ( ConwayUtxowFailure
-                  (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
-              )
+            ( ConwayUtxowFailure
+                (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
                 :| []
             )
         )
     Right sLst ->
-      let scriptEvalResult = evalPlutusScripts @EmulatorEra tx sLst
+      let scriptEvalResult = evalPlutusScripts sLst
           vTx =
             AlonzoTx
               (view Core.bodyTxL tx)
@@ -295,12 +294,14 @@ getTxExUnitsWithLogs
   :: Params -> UTxO EmulatorEra -> C.Tx C.ConwayEra -> Either P.ValidationErrorInPhase P.RedeemerReport
 getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
   case evalTxExUnitsWithLogs (emulatorPParams params) tx utxo ei ss of
-    Left e -> Left . (P.Phase1,) . P.CardanoLedgerValidationError . Text.pack . show $ e
-    Right result -> traverse (either toCardanoLedgerError Right) result
+    result -> traverse (either toCardanoLedgerError Right) result
   where
     eg = emulatorGlobals params
     ss = systemStart eg
     ei = epochInfo eg
+    toCardanoLedgerError
+      :: TransactionScriptFailure EmulatorEra
+      -> Either (P.ValidationPhase, P.ValidationError) b
     toCardanoLedgerError (ValidationFailure _ (V1.CekError ce) logs _) =
       Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
     toCardanoLedgerError e = Left (P.Phase2, P.CardanoLedgerValidationError $ Text.pack $ show e)

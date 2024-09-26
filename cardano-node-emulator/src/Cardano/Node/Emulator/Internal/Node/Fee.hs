@@ -21,7 +21,7 @@ module Cardano.Node.Emulator.Internal.Node.Fee (
 
 import Cardano.Api qualified as C
 import Cardano.Api.Error qualified as C.Api
-import Cardano.Api.Fees (mapTxScriptWitnesses)
+import Cardano.Api.Fees ()
 import Cardano.Api.Shelley qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Api.PParams qualified as C
@@ -90,28 +90,7 @@ fillTxExUnits params txUtxo buildTx@(CardanoBuildTx txBodyContent) = do
       Left
       (Map.mapKeys (C.toScriptIndex C.AlonzoEraOnwardsConway) . fmap (C.fromAlonzoExUnits . snd))
       $ getTxExUnitsWithLogs params (CardanoAPI.fromPlutusIndex txUtxo) tmpTx'
-  bimap (Right . TxBodyError . C.Api.displayError) CardanoBuildTx $
-    mapTxScriptWitnesses (mapWitness exUnitsMap') txBodyContent
-  where
-    mapWitness
-      :: Map.Map C.Api.ScriptWitnessIndex C.Api.ExecutionUnits
-      -> C.ScriptWitnessIndex
-      -> C.ScriptWitness witctx era
-      -> Either (C.TxBodyErrorAutoBalance era) (C.ScriptWitness witctx era)
-    mapWitness _ _ wit@C.SimpleScriptWitness{} = Right wit
-    mapWitness eum idx (C.PlutusScriptWitness langInEra version script datum redeemer _) =
-      case Map.lookup idx eum of
-        Nothing ->
-          Left $ C.TxBodyErrorScriptWitnessIndexMissingFromExecUnitsMap idx eum
-        Just exunits ->
-          Right $
-            C.PlutusScriptWitness
-              langInEra
-              version
-              script
-              datum
-              redeemer
-              exunits
+  substituteExecutionUnits exUnitsMap' txBodyContent
 
 {- | Creates a balanced transaction by calculating the execution units, the fees and the change,
 which is assigned to the given address. Only balances Ada.

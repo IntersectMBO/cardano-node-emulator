@@ -13,6 +13,7 @@
 -- | The set of parameters, like protocol parameters and slot configuration.
 module Cardano.Node.Emulator.Internal.Node.Params (
   Params (..),
+  defaultConfig,
   paramsFromConfig,
   C.mkLatestTransitionConfig,
   slotConfigL,
@@ -20,7 +21,6 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   emulatorPParamsL,
   emulatorPParams,
   pProtocolParams,
-  pParamsFromProtocolParams,
   ledgerProtocolParameters,
   increaseTransactionLimits,
   increaseTransactionLimits',
@@ -71,7 +71,6 @@ import Control.Lens (makeLensesFor, over, (%~), (&), (.~), (^.))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
-import Data.Default (Default (def))
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Ratio ((%))
@@ -87,7 +86,7 @@ import Ledger.Test (testNetworkMagic, testnet)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import Plutus.Script.Utils.Scripts (Language (PlutusV1))
-import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
+import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParamsForTesting)
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
@@ -125,9 +124,6 @@ makeLensesFor
   ]
   ''Params
 
-instance Default Params where
-  def = paramsFromConfig defaultConfig
-
 instance Pretty Params where
   pretty Params{..} =
     vsep
@@ -140,11 +136,8 @@ instance Pretty Params where
 emulatorPParams :: Params -> PParams
 emulatorPParams = pEmulatorPParams
 
-pProtocolParams :: Params -> C.ProtocolParameters
-pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraConway $ emulatorPParams p
-
-pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
-pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraConway
+pProtocolParams :: Params -> PParams
+pProtocolParams = emulatorPParams
 
 ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
@@ -168,11 +161,11 @@ increaseTransactionLimits' size steps mem =
 emulatorProtocolMajorVersion :: Version
 emulatorProtocolMajorVersion = natVersion @9
 
-defaultConfig :: TransitionConfig
-defaultConfig =
+defaultConfig :: C.CardanoEra StandardCrypto -> TransitionConfig
+defaultConfig era =
   C.mkLatestTransitionConfig
     emulatorShelleyGenesisDefaults
-    emulatorAlonzoGenesisDefaults
+    (emulatorAlonzoGenesisDefaults era)
     emulatorConwayGenesisDefaults
 
 emulatorShelleyGenesisDefaults :: C.ShelleyGenesis StandardCrypto
@@ -188,16 +181,18 @@ emulatorShelleyGenesisDefaults =
           & C.ppKeyDepositL .~ Coin 2_000_000
     }
 
-emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
-emulatorAlonzoGenesisDefaults =
-  C.alonzoGenesisDefaults
+emulatorAlonzoGenesisDefaults :: C.CardanoEra StandardCrypto -> C.AlonzoGenesis
+emulatorAlonzoGenesisDefaults era =
+  (C.alonzoGenesisDefaults era)
     { C.agPrices =
         Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
     , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
     , C.agCostModels = mkCostModels costModels
     }
   where
-    costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
+    costModel lang =
+      fromJust $
+        defaultCostModelParamsForTesting >>= Alonzo.costModelFromMap lang . projectLangParams lang
     costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
     projectLangParams lang m =
       Map.restrictKeys

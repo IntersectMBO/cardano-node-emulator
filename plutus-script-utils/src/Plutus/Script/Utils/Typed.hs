@@ -26,7 +26,7 @@ module Plutus.Script.Utils.Typed (
   Any,
   Language (PlutusV1, PlutusV2, PlutusV3),
   Versioned (Versioned, unversioned, version),
-  IsScriptContext (mkUntypedValidator, mkUntypedStakeValidator, mkUntypedMintingPolicy),
+  IsScriptContext (..),
   ScriptContextV1,
   ScriptContextV2,
   ScriptContextV3,
@@ -47,11 +47,12 @@ import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Address qualified as PV1
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusLedgerApi.V3 qualified as PV3
-import PlutusTx.Prelude (BuiltinData, BuiltinString, check, trace)
+import PlutusTx.Prelude (BuiltinData, BuiltinString, BuiltinUnit, check, trace)
 
-type UntypedValidator = BuiltinData -> BuiltinData -> BuiltinData -> ()
-type UntypedMintingPolicy = BuiltinData -> BuiltinData -> ()
-type UntypedStakeValidator = BuiltinData -> BuiltinData -> ()
+type UntypedValidator = BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
+type UntypedScriptChang = BuiltinData -> BuiltinUnit
+type UntypedMintingPolicy = BuiltinData -> BuiltinData -> BuiltinUnit
+type UntypedStakeValidator = BuiltinData -> BuiltinData -> BuiltinUnit
 
 data Any
   deriving stock (Eq, Show, Generic)
@@ -68,8 +69,8 @@ class ValidatorTypes (a :: Type) where
   type DatumType a :: Type
 
   -- Defaults
-  type RedeemerType a = ()
-  type DatumType a = ()
+  type RedeemerType a = BuiltinUnit
+  type DatumType a = BuiltinUnit
 
 instance ValidatorTypes Void where
   type RedeemerType Void = Void
@@ -213,6 +214,13 @@ class (PV1.UnsafeFromData sc) => IsScriptContext sc where
       f
         (tracedUnsafeFrom "Data decoded successfully" d)
         (tracedUnsafeFrom "Redeemer decoded successfully" r)
+        (tracedUnsafeFrom "Script context decoded successfully" p)
+
+  {-# INLINEABLE mkUntypedScriptChang #-}
+  mkUntypedScriptChang :: (sc -> Bool) -> UntypedScriptChang
+  mkUntypedScriptChang f p =
+    check $
+      f
         (tracedUnsafeFrom "Script context decoded successfully" p)
 
   {-# INLINEABLE mkUntypedStakeValidator #-}

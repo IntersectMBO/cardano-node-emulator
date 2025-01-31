@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 {- | An index of unspent transaction outputs, and some functions for validating
-  transactions using the index.
+ transactions using the index.
 -}
 module Ledger.Index (
   -- * Types for transaction validation based on UTXO index
@@ -47,9 +47,8 @@ module Ledger.Index (
   PV1.ExCPU (..),
   PV1.ExMemory (..),
   PV1.SatInt,
-) where
-
-import Prelude hiding (lookup)
+)
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C.Api
@@ -87,6 +86,7 @@ import Plutus.Script.Utils.Ada (Ada)
 import Plutus.Script.Utils.Ada qualified as Ada
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusTx.Lattice ((\/))
+import Prelude hiding (lookup)
 
 -- | Create an index of all UTxOs on the chain.
 initialise :: Blockchain -> UtxoIndex
@@ -157,32 +157,30 @@ TODO: Should be moved to cardano-api-extended once created
 -}
 minAdaTxOut :: PParams (Conway.ConwayEra StandardCrypto) -> TxOut -> Coin
 minAdaTxOut params txOut =
-  let
-    toLovelace = Coin . C.Ledger.unCoin
-    initialValue = txOutValue txOut
-    firstEstimate = toLovelace . getMinCoinTxOut params $ fromPlutusTxOut txOut -- if the estimate is above the initialValue, we run minAdaAgain, just to be sure that the
-    -- new amount didn't change the TxOut size and requires more ada.
-   in
-    if firstEstimate > C.selectLovelace initialValue
-      then
-        minAdaTxOut params . flip (outValue .~) txOut $
-          toCardanoTxOutValue $
-            lovelaceToValue firstEstimate \/ initialValue
-      else firstEstimate
+  let toLovelace = Coin . C.Ledger.unCoin
+      initialValue = txOutValue txOut
+      firstEstimate = toLovelace . getMinCoinTxOut params $ fromPlutusTxOut txOut -- if the estimate is above the initialValue, we run minAdaAgain, just to be sure that the
+      -- new amount didn't change the TxOut size and requires more ada.
+   in if firstEstimate > C.selectLovelace initialValue
+        then
+          minAdaTxOut params . flip (outValue .~) txOut $
+            toCardanoTxOutValue $
+              lovelaceToValue firstEstimate \/ initialValue
+        else firstEstimate
 
 {-# INLINEABLE minAdaTxOutEstimated #-}
 
 {- | Provide a reasonable estimate of the mimimum of Ada required for a TxOut.
 
-   An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
-     - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
-     - the size of the 'TxOut'.
- In many situations though, we need to determine a plausible value for the minimum of Ada needed for a TxOut
- without knowing much of the 'TxOut'.
- This function provides a value big enough to balance UTxOs without
- a large inlined data (larger than a hash) nor a complex val with a lot of minted values.
- It's superior to the lowest minimum needed for an UTxO, as the lowest value require no datum.
- An estimate of the minimum required Ada for each tx output.
+  An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
+    - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
+    - the size of the 'TxOut'.
+In many situations though, we need to determine a plausible value for the minimum of Ada needed for a TxOut
+without knowing much of the 'TxOut'.
+This function provides a value big enough to balance UTxOs without
+a large inlined data (larger than a hash) nor a complex val with a lot of minted values.
+It's superior to the lowest minimum needed for an UTxO, as the lowest value require no datum.
+An estimate of the minimum required Ada for each tx output.
 -}
 minAdaTxOutEstimated :: Ada
 minAdaTxOutEstimated = Ada.lovelaceOf minTxOut
@@ -219,20 +217,18 @@ maxFee = Ada.lovelaceOf 1_000_000
 we have to provide a stub TxIn for the genesis transaction.
 -}
 genesisTxIn :: C.TxIn
-genesisTxIn = C.TxIn "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53" (C.TxIx 40214)
+genesisTxIn = C.TxIn "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53" (C.TxIx 40_214)
 
 createGenesisTransaction :: Map.Map CardanoAddress Value -> CardanoTx
 createGenesisTransaction vals =
-  let
-    txBodyContent =
-      Tx.emptyTxBodyContent
-        { C.txIns = [(genesisTxIn, C.BuildTxWith (C.KeyWitness C.KeyWitnessForSpending))]
-        , C.txOuts =
-            Map.toList vals <&> \(changeAddr, v) ->
-              C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.Api.ReferenceScriptNone
-        }
-    txBody =
-      either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $
-        C.createAndValidateTransactionBody C.shelleyBasedEra txBodyContent
-   in
-    CardanoEmulatorEraTx $ C.Tx txBody []
+  let txBodyContent =
+        Tx.emptyTxBodyContent
+          { C.txIns = [(genesisTxIn, C.BuildTxWith (C.KeyWitness C.KeyWitnessForSpending))]
+          , C.txOuts =
+              Map.toList vals <&> \(changeAddr, v) ->
+                C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.Api.ReferenceScriptNone
+          }
+      txBody =
+        either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $
+          C.createTransactionBody C.shelleyBasedEra txBodyContent
+   in CardanoEmulatorEraTx $ C.Tx txBody []

@@ -30,7 +30,6 @@ import Data.Map qualified as Map
 import GHC.Generics (Generic)
 
 import Ledger.Address (CardanoAddress, cardanoPubKeyHash)
-import Ledger.Contexts.Orphans ()
 import Ledger.Crypto
 import Ledger.DCert.Orphans ()
 import Ledger.Tx.Orphans ()
@@ -123,7 +122,7 @@ txOutDatumHash (TxOut (C.TxOut _aie _tov tod _rs)) =
       Just $ DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes scriptDataHash)
     C.TxOutDatumInline _era scriptData ->
       Just $ datumHash $ Datum $ dataToBuiltinData $ C.toPlutusData $ C.getScriptData scriptData
-    C.TxOutDatumInTx _era scriptData ->
+    C.TxOutSupplementalDatum _era scriptData ->
       Just $ datumHash $ Datum $ dataToBuiltinData $ C.toPlutusData $ C.getScriptData scriptData
 
 txOutDatum :: forall d. (FromData d) => TxOut -> Maybe d
@@ -135,7 +134,7 @@ txOutDatum (TxOut (C.TxOut _aie _tov tod _rs)) =
       Nothing
     C.TxOutDatumInline _era scriptData ->
       fromData @d $ C.toPlutusData $ C.getScriptData scriptData
-    C.TxOutDatumInTx _era scriptData ->
+    C.TxOutSupplementalDatum _era scriptData ->
       fromData @d $ C.toPlutusData $ C.getScriptData scriptData
 
 cardanoTxOutDatumHash :: C.TxOutDatum C.CtxUTxO C.ConwayEra -> Maybe (C.Hash C.ScriptData)
@@ -216,4 +215,6 @@ emptyTxBodyContent =
     , txUpdateProposal = C.TxUpdateProposalNone
     , txProposalProcedures = Nothing
     , txVotingProcedures = Nothing
+    , txCurrentTreasuryValue = Nothing
+    , txTreasuryDonation = Nothing
     }

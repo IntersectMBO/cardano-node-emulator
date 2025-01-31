@@ -19,8 +19,6 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   networkIdL,
   emulatorPParamsL,
   emulatorPParams,
-  pProtocolParams,
-  pParamsFromProtocolParams,
   ledgerProtocolParameters,
   increaseTransactionLimits,
   increaseTransactionLimits',
@@ -38,7 +36,8 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   testnet,
   emulatorGlobals,
   emulatorEraHistory,
-) where
+)
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.NetworkId qualified as C
@@ -87,7 +86,7 @@ import Ledger.Test (testNetworkMagic, testnet)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import Plutus.Script.Utils.Scripts (Language (PlutusV1))
-import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
+import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParamsForTesting)
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
@@ -95,6 +94,7 @@ import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 type EmulatorEra = ConwayEra StandardCrypto
 
 type PParams = C.PParams EmulatorEra
+
 type TransitionConfig = C.TransitionConfig EmulatorEra
 
 data Params = Params
@@ -109,6 +109,7 @@ data Params = Params
 instance ToJSON C.NetworkId where
   toJSON C.Mainnet = JSON.String "Mainnet"
   toJSON (C.Testnet (C.NetworkMagic n)) = JSON.Number $ fromIntegral n
+
 instance FromJSON C.NetworkId where
   parseJSON (JSON.String "Mainnet") = pure C.Mainnet
   parseJSON (JSON.Number n) = pure $ C.Testnet $ C.NetworkMagic $ truncate n
@@ -116,6 +117,7 @@ instance FromJSON C.NetworkId where
     prependFailure "parsing NetworkId failed, " (typeMismatch "'Mainnet' or Number" v)
 
 deriving newtype instance ToJSON C.NetworkMagic
+
 deriving newtype instance FromJSON C.NetworkMagic
 
 makeLensesFor
@@ -139,12 +141,6 @@ instance Pretty Params where
 -- | Convert `Params` to cardano-ledger `PParams`
 emulatorPParams :: Params -> PParams
 emulatorPParams = pEmulatorPParams
-
-pProtocolParams :: Params -> C.ProtocolParameters
-pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraConway $ emulatorPParams p
-
-pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
-pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraConway
 
 ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
@@ -190,14 +186,16 @@ emulatorShelleyGenesisDefaults =
 
 emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
 emulatorAlonzoGenesisDefaults =
-  C.alonzoGenesisDefaults
+  (C.alonzoGenesisDefaults C.ConwayEra)
     { C.agPrices =
         Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
     , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
     , C.agCostModels = mkCostModels costModels
     }
   where
-    costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
+    costModel lang =
+      fromJust $
+        defaultCostModelParamsForTesting >>= Alonzo.costModelFromMap lang . projectLangParams lang
     costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
     projectLangParams lang m =
       Map.restrictKeys
@@ -248,7 +246,6 @@ emulatorGlobals params@Params{pEpochSize, pConfig} =
   mkShelleyGlobals
     (pConfig ^. C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))
-    emulatorProtocolMajorVersion
 
 emulatorGenesisWindow :: GenesisWindow
 emulatorGenesisWindow = GenesisWindow window

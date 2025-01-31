@@ -22,11 +22,13 @@ import PlutusLedgerApi.V1.Value qualified as Value
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx qualified
+import PlutusTx.Builtins.Internal qualified as PlutusTx
 import Prelude hiding (not)
 
 someCode
-  :: PlutusTx.CompiledCode (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> ())
-someCode = $$(PlutusTx.compile [||\_ _ _ -> ()||])
+  :: PlutusTx.CompiledCode
+      (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit)
+someCode = $$(PlutusTx.compile [||\_ _ _ -> PlutusTx.unitval||])
 
 someValidator :: Scripts.Validator
 someValidator = Ledger.mkValidatorScript someCode

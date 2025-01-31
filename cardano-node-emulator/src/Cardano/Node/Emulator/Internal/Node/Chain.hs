@@ -19,8 +19,7 @@ module Cardano.Node.Emulator.Internal.Node.Chain where
 
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
-import Cardano.Node.Emulator.Test.Coverage (getCoverageData)
-import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~), (<>~))
+import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
 import Control.Monad.Freer (Eff, Member, Members, send, type (~>))
 import Control.Monad.Freer.Extras.Log (LogMsg, logDebug, logInfo, logWarn)
 import Control.Monad.Freer.State (State, gets, modify)
@@ -41,7 +40,6 @@ import Ledger (
   unOnChain,
  )
 import Ledger.Index qualified as Index
-import PlutusTx.Coverage (CoverageData)
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
 -- | Events produced by the blockchain emulator.
@@ -73,8 +71,6 @@ data ChainState = ChainState
   -- ^ The pool of pending transactions.
   , _index :: !Index.UtxoIndex
   -- ^ The UTxO index, used for validation.
-  , _coverageData :: CoverageData
-  -- ^ coverage data of validation scripts
   , _ledgerState :: Validation.EmulatedLedgerState
   -- ^ The internal state of the ledger.
   }
@@ -83,7 +79,7 @@ data ChainState = ChainState
 makeLenses ''ChainState
 
 emptyChainState :: Params -> ChainState
-emptyChainState params = ChainState [] [] mempty mempty (Validation.initialState params)
+emptyChainState params = ChainState [] [] mempty (Validation.initialState params)
 
 fromBlockchain :: Params -> Blockchain -> ChainState
 fromBlockchain params bc =
@@ -133,7 +129,6 @@ handleControlChain params = \case
     modify $ index .~ idx'
     modify $ ledgerState .~ ls'
     modify $ addBlock block
-    modify $ coverageData <>~ foldMap getChainEventCoverageData events
 
     traverse_ logEvent events
     pure block
@@ -152,10 +147,6 @@ logEvent e = case e of
   TxnValidation Index.FailPhase1{} -> logWarn e
   TxnValidation Index.FailPhase2{} -> logWarn e
   TxnValidation Index.Success{} -> logInfo e
-
-getChainEventCoverageData :: ChainEvent -> CoverageData
-getChainEventCoverageData SlotAdd{} = mempty
-getChainEventCoverageData (TxnValidation res) = getCoverageData res
 
 handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Eff effs
 handleChain params = \case

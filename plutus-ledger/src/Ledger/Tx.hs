@@ -273,7 +273,7 @@ toDecoratedTxOut (TxOut (C.TxOut addr' val dt rs)) =
       Nothing
     toDecoratedDatum (C.TxOutDatumHash _ h) =
       Just (V2.DatumHash $ V2.toBuiltin (C.serialiseToRawBytes h), DatumUnknown)
-    toDecoratedDatum (C.TxOutDatumInTx _ d) =
+    toDecoratedDatum (C.TxOutSupplementalDatum _ d) =
       Just
         ( V2.DatumHash $ V2.toBuiltin (C.serialiseToRawBytes (C.hashScriptDataBytes d))
         , DatumInBody $ V2.Datum $ CardanoAPI.fromCardanoScriptData d
@@ -447,7 +447,7 @@ getCardanoTxMint :: CardanoTx -> C.Value
 getCardanoTxMint = getTxBodyContentMint . getTxBodyContent
 
 getTxBodyContentMint :: C.TxBodyContent ctx era -> C.Value
-getTxBodyContentMint C.TxBodyContent{..} = CardanoAPI.fromCardanoMintValue txMintValue
+getTxBodyContentMint C.TxBodyContent{..} = C.txMintValueToValue txMintValue
 
 getCardanoTxValidityRange :: CardanoTx -> SlotRange
 getCardanoTxValidityRange (CardanoTx (C.Tx (C.TxBody C.TxBodyContent{..}) _) _) = CardanoAPI.fromCardanoValidityRange txValidityLowerBound txValidityUpperBound

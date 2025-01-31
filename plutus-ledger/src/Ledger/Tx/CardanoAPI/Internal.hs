@@ -61,7 +61,6 @@ module Ledger.Tx.CardanoAPI.Internal (
   toCardanoTxOutDatumHash,
   toCardanoTxOutDatumHashFromDatum,
   toCardanoTxOutDatumInline,
-  toCardanoTxOutDatumInTx,
   toCardanoTxOutNoDatum,
   toCardanoTxOutValue,
   toCardanoAddressInEra,
@@ -89,13 +88,12 @@ module Ledger.Tx.CardanoAPI.Internal (
   tag,
   withIsCardanoEra,
   EmulatorEra,
-) where
+)
+where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Byron qualified as C
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
-import Cardano.Api.Tx.Body qualified as C
 import Cardano.BM.Data.Tracer (ToObject)
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
@@ -103,9 +101,8 @@ import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
 import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Conway.Scripts qualified as Conway
-import Cardano.Ledger.Crypto (StandardCrypto)
-
 import Cardano.Ledger.Core qualified as Ledger
+import Cardano.Ledger.Crypto (StandardCrypto)
 import Control.Lens ((<&>))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
 import Data.Aeson qualified as Aeson
@@ -118,6 +115,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Tuple (swap)
+import GHC.Exts
 import GHC.Generics (Generic)
 import Ledger.Address qualified as P
 import Ledger.Scripts qualified as P
@@ -474,9 +472,9 @@ fromCardanoTxOutDatumHash :: C.TxOutDatum C.CtxTx era -> Maybe P.DatumHash
 fromCardanoTxOutDatumHash C.TxOutDatumNone = Nothing
 fromCardanoTxOutDatumHash (C.TxOutDatumHash _ h) =
   Just $ P.DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes h)
-fromCardanoTxOutDatumHash (C.TxOutDatumInTx _ d) =
-  Just $ P.DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes (C.hashScriptDataBytes d))
 fromCardanoTxOutDatumHash (C.TxOutDatumInline _ d) =
+  Just $ P.DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes (C.hashScriptDataBytes d))
+fromCardanoTxOutDatumHash (C.TxOutSupplementalDatum _ d) =
   Just $ P.DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes (C.hashScriptDataBytes d))
 
 fromCardanoTxOutDatumHash' :: C.TxOutDatum C.CtxUTxO era -> Maybe P.DatumHash
@@ -491,11 +489,9 @@ fromCardanoTxOutDatum C.TxOutDatumNone =
   PV2.NoOutputDatum
 fromCardanoTxOutDatum (C.TxOutDatumHash _ h) =
   PV2.OutputDatumHash $ PV2.DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes h)
-fromCardanoTxOutDatum (C.TxOutDatumInTx _ d) =
-  PV2.OutputDatumHash $
-    PV2.DatumHash $
-      PlutusTx.toBuiltin (C.serialiseToRawBytes (C.hashScriptDataBytes d))
 fromCardanoTxOutDatum (C.TxOutDatumInline _ d) =
+  PV2.OutputDatum $ PV2.Datum $ fromCardanoScriptData d
+fromCardanoTxOutDatum (C.TxOutSupplementalDatum _ d) =
   PV2.OutputDatum $ PV2.Datum $ fromCardanoScriptData d
 
 fromCardanoTxOutDatum' :: C.TxOutDatum C.CtxUTxO era -> PV2.OutputDatum
@@ -508,14 +504,6 @@ fromCardanoTxOutDatum' (C.TxOutDatumInline _ d) =
 
 toCardanoTxOutNoDatum :: C.TxOutDatum C.CtxTx C.ConwayEra
 toCardanoTxOutNoDatum = C.TxOutDatumNone
-
-toCardanoTxOutDatumInTx :: PV2.Datum -> C.TxOutDatum C.CtxTx C.ConwayEra
-toCardanoTxOutDatumInTx =
-  C.TxOutDatumInTx C.AlonzoEraOnwardsConway
-    . C.unsafeHashableScriptData
-    . C.fromPlutusData
-    . PV2.builtinDataToData
-    . PV2.getDatum
 
 toCardanoTxOutDatumInline :: PV2.Datum -> C.TxOutDatum C.CtxTx C.ConwayEra
 toCardanoTxOutDatumInline =
@@ -548,23 +536,22 @@ toCardanoScriptDataHash (P.DatumHash bs) =
     "toCardanoTxOutDatumHash"
     (deserialiseFromRawBytes (C.AsHash C.AsScriptData) (PlutusTx.fromBuiltin bs))
 
+{-# DEPRECATED fromCardanoMintValue "Use 'txMintValueToValue' from cardano-api instead." #-}
 fromCardanoMintValue :: C.TxMintValue build era -> C.Value
-fromCardanoMintValue C.TxMintNone = mempty
-fromCardanoMintValue (C.TxMintValue _ value _) = value
+fromCardanoMintValue = C.txMintValueToValue
 
 adaToCardanoValue :: P.Ada -> C.Value
-adaToCardanoValue (P.Lovelace n) = C.valueFromList [(C.AdaAssetId, C.Quantity n)]
+adaToCardanoValue (P.Lovelace n) = fromList [(C.AdaAssetId, C.Quantity n)]
 
 fromCardanoValue :: C.Value -> Value.Value
-fromCardanoValue (C.valueToList -> list) =
-  foldMap fromSingleton list
+fromCardanoValue = foldMap fromSingleton . toList
   where
     fromSingleton (fromCardanoAssetId -> assetClass, C.Quantity quantity) =
       Value.assetClassValue assetClass quantity
 
 toCardanoValue :: Value.Value -> Either ToCardanoError C.Value
 toCardanoValue =
-  fmap C.valueFromList . traverse toSingleton . Value.flattenValue
+  fmap fromList . traverse toSingleton . Value.flattenValue
   where
     toSingleton (cs, tn, q) =
       toCardanoAssetId (Value.assetClass cs tn) <&> (,C.Quantity q)

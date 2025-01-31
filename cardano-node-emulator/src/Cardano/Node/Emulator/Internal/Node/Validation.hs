@@ -37,7 +37,8 @@ module Cardano.Node.Emulator.Internal.Node.Validation (
 
   -- * Etc.
   emulatorGlobals,
-) where
+)
+where
 
 import Cardano.Api.Error qualified as C
 import Cardano.Api.Shelley qualified as C
@@ -179,6 +180,7 @@ initialState params =
           , C.Ledger.ledgerIx = minBound
           , C.Ledger.ledgerPp = emulatorPParams params
           , C.Ledger.ledgerAccount = C.Ledger.AccountState (Coin 0) (Coin 0)
+          , C.Ledger.ledgerMempool = True -- TODO, what does it mean?
           }
     , _memPoolState = esLState (nesEs (createInitialState (pConfig params)))
     }
@@ -253,14 +255,13 @@ constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
     Left errs ->
       throwError
         ( ApplyTxError
-            ( ( ConwayUtxowFailure
-                  (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
-              )
+            ( ConwayUtxowFailure
+                (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
                 :| []
             )
         )
     Right sLst ->
-      let scriptEvalResult = evalPlutusScripts @EmulatorEra tx sLst
+      let scriptEvalResult = evalPlutusScripts sLst
           vTx =
             AlonzoTx
               (view Core.bodyTxL tx)
@@ -294,13 +295,12 @@ validateCardanoTx params ls ctx@(CardanoEmulatorEraTx tx@(C.Tx (C.TxBody bodyCon
 getTxExUnitsWithLogs
   :: Params -> UTxO EmulatorEra -> C.Tx C.ConwayEra -> Either P.ValidationErrorInPhase P.RedeemerReport
 getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
-  case evalTxExUnitsWithLogs (emulatorPParams params) tx utxo ei ss of
-    Left e -> Left . (P.Phase1,) . P.CardanoLedgerValidationError . Text.pack . show $ e
-    Right result -> traverse (either toCardanoLedgerError Right) result
+  traverse (either toCardanoLedgerError Right) result
   where
     eg = emulatorGlobals params
     ss = systemStart eg
     ei = epochInfo eg
+    result = evalTxExUnitsWithLogs (emulatorPParams params) tx utxo ei ss
     toCardanoLedgerError (ValidationFailure _ (V1.CekError ce) logs _) =
       Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
     toCardanoLedgerError e = Left (P.Phase2, P.CardanoLedgerValidationError $ Text.pack $ show e)
@@ -312,4 +312,4 @@ createAndValidateTransactionBody
 createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
   let bodyContent' = bodyContent{C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
    in first (Right . P.TxBodyError . C.displayError) $
-        C.createAndValidateTransactionBody C.shelleyBasedEra bodyContent'
+        C.createTransactionBody C.shelleyBasedEra bodyContent'

@@ -6,7 +6,6 @@
 {-# LANGUAGE RankNTypes #-}
 
 {- |
-
 Interface to the transaction types from 'cardano-api'
 -}
 module Ledger.Tx.CardanoAPI (
@@ -84,7 +83,7 @@ fromCardanoTxInsCollateral C.TxInsCollateralNone = []
 fromCardanoTxInsCollateral (C.TxInsCollateral _ txIns) = txIns
 
 toCardanoDatumWitness :: Maybe PV1.Datum -> C.ScriptDatum C.WitCtxTxIn
-toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . toCardanoScriptData . PV1.getDatum)
+toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . Just . toCardanoScriptData . PV1.getDatum)
 
 type WitnessHeader witctx =
   C.ScriptDatum witctx -> C.ScriptRedeemer -> C.ExecutionUnits -> C.ScriptWitness witctx C.ConwayEra
@@ -95,14 +94,11 @@ toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
   txIn <- toCardanoTxIn ref
   pure $ case lang of
     P.PlutusV1 ->
-      C.PlutusScriptWitness C.PlutusScriptV1InConway C.PlutusScriptV1 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV1InConway C.PlutusScriptV1 $ C.PReferenceScript txIn
     P.PlutusV2 ->
-      C.PlutusScriptWitness C.PlutusScriptV2InConway C.PlutusScriptV2 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV2InConway C.PlutusScriptV2 $ C.PReferenceScript txIn
     P.PlutusV3 ->
-      C.PlutusScriptWitness C.PlutusScriptV3InConway C.PlutusScriptV3 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV3InConway C.PlutusScriptV3 $ C.PReferenceScript txIn
 
 toCardanoTxInScriptWitnessHeader :: P.Versioned PV1.Script -> WitnessHeader witctx
 toCardanoTxInScriptWitnessHeader script =

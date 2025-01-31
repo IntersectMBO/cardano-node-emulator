@@ -83,7 +83,6 @@ mkTypedValidator vc wrapper =
     hsh = Scripts.validatorHash val
     mps = MPS.mkForwardingMintingPolicy hsh
 
--- | Make a 'TypedValidator' from the 'CompiledCode' of a parameterized validator script and its wrapper.
 mkTypedValidatorParam
   :: forall a param
    . (Lift DefaultUni param)

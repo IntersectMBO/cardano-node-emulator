@@ -17,12 +17,15 @@ module Plutus.Script.Utils.Scripts (
   Script (..),
   Validator (..),
   mkValidatorScript,
+  mkValidatorScriptChang,
   unValidatorScript,
   MintingPolicy (..),
   mkMintingPolicyScript,
+  mkMintingPolicyScriptChang,
   unMintingPolicyScript,
   StakeValidator (..),
   mkStakeValidatorScript,
+  mkStakeValidatorScriptChang,
   unStakeValidatorScript,
 
   -- * Script hashing
@@ -68,6 +71,7 @@ import PlutusTx (CompiledCode, makeLift)
 import PlutusTx qualified
 import PlutusTx.Builtins (BuiltinData)
 import PlutusTx.Builtins qualified as Builtins
+import PlutusTx.Prelude (BuiltinUnit)
 import Prettyprinter (Pretty (pretty))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 
@@ -239,20 +243,31 @@ newtype StakeValidatorHash = StakeValidatorHash {getStakeValidatorHash :: Builti
   deriving stock (Generic)
   deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
 
-mkValidatorScript :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ()) -> Validator
+mkValidatorScript
+  :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit) -> Validator
 mkValidatorScript = Validator . Script . serialiseCompiledCode
+
+mkValidatorScriptChang :: CompiledCode (BuiltinData -> BuiltinUnit) -> Validator
+mkValidatorScriptChang = Validator . Script . serialiseCompiledCode
 
 unValidatorScript :: Validator -> Script
 unValidatorScript = getValidator
 
-mkMintingPolicyScript :: CompiledCode (BuiltinData -> BuiltinData -> ()) -> MintingPolicy
+mkMintingPolicyScript :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit) -> MintingPolicy
 mkMintingPolicyScript = MintingPolicy . Script . serialiseCompiledCode
+
+mkMintingPolicyScriptChang :: CompiledCode (BuiltinData -> BuiltinUnit) -> MintingPolicy
+mkMintingPolicyScriptChang = MintingPolicy . Script . serialiseCompiledCode
 
 unMintingPolicyScript :: MintingPolicy -> Script
 unMintingPolicyScript = getMintingPolicy
 
-mkStakeValidatorScript :: CompiledCode (BuiltinData -> BuiltinData -> ()) -> StakeValidator
+mkStakeValidatorScript :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit) -> StakeValidator
 mkStakeValidatorScript = StakeValidator . Script . serialiseCompiledCode
+
+mkStakeValidatorScriptChang
+  :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit) -> StakeValidator
+mkStakeValidatorScriptChang = StakeValidator . Script . serialiseCompiledCode
 
 unStakeValidatorScript :: StakeValidator -> Script
 unStakeValidatorScript = getStakeValidator

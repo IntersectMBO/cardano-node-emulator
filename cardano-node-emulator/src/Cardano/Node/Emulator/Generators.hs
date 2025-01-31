@@ -60,7 +60,8 @@ module Cardano.Node.Emulator.Generators (
   alwaysSucceedPolicyId,
   someTokenValue,
   Tx.emptyTxBodyContent,
-) where
+)
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
@@ -92,6 +93,7 @@ import Data.Maybe (fromMaybe, isNothing)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String (fromString)
+import GHC.Exts (fromList)
 import GHC.Stack (HasCallStack)
 import Hedgehog (Gen, MonadGen, MonadTest, Range)
 import Hedgehog qualified as H
@@ -121,8 +123,7 @@ import Ledger (
 import Ledger.CardanoWallet qualified as CW
 import Ledger.Scripts qualified as Script
 import Ledger.Tx qualified as Tx
-import Ledger.Tx.CardanoAPI (ToCardanoError)
-import Ledger.Tx.CardanoAPI qualified as C
+import Ledger.Tx.CardanoAPI qualified as LC
 import Ledger.Value.CardanoAPI qualified as Value
 import Numeric.Natural (Natural)
 import PlutusLedgerApi.V1 qualified as V1
@@ -152,16 +153,16 @@ generatorModel =
   let vl = Coin $ 1_000_000 * 100
       pubKeys = CW.knownPaymentPublicKeys
    in GeneratorModel
-        { gmInitialBalance = Map.fromList $ zip pubKeys (repeat vl)
+        { gmInitialBalance = Map.fromList $ map (,vl) pubKeys
         , gmPubKeys = Set.fromList pubKeys
-        , gmMaxCollateralInputs = Just $ view (ppMaxCollateralInputsL @C.EmulatorEra) def
+        , gmMaxCollateralInputs = Just $ view (ppMaxCollateralInputsL @LC.EmulatorEra) def
         }
 
 {- | Blockchain for testing the emulator implementation and traces.
 
-  To avoid having to rely on functions from the implementation of
-  plutus-ledger (in particular, 'Ledger.Tx.unspentOutputs') we note the
-  unspent outputs of the chain when it is first created.
+ To avoid having to rely on functions from the implementation of
+ plutus-ledger (in particular, 'Ledger.Tx.unspentOutputs') we note the
+ unspent outputs of the chain when it is first created.
 -}
 data Mockchain = Mockchain
   { mockchainInitialTxPool :: [CardanoTx]
@@ -176,7 +177,7 @@ emptyChain = Mockchain [] Map.empty def
 
 {- | Generate a mockchain.
 
-  TODO: Generate more than 1 txn
+ TODO: Generate more than 1 txn
 -}
 genMockchain'
   :: GeneratorModel
@@ -201,21 +202,21 @@ genMockchain :: Gen Mockchain
 genMockchain = genMockchain' generatorModel
 
 {- | A transaction with no inputs that mints some value (to be used at the
-  beginning of a blockchain).
+ beginning of a blockchain).
 -}
 genInitialTransaction
   :: GeneratorModel
   -> Gen (CardanoTx, [TxOut])
 genInitialTransaction GeneratorModel{..} = do
-  let pkAddr pk = either (error . show) id $ C.toCardanoAddressInEra testnet $ pubKeyAddress pk Nothing
+  let pkAddr pk = either (error . show) id $ LC.toCardanoAddressInEra testnet $ pubKeyAddress pk Nothing
       initialDist = Map.mapKeys pkAddr $ fmap Value.lovelaceToValue gmInitialBalance
   let tx@(CardanoEmulatorEraTx (C.Tx (C.TxBody txBodyContent) _)) = createGenesisTransaction initialDist
       txOuts = Tx.TxOut <$> C.txOuts txBodyContent
   pure (tx, txOuts)
 
 {- | Generate a valid transaction, using the unspent outputs provided.
-  Fails if the there are no unspent outputs, or if the total value
-  of the unspent outputs is smaller than the minimum fee.
+ Fails if the there are no unspent outputs, or if the total value
+ of the unspent outputs is smaller than the minimum fee.
 -}
 genValidTransaction
   :: Mockchain
@@ -228,8 +229,8 @@ genValidTransactionBody
 genValidTransactionBody = genValidTransactionBody' generatorModel
 
 {- | Generate a valid transaction, using the unspent outputs provided.
-  Fails if the there are no unspent outputs, or if the total value
-  of the unspent outputs is smaller than the estimated fee.
+ Fails if the there are no unspent outputs, or if the total value
+ of the unspent outputs is smaller than the estimated fee.
 -}
 genValidTransaction'
   :: GeneratorModel
@@ -258,12 +259,12 @@ makeTx
 makeTx bodyContent = do
   txBody <-
     either (fail . ("makeTx: Can't create TxBody: " <>) . show) pure $
-      C.createAndValidateTransactionBody C.shelleyBasedEra bodyContent
+      C.createTransactionBody C.shelleyBasedEra bodyContent
   pure $ signAll $ CardanoEmulatorEraTx $ C.Tx txBody []
 
 {- | Generate a valid transaction, using the unspent outputs provided.
-  Fails if the there are no unspent outputs, or if the total value
-  of the unspent outputs is smaller than the estimated fee.
+ Fails if the there are no unspent outputs, or if the total value
+ of the unspent outputs is smaller than the estimated fee.
 -}
 genValidTransactionBody'
   :: GeneratorModel
@@ -288,11 +289,11 @@ genValidTransactionBodySpending'
 genValidTransactionBodySpending' g ins totalVal = do
   mintAmount <- toInteger <$> Gen.int (Range.linear 0 maxBound)
   mintTokenName <- Gen.genAssetName
-  let mintValue = guard (mintAmount == 0) $> someTokenValue mintTokenName mintAmount
-      fee' = Coin 300000
+  let mintValue = guard (mintAmount /= 0) $> someTokenValue mintTokenName mintAmount
+      fee' = Coin 300_000
       numOut = Set.size (gmPubKeys g) - 1
       totalValAda = C.selectLovelace totalVal
-      totalValTokens = guard (Value.isZero (Value.noAdaValue totalVal)) $> Value.noAdaValue totalVal
+      totalValTokens = guard (not $ Value.isZero (Value.noAdaValue totalVal)) $> Value.noAdaValue totalVal
       canPayTheFees = fee' < totalValAda
   guard canPayTheFees
   -- We only split the Ada part of the input value
@@ -321,12 +322,16 @@ genValidTransactionBodySpending' g ins totalVal = do
           (C.PScript $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
           C.NoScriptDatumForMint
           (C.unsafeHashableScriptData $ C.fromPlutusData $ toData Script.unitRedeemer)
-          C.zeroExecutionUnits
+          LC.zeroExecutionUnits
   let txMintValue =
-        C.TxMintValue
-          C.MaryEraOnwardsConway
-          (fromMaybe mempty mintValue)
-          (C.BuildTxWith (Map.singleton alwaysSucceedPolicyId mintWitness))
+        if mintAmount == 0
+          then C.TxMintNone
+          else
+            C.TxMintValue
+              C.MaryEraOnwardsConway
+              $ Map.singleton
+                alwaysSucceedPolicyId
+                [(mintTokenName, C.Quantity mintAmount, C.BuildTxWith mintWitness)]
       txIns = map (,C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending) ins
   txInsCollateral <-
     maybe
@@ -338,21 +343,22 @@ genValidTransactionBodySpending' g ins totalVal = do
       { C.txIns
       , C.txInsCollateral
       , C.txMintValue
-      , C.txFee = C.toCardanoFee fee'
+      , C.txFee = LC.toCardanoFee fee'
       , C.txOuts = Tx.getTxOut <$> txOutputs
       }
 
 -- | Create a transaction output locked by a public payment key and optionnaly a public stake key.
-pubKeyTxOut :: C.Value -> PaymentPubKey -> Maybe V1.StakingCredential -> Either ToCardanoError TxOut
+pubKeyTxOut
+  :: C.Value -> PaymentPubKey -> Maybe V1.StakingCredential -> Either LC.ToCardanoError TxOut
 pubKeyTxOut v pk sk = do
-  aie <- C.toCardanoAddressInEra testnet $ pubKeyAddress pk sk
-  pure $ Tx.TxOut $ C.TxOut aie (C.toCardanoTxOutValue v) C.TxOutDatumNone C.ReferenceScriptNone
+  aie <- LC.toCardanoAddressInEra testnet $ pubKeyAddress pk sk
+  pure $ Tx.TxOut $ C.TxOut aie (LC.toCardanoTxOutValue v) C.TxOutDatumNone C.ReferenceScriptNone
 
 -- | Validate a transaction in a mockchain.
 validateMockchain :: Mockchain -> CardanoTx -> Maybe Ledger.ValidationErrorInPhase
 validateMockchain (Mockchain _ utxo params) tx = result
   where
-    cUtxoIndex = C.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
+    cUtxoIndex = LC.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
     ledgerState =
       initialState params
         & updateSlot (const 1)
@@ -387,7 +393,7 @@ genTimeRange sc = genInterval $ genPOSIXTime sc
 
 -- | Generate a 'Slot' where the lowest slot number is 0.
 genSlot :: (Hedgehog.MonadGen m) => m Slot
-genSlot = Slot <$> Gen.integral (Range.linear 0 10000)
+genSlot = Slot <$> Gen.integral (Range.linear 0 10_000)
 
 {- | Generate a 'POSIXTime' where the lowest value is 'scSlotZeroTime' given a
 'SlotConfig'.
@@ -395,14 +401,14 @@ genSlot = Slot <$> Gen.integral (Range.linear 0 10000)
 genPOSIXTime :: (Hedgehog.MonadGen m) => SlotConfig -> m POSIXTime
 genPOSIXTime sc = do
   let beginTime = getPOSIXTime $ TimeSlot.scSlotZeroTime sc
-  POSIXTime <$> Gen.integral (Range.linear beginTime (beginTime + 10000000))
+  POSIXTime <$> Gen.integral (Range.linear beginTime (beginTime + 10_000_000))
 
 {- | Generate a 'SlotConfig' where the slot length goes from 1 to 100000
 ms and the time of Slot 0 is the default 'scSlotZeroTime'.
 -}
 genSlotConfig :: (Hedgehog.MonadGen m) => m SlotConfig
 genSlotConfig = do
-  sl <- Gen.integral (Range.linear 1 1000000)
+  sl <- Gen.integral (Range.linear 1 1_000_000)
   return $ def{TimeSlot.scSlotLength = sl}
 
 -- | Generate a 'ByteString s' of up to @s@ bytes.
@@ -463,13 +469,13 @@ assertValid tx mc =
         H.assert $ isNothing res
 
 {- | Split a value into max. n positive-valued parts such that the sum of the
-     parts equals the original value. Each part should contain the required
-     minimum amount of Ada.
+    parts equals the original value. Each part should contain the required
+    minimum amount of Ada.
 
-     I noticed how for values of `mx` > 1000 the resulting lists are much smaller than
-     one would expect. I think this may be caused by the way we select the next value
-     for the split. It looks like the available funds get exhausted quite fast, which
-     makes the function return before generating anything close to `mx` values.
+    I noticed how for values of `mx` > 1000 the resulting lists are much smaller than
+    one would expect. I think this may be caused by the way we select the next value
+    for the split. It looks like the available funds get exhausted quite fast, which
+    makes the function return before generating anything close to `mx` values.
 -}
 splitVal :: (MonadGen m, Integral n) => Int -> n -> m [n]
 splitVal _ 0 = pure []
@@ -489,7 +495,7 @@ knownXPrvs :: [Crypto.XPrv]
 knownXPrvs = unPaymentPrivateKey <$> CW.knownPaymentPrivateKeys
 
 {- | Seed suitable for testing a seed but not for actual wallets as ScrubbedBytes isn't used to ensure
- memory isn't inspectable
+memory isn't inspectable
 -}
 genSeed :: (MonadGen m) => m BS.ByteString
 genSeed = Gen.bytes $ Range.singleton 32
@@ -500,7 +506,7 @@ genPassphrase =
 
 alwaysSucceedPolicy :: Script.MintingPolicy
 alwaysSucceedPolicy =
-  Script.MintingPolicy (C.fromCardanoPlutusScript $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
+  Script.MintingPolicy (LC.fromCardanoPlutusScript $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
 
 alwaysSucceedPolicyId :: C.PolicyId
 alwaysSucceedPolicyId =
@@ -508,8 +514,8 @@ alwaysSucceedPolicyId =
     (C.PlutusScript C.PlutusScriptV1 $ C.examplePlutusScriptAlwaysSucceeds C.WitCtxMint)
 
 someTokenValue :: C.AssetName -> Integer -> C.Value
-someTokenValue an i = C.valueFromList [(C.AssetId alwaysSucceedPolicyId an, C.Quantity i)]
+someTokenValue an i = fromList [(C.AssetId alwaysSucceedPolicyId an, C.Quantity i)]
 
 -- | Catch cardano error and fail wi it
-failOnCardanoError :: (MonadFail m) => Either C.ToCardanoError a -> m a
+failOnCardanoError :: (MonadFail m) => Either LC.ToCardanoError a -> m a
 failOnCardanoError = either (fail . show) pure

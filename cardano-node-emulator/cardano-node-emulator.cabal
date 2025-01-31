@@ -1,6 +1,6 @@
 cabal-version: 3.8
 name:          cardano-node-emulator
-version:       1.3.0.0
+version:       1.4.0.0
 
 common lang
   default-language:   Haskell2010
@@ -43,28 +43,24 @@ library
     Cardano.Node.Emulator.Internal.API
     Cardano.Node.Emulator.Internal.Node
     Cardano.Node.Emulator.Internal.Node.Chain
-    Cardano.Node.Emulator.Internal.Node.Fee
     Cardano.Node.Emulator.Internal.Node.Params
     Cardano.Node.Emulator.Internal.Node.TimeSlot
     Cardano.Node.Emulator.Internal.Node.Validation
     Cardano.Node.Emulator.LogMessages
-    Cardano.Node.Emulator.Test
-    Cardano.Node.Emulator.Test.Coverage
-    Cardano.Node.Emulator.Test.NoLockedFunds
 
   --------------------
   -- Local components
   --------------------
   build-depends:
-    , freer-extras         ^>=1.3.0
-    , plutus-ledger        ^>=1.3.0
-    , plutus-script-utils  ^>=1.3.0
+    , freer-extras         ^>=1.4.0
+    , plutus-ledger        ^>=1.4.0
+    , plutus-script-utils  ^>=1.4.0
 
   --------------------------
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api:{cardano-api, gen, internal}  ^>=8.46
+    , cardano-api:{cardano-api, gen, internal}  ^>=10.3
     , cardano-crypto
     , cardano-ledger-alonzo
     , cardano-ledger-api
@@ -84,83 +80,16 @@ library
   -- Non-IOG dependencies
   ------------------------
   build-depends:
-    , aeson                     >=2
-    , base                      >=4.9     && <5
+    , aeson          >=2
+    , base           >=4.9     && <5
     , bytestring
     , containers
     , data-default
     , freer-simple
     , hedgehog
-    , html-entities
     , lens
     , mtl
-    , prettyprinter             >=1.1.0.1
-    , QuickCheck
-    , quickcheck-contractmodel
-    , quickcheck-dynamic
-    , quickcheck-threatmodel
+    , prettyprinter  >=1.1.0.1
     , sop-core
-    , tasty
-    , tasty-hunit
     , text
     , time
-
-test-suite cardano-node-emulator-test
-  import:           lang
-  type:             exitcode-stdio-1.0
-  main-is:          Spec.hs
-  hs-source-dirs:   test
-  default-language: Haskell2010
-  ghc-options:      -Wno-unused-packages
-  other-modules:
-    Cardano.Node.Emulator.GeneratorsSpec
-    Cardano.Node.Emulator.MTLSpec
-    Plutus.CIP1694.Scripts
-    Plutus.CIP1694.Test
-    Plutus.Examples.Escrow
-    Plutus.Examples.EscrowSpec
-    Plutus.Examples.Game
-    Plutus.Examples.GameSpec
-
-  -- The limitation of plutus-tx-plugin
-  if (impl(ghc <9.6) || impl(ghc >=9.7))
-    buildable: False
-
-  --------------------
-  -- Local components
-  --------------------
-  build-depends:
-    , cardano-node-emulator  ^>=1.3.0
-    , plutus-ledger          ^>=1.3.0
-    , plutus-script-utils    ^>=1.3.0
-
-  --------------------------
-  -- Other IOG dependencies
-  --------------------------
-  build-depends:
-    , cardano-api:{cardano-api, gen, internal}  ^>=8.46
-    , plutus-ledger-api                         >=1.0.0
-    , plutus-tx                                 >=1.0.0
-    , plutus-tx-plugin                          >=1.0.0
-
-  ------------------------
-  -- Non-IOG dependencies
-  ------------------------
-  build-depends:
-    , aeson
-    , base                      >=4.9 && <5
-    , bytestring
-    , containers
-    , data-default
-    , hedgehog
-    , lens
-    , mtl
-    , QuickCheck
-    , quickcheck-contractmodel
-    , quickcheck-dynamic
-    , tasty
-    , tasty-golden
-    , tasty-hedgehog
-    , tasty-hunit
-    , tasty-quickcheck
-    , text

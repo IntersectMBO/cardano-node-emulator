@@ -13,9 +13,9 @@ import Data.Aeson qualified as JSON
 import Data.Aeson.Extras qualified as JSON
 import Data.ByteString qualified as BS
 import Data.Hashable (Hashable)
-import Data.String (IsString (fromString))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as E
+import GHC.Exts
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Bytes qualified as Bytes
 import PlutusLedgerApi.V1.Value
@@ -115,7 +115,7 @@ instance (ToJSON v, ToJSON k) => ToJSON (Map.Map k v) where
 instance (FromJSON v, FromJSON k, PlutusTx.Eq k) => FromJSON (Map.Map k v) where
   parseJSON v = Map.safeFromList <$> JSON.parseJSON v
 
-deriving anyclass instance (Hashable k, Hashable v) => Hashable (Map.Map k v)
+deriving anyclass instance (Ord k, Hashable k, Hashable v) => Hashable (Map.Map k v)
 
 deriving anyclass instance (Serialise k, Serialise v) => Serialise (Map.Map k v)
 
@@ -125,8 +125,8 @@ instance Pretty C.Value where
   pretty = reflow . C.renderValuePretty
 
 instance Serialise C.Value where
-  decode = C.valueFromList <$> decode
-  encode = encode . C.valueToList
+  decode = fromList <$> decode
+  encode = encode . toList
 
 deriving stock instance Generic C.AssetId
 

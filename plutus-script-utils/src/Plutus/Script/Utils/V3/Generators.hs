@@ -17,17 +17,18 @@ import Plutus.Script.Utils.Scripts (
   mkValidatorScript,
  )
 import PlutusTx qualified
+import PlutusTx.Builtins.Internal qualified as PlutusTx
 
 import Plutus.Script.Utils.V1.Generators qualified as PV1
 import Plutus.Script.Utils.V3.Scripts qualified as Scripts
 
 alwaysSucceedValidator :: Validator
 alwaysSucceedValidator =
-  mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> ()||])
+  mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> PlutusTx.unitval||])
 
 alwaysSucceedValidatorHash :: ValidatorHash
 alwaysSucceedValidatorHash = Scripts.validatorHash alwaysSucceedValidator
 
 alwaysSucceedPolicy :: MintingPolicy
 alwaysSucceedPolicy =
-  mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> ()||])
+  mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> PlutusTx.unitval||])

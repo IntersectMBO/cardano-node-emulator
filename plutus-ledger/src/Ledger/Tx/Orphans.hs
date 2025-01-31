@@ -1,12 +1,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -70,8 +68,8 @@ instance (Pretty (C.TxOutDatum ctx era)) => Pretty (C.TxOut ctx era) where
 instance Pretty (C.TxOutDatum C.CtxTx era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
-  pretty (C.TxOutDatumInTx _ dv) = "with datum in tx" <+> viaShow dv
   pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
+  pretty (C.TxOutSupplementalDatum _ dv) = "with supplemental datum" <+> viaShow dv
 
 instance Pretty (C.TxOutDatum C.CtxUTxO era) where
   pretty C.TxOutDatumNone = "no datum"

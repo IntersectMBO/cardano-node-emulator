@@ -19,6 +19,7 @@ import Cardano.Api (
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley (StakeCredential (StakeCredentialByKey), shelleyBasedEra)
 import Cardano.Api.Shelley qualified as C
+import GHC.Exts (fromList)
 import Hedgehog (Gen, Property, forAll, property, tripping, (===))
 import Hedgehog qualified
 import Hedgehog.Gen qualified as Gen
@@ -33,7 +34,7 @@ import Ledger.Tx.CardanoAPI (
   toCardanoTxId,
   toCardanoValue,
  )
-import Ledger.Value.CardanoAPI (combine, valueFromList, valueGeq)
+import Ledger.Value.CardanoAPI (combine, valueGeq)
 import PlutusTx.Lattice ((\/))
 import Test.Gen.Cardano.Api.Typed (genAssetName, genTxId)
 import Test.Gen.Cardano.Api.Typed qualified as Gen
@@ -139,13 +140,13 @@ combineLeftId :: Property
 combineLeftId = property $ do
   valueL <- forAll genValueDefault
   valueR <- forAll genValueDefault
-  combine (\a l _ -> valueFromList [(a, l)]) valueL valueR === valueL
+  combine (\a l _ -> fromList [(a, l)]) valueL valueR === valueL
 
 combineRightId :: Property
 combineRightId = property $ do
   valueL <- forAll genValueDefault
   valueR <- forAll genValueDefault
-  combine (\a _ r -> valueFromList [(a, r)]) valueL valueR === valueR
+  combine (\a _ r -> fromList [(a, r)]) valueL valueR === valueR
 
 valueJoinGeq :: Property
 valueJoinGeq = property $ do

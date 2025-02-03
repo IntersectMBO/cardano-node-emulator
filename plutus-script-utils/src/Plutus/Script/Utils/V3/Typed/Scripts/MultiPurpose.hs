@@ -20,8 +20,20 @@ import Data.Default (
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Scripts (
   Language (PlutusV3),
+  MintingPolicy (MintingPolicy),
+  MintingPolicyHash,
   Script (Script),
+  ScriptHash,
+  StakeValidator (StakeValidator),
+  StakeValidatorHash,
+  Validator (Validator),
+  ValidatorHash,
   Versioned (Versioned),
+  mintingPolicyHash,
+  scriptCurrencySymbol,
+  scriptHash,
+  stakeValidatorHash,
+  validatorHash,
  )
 import PlutusLedgerApi.V3 qualified as Api
 import PlutusTx.IsData (
@@ -49,7 +61,7 @@ import PlutusTx.Prelude (
 import PlutusTx.TH (compile)
 import Prettyprinter (Pretty)
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
-import Prelude (Eq, Ord, Show (show))
+import Prelude (Eq, Ord, Show (show), fmap)
 
 class ValidatorTypes a where
   -- Minting purpose type variables with default
@@ -97,21 +109,33 @@ class ValidatorTypes a where
   type ProposingTxInfo a = Api.TxInfo
 
 data TypedValidatorV3 a = TypedValidatorV3
-  { mintingTypedValidator :: Api.CurrencySymbol -> MintingRedeemerType a -> MintingTxInfo a -> Bool
+  { mintingTypedValidator
+      :: Api.CurrencySymbol
+      -> MintingRedeemerType a
+      -> MintingTxInfo a
+      -> Bool
   , spendingTypedValidator
       :: Api.TxOutRef
       -> Maybe (DatumType a)
       -> SpendingRedeemerType a
       -> SpendingTxInfo a
       -> Bool
-  , rewardingTypedValidator :: Api.Credential -> RewardingRedeemerType a -> RewardingTxInfo a -> Bool
+  , rewardingTypedValidator
+      :: Api.Credential
+      -> RewardingRedeemerType a
+      -> RewardingTxInfo a
+      -> Bool
   , certifyingTypedValidator
       :: Integer
       -> Api.TxCert
       -> CertifyingRedeemerType a
       -> CertifyingTxInfo a
       -> Bool
-  , votingTypedValidator :: Api.Voter -> VotingRedeemerType a -> VotingTxInfo a -> Bool
+  , votingTypedValidator
+      :: Api.Voter
+      -> VotingRedeemerType a
+      -> VotingTxInfo a
+      -> Bool
   , proposingTypedValidator
       :: Integer
       -> Api.ProposalProcedure
@@ -162,6 +186,30 @@ newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: Script
 
 instance Show MultiPurposeScript where
   show _ = "Multi purpose script { <script> }"
+
+multiPurposeToMintingPolicy :: MultiPurposeScript -> MintingPolicy
+multiPurposeToMintingPolicy = MintingPolicy . getMultiPurposeScript
+
+multiPurposeToValidator :: MultiPurposeScript -> Validator
+multiPurposeToValidator = Validator . getMultiPurposeScript
+
+multiPurposeToStakeValidator :: MultiPurposeScript -> StakeValidator
+multiPurposeToStakeValidator = StakeValidator . getMultiPurposeScript
+
+multiPurposeToScriptHash :: Versioned MultiPurposeScript -> ScriptHash
+multiPurposeToScriptHash = scriptHash . fmap getMultiPurposeScript
+
+multiPurposeToValidatorHash :: Versioned MultiPurposeScript -> ValidatorHash
+multiPurposeToValidatorHash = validatorHash . fmap multiPurposeToValidator
+
+multiPurposeToStakeValidatorHash :: Versioned MultiPurposeScript -> StakeValidatorHash
+multiPurposeToStakeValidatorHash = stakeValidatorHash . fmap multiPurposeToStakeValidator
+
+multiPurposeMintingPolicyHash :: Versioned MultiPurposeScript -> MintingPolicyHash
+multiPurposeMintingPolicyHash = mintingPolicyHash . fmap multiPurposeToMintingPolicy
+
+multiPurposeScriptCurrencySymbol :: Versioned MultiPurposeScript -> Api.CurrencySymbol
+multiPurposeScriptCurrencySymbol = scriptCurrencySymbol . fmap multiPurposeToMintingPolicy
 
 {-# INLINEABLE fromBuiltinDataEither #-}
 fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a

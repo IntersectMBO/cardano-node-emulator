@@ -11,7 +11,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Plutus.Script.Utils.V3.Typed.Script.MultiPurpose where
+module Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose where
 
 import Codec.Serialise (Serialise)
 import GHC.Generics (Generic)

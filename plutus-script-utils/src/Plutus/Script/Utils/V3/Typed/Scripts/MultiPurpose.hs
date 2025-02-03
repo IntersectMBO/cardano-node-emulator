@@ -9,65 +9,23 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
 module Plutus.Script.Utils.V3.Typed.Script.MultiPurpose where
 
 import Codec.Serialise (Serialise)
-import Data.Default (Default, def)
 import GHC.Generics (Generic)
-import Optics.Core (Getter, to, view)
-import Plutus.Script.Utils.Scripts (
-  Language (PlutusV3),
-  MintingPolicy (MintingPolicy),
-  MintingPolicyHash (MintingPolicyHash),
-  Script (Script),
-  ScriptHash,
-  StakeValidator (StakeValidator),
-  StakeValidatorHash,
-  Validator (Validator),
-  ValidatorHash (ValidatorHash),
-  Versioned (Versioned),
-  mintingPolicyHash,
-  scriptCurrencySymbol,
-  scriptHash,
-  stakeValidatorHash,
-  validatorHash,
- )
+import Optics.Core qualified as Optics
+import Plutus.Script.Utils.Scripts qualified as PSU
 import PlutusLedgerApi.V3 qualified as Api
-import PlutusTx.AssocMap (member)
-import PlutusTx.Builtins.Internal (BuiltinUnit (BuiltinUnit))
-import PlutusTx.IsData (
-  FromData,
-  fromBuiltinData,
-  unstableMakeIsData,
- )
-import PlutusTx.Prelude (
-  Bool (False),
-  BuiltinByteString,
-  BuiltinData,
-  Either (Left, Right),
-  Integer,
-  Maybe (Just, Nothing),
-  any,
-  check,
-  either,
-  elem,
-  id,
-  maybe,
-  return,
-  trace,
-  traceError,
-  ($),
-  (&&),
-  (.),
-  (<$>),
-  (<>),
-  (==),
- )
-import PlutusTx.TH (compile)
-import Prettyprinter (Pretty)
-import Prettyprinter.Extras (PrettyShow (PrettyShow))
-import Prelude (Eq, Ord, Show (show))
+import PlutusTx.AssocMap qualified as Map
+import PlutusTx.Builtins.Internal qualified as PlutusTx
+import PlutusTx.IsData qualified as PlutusTx
+import PlutusTx.Prelude
+import PlutusTx.TH qualified as PlutusTx
+import Prettyprinter qualified as PP
+import Prettyprinter.Extras qualified as PP
+import Prelude qualified as HS
 
 class ValidatorTypes a where
   -- Minting purpose type variables with default
@@ -138,16 +96,27 @@ data TypedMultiPurposeScript a = TypedMultiPurposeScript
   , proposingTypedScript :: ProposingScriptType a
   }
 
-instance Default (TypedMultiPurposeScript a) where
-  {-# INLINEABLE def #-}
-  def =
-    TypedMultiPurposeScript
-      (\_ _ _ -> False)
-      (\_ _ _ _ -> False)
-      (\_ _ _ -> False)
-      (\_ _ _ _ -> False)
-      (\_ _ _ -> False)
-      (\_ _ _ _ -> False)
+{-# INLINEABLE alwaysFalseTypedMultiPurposeScript #-}
+alwaysFalseTypedMultiPurposeScript :: TypedMultiPurposeScript a
+alwaysFalseTypedMultiPurposeScript =
+  TypedMultiPurposeScript
+    (\_ _ _ -> False)
+    (\_ _ _ _ -> False)
+    (\_ _ _ -> False)
+    (\_ _ _ _ -> False)
+    (\_ _ _ -> False)
+    (\_ _ _ _ -> False)
+
+{-# INLINEABLE alwaysTrueTypedMultiPurposeScript #-}
+alwaysTrueTypedMultiPurposeScript :: TypedMultiPurposeScript a
+alwaysTrueTypedMultiPurposeScript =
+  TypedMultiPurposeScript
+    (\_ _ _ -> True)
+    (\_ _ _ _ -> True)
+    (\_ _ _ -> True)
+    (\_ _ _ _ -> True)
+    (\_ _ _ -> True)
+    (\_ _ _ _ -> True)
 
 -- * Working with the Minting purpose of a multipurpose script
 
@@ -173,25 +142,27 @@ inputExistsAtScriptAddress txInfo bs =
 
 -- | Getting the inputs from a TxInfo
 {-# INLINEABLE txInfoInputsG #-}
-txInfoInputsG :: Getter Api.TxInfo [Api.TxInInfo]
-txInfoInputsG = to Api.txInfoInputs
+txInfoInputsG :: Optics.Getter Api.TxInfo [Api.TxInInfo]
+txInfoInputsG = Optics.to Api.txInfoInputs
 
 -- | Minting policy that ensure a given validator is called in the transaction
 {-# INLINEABLE withForwardingMintingScript #-}
 withForwardingMintingScript
   :: TypedMultiPurposeScript a
-  -> ValidatorHash
-  -> Getter (MintingTxInfo a) [Api.TxInInfo]
+  -> PSU.ValidatorHash
+  -> Optics.Getter (MintingTxInfo a) [Api.TxInInfo]
   -> TypedMultiPurposeScript a
-withForwardingMintingScript ts (ValidatorHash hash) getter =
-  ts `withMintingPurpose` \_ _ txInfo -> inputExistsAtScriptAddress (view getter txInfo) hash
+withForwardingMintingScript ts (PSU.ValidatorHash hash) getter =
+  ts `withMintingPurpose` \_ _ txInfo -> inputExistsAtScriptAddress (Optics.view getter txInfo) hash
 
 -- | Minting policy that ensure the own spending purpose check is called in the transaction
 {-# INLINEABLE withOwnForwardingMintingScript #-}
 withOwnForwardingMintingScript
-  :: TypedMultiPurposeScript a -> Getter (MintingTxInfo a) [Api.TxInInfo] -> TypedMultiPurposeScript a
+  :: TypedMultiPurposeScript a
+  -> Optics.Getter (MintingTxInfo a) [Api.TxInInfo]
+  -> TypedMultiPurposeScript a
 withOwnForwardingMintingScript ts getter =
-  ts `withMintingPurpose` \(Api.CurrencySymbol cs) _ txInfo -> inputExistsAtScriptAddress (view getter txInfo) cs
+  ts `withMintingPurpose` \(Api.CurrencySymbol cs) _ txInfo -> inputExistsAtScriptAddress (Optics.view getter txInfo) cs
 
 -- * Working with the Spending purpose of a multipurpose script
 
@@ -210,33 +181,33 @@ addSpendingConstraint ts ss =
 
 -- | Getting the minted value from a TxInfo
 {-# INLINEABLE txInfoMintValueG #-}
-txInfoMintValueG :: Getter Api.TxInfo Api.Value
-txInfoMintValueG = to Api.txInfoMint
+txInfoMintValueG :: Optics.Getter Api.TxInfo Api.Value
+txInfoMintValueG = Optics.to Api.txInfoMint
 
 -- | Spending purpose that ensures a given minting script is invoked in the transaction
 {-# INLINEABLE withForwardSpendingScript #-}
 withForwardSpendingScript
   :: TypedMultiPurposeScript a
-  -> MintingPolicyHash
-  -> Getter (SpendingTxInfo a) Api.Value
+  -> PSU.MintingPolicyHash
+  -> Optics.Getter (SpendingTxInfo a) Api.Value
   -> TypedMultiPurposeScript a
-withForwardSpendingScript ts (MintingPolicyHash hash) getter =
-  ts `withSpendingPurpose` \_ _ _ txInfo -> Api.CurrencySymbol hash `member` Api.getValue (view getter txInfo)
+withForwardSpendingScript ts (PSU.MintingPolicyHash hash) getter =
+  ts `withSpendingPurpose` \_ _ _ txInfo -> Api.CurrencySymbol hash `Map.member` Api.getValue (Optics.view getter txInfo)
 
 -- | Spending purpose that ensures the own minting purpose is invoked in the transaction
 {-# INLINEABLE withOwnForwardSpendingScript #-}
 withOwnForwardSpendingScript
   :: TypedMultiPurposeScript a
-  -> Getter (SpendingTxInfo a) Api.Value
-  -> Getter (SpendingTxInfo a) [Api.TxInInfo]
+  -> Optics.Getter (SpendingTxInfo a) Api.Value
+  -> Optics.Getter (SpendingTxInfo a) [Api.TxInInfo]
   -> TypedMultiPurposeScript a
 withOwnForwardSpendingScript ts mintedValueGetter inputsGetter =
   ts `withSpendingPurpose` \oRef _ _ txInfo ->
     any
-      ((`member` Api.getValue (view mintedValueGetter txInfo)) . Api.CurrencySymbol)
+      ((`Map.member` Api.getValue (Optics.view mintedValueGetter txInfo)) . Api.CurrencySymbol)
       [ h
       | Api.TxInInfo ref (Api.TxOut (Api.Address (Api.ScriptCredential (Api.ScriptHash h)) _) _ _ _) <-
-          view inputsGetter txInfo
+          Optics.view inputsGetter txInfo
       , ref == oRef
       ]
 
@@ -267,61 +238,61 @@ data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
   , scriptContextScriptInfo :: Api.ScriptInfo
   }
 
-unstableMakeIsData ''ScriptContextResolvedScriptInfo
+PlutusTx.unstableMakeIsData ''ScriptContextResolvedScriptInfo
 
 type TypedMultiPurposeScriptConstraints a =
   ( ValidatorTypes a
-  , FromData (MintingRedeemerType a)
-  , FromData (MintingTxInfo a)
-  , FromData (SpendingRedeemerType a)
-  , FromData (SpendingTxInfo a)
-  , FromData (DatumType a)
-  , FromData (RewardingRedeemerType a)
-  , FromData (RewardingTxInfo a)
-  , FromData (CertifyingRedeemerType a)
-  , FromData (CertifyingTxInfo a)
-  , FromData (VotingRedeemerType a)
-  , FromData (VotingTxInfo a)
-  , FromData (ProposingRedeemerType a)
-  , FromData (ProposingTxInfo a)
+  , PlutusTx.FromData (MintingRedeemerType a)
+  , PlutusTx.FromData (MintingTxInfo a)
+  , PlutusTx.FromData (SpendingRedeemerType a)
+  , PlutusTx.FromData (SpendingTxInfo a)
+  , PlutusTx.FromData (DatumType a)
+  , PlutusTx.FromData (RewardingRedeemerType a)
+  , PlutusTx.FromData (RewardingTxInfo a)
+  , PlutusTx.FromData (CertifyingRedeemerType a)
+  , PlutusTx.FromData (CertifyingTxInfo a)
+  , PlutusTx.FromData (VotingRedeemerType a)
+  , PlutusTx.FromData (VotingTxInfo a)
+  , PlutusTx.FromData (ProposingRedeemerType a)
+  , PlutusTx.FromData (ProposingTxInfo a)
   )
 
-newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: Script}
+newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: PSU.Script}
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, Serialise)
-  deriving (Pretty) via (PrettyShow MultiPurposeScript)
+  deriving newtype (HS.Eq, HS.Ord, Serialise)
+  deriving (PP.Pretty) via (PP.PrettyShow MultiPurposeScript)
 
-instance Show MultiPurposeScript where
+instance HS.Show MultiPurposeScript where
   show _ = "Multi purpose script { <script> }"
 
-multiPurposeToMintingPolicy :: MultiPurposeScript -> MintingPolicy
-multiPurposeToMintingPolicy = MintingPolicy . getMultiPurposeScript
+multiPurposeToMintingPolicy :: MultiPurposeScript -> PSU.MintingPolicy
+multiPurposeToMintingPolicy = PSU.MintingPolicy . getMultiPurposeScript
 
-multiPurposeToValidator :: MultiPurposeScript -> Validator
-multiPurposeToValidator = Validator . getMultiPurposeScript
+multiPurposeToValidator :: MultiPurposeScript -> PSU.Validator
+multiPurposeToValidator = PSU.Validator . getMultiPurposeScript
 
-multiPurposeToStakeValidator :: MultiPurposeScript -> StakeValidator
-multiPurposeToStakeValidator = StakeValidator . getMultiPurposeScript
+multiPurposeToStakeValidator :: MultiPurposeScript -> PSU.StakeValidator
+multiPurposeToStakeValidator = PSU.StakeValidator . getMultiPurposeScript
 
-multiPurposeToScriptHash :: MultiPurposeScript -> ScriptHash
-multiPurposeToScriptHash = scriptHash . (`Versioned` PlutusV3) . getMultiPurposeScript
+multiPurposeToScriptHash :: MultiPurposeScript -> PSU.ScriptHash
+multiPurposeToScriptHash = PSU.scriptHash . (`PSU.Versioned` PSU.PlutusV3) . getMultiPurposeScript
 
-multiPurposeToValidatorHash :: MultiPurposeScript -> ValidatorHash
-multiPurposeToValidatorHash = validatorHash . (`Versioned` PlutusV3) . multiPurposeToValidator
+multiPurposeToValidatorHash :: MultiPurposeScript -> PSU.ValidatorHash
+multiPurposeToValidatorHash = PSU.validatorHash . (`PSU.Versioned` PSU.PlutusV3) . multiPurposeToValidator
 
-multiPurposeToStakeValidatorHash :: MultiPurposeScript -> StakeValidatorHash
-multiPurposeToStakeValidatorHash = stakeValidatorHash . (`Versioned` PlutusV3) . multiPurposeToStakeValidator
+multiPurposeToStakeValidatorHash :: MultiPurposeScript -> PSU.StakeValidatorHash
+multiPurposeToStakeValidatorHash = PSU.stakeValidatorHash . (`PSU.Versioned` PSU.PlutusV3) . multiPurposeToStakeValidator
 
-multiPurposeMintingPolicyHash :: MultiPurposeScript -> MintingPolicyHash
-multiPurposeMintingPolicyHash = mintingPolicyHash . (`Versioned` PlutusV3) . multiPurposeToMintingPolicy
+multiPurposeMintingPolicyHash :: MultiPurposeScript -> PSU.MintingPolicyHash
+multiPurposeMintingPolicyHash = PSU.mintingPolicyHash . (`PSU.Versioned` PSU.PlutusV3) . multiPurposeToMintingPolicy
 
 multiPurposeScriptCurrencySymbol :: MultiPurposeScript -> Api.CurrencySymbol
-multiPurposeScriptCurrencySymbol = scriptCurrencySymbol . (`Versioned` PlutusV3) . multiPurposeToMintingPolicy
+multiPurposeScriptCurrencySymbol = PSU.scriptCurrencySymbol . (`PSU.Versioned` PSU.PlutusV3) . multiPurposeToMintingPolicy
 
-type UntypedMultiPurposeScript = BuiltinData -> BuiltinUnit
+type UntypedMultiPurposeScript = BuiltinData -> PlutusTx.BuiltinUnit
 
 compileUntypedMultiPurposeScript :: UntypedMultiPurposeScript -> MultiPurposeScript
-compileUntypedMultiPurposeScript script = MultiPurposeScript $ Script $ Api.serialiseCompiledCode $$(compile [||script||])
+compileUntypedMultiPurposeScript script = MultiPurposeScript $ PSU.Script $ Api.serialiseCompiledCode $$(PlutusTx.compile [||script||])
 
 {-# INLINEABLE typedToUntypedMultiPurposeScript #-}
 typedToUntypedMultiPurposeScript
@@ -351,7 +322,7 @@ typedToUntypedMultiPurposeScript TypedMultiPurposeScript{..} dat = either traceE
       (red, txInfo) <- deserializeContext "proposing" scriptContextRedeemer scriptContextTxInfo
       return $ traceRunning "Proposing" $ proposingTypedScript i prop red txInfo
   where
-    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " <> name) Right . fromBuiltinData
+    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " <> name) Right . PlutusTx.fromBuiltinData
     traceRunning name = trace ("Running the validator with the " <> name <> " script purpose")
     deserializeContext name redData txInfoData = do
       red <- fromBuiltinDataEither (name <> " redeemer") redData
@@ -363,23 +334,24 @@ compileTypedMultiPurposeScript
 compileTypedMultiPurposeScript = compileUntypedMultiPurposeScript . typedToUntypedMultiPurposeScript
 
 class ToBuiltinUnit a where
-  toBuiltinUnit :: a -> BuiltinUnit
+  toBuiltinUnit :: a -> PlutusTx.BuiltinUnit
 
-instance ToBuiltinUnit BuiltinUnit where
+instance ToBuiltinUnit PlutusTx.BuiltinUnit where
   toBuiltinUnit = id
 
 instance ToBuiltinUnit () where
-  toBuiltinUnit = BuiltinUnit
+  toBuiltinUnit = PlutusTx.BuiltinUnit
 
 instance ToBuiltinUnit Bool where
   toBuiltinUnit = check
 
 {-# INLINEABLE genericToUntypedMultiPurposeScript #-}
 genericToUntypedMultiPurposeScript
-  :: (FromData a, ToBuiltinUnit b) => (a -> b) -> UntypedMultiPurposeScript
-genericToUntypedMultiPurposeScript script dat = case fromBuiltinData dat of
+  :: (PlutusTx.FromData a, ToBuiltinUnit b) => (a -> b) -> UntypedMultiPurposeScript
+genericToUntypedMultiPurposeScript script dat = case PlutusTx.fromBuiltinData dat of
   Nothing -> traceError "Unable to deserialize to the desired type"
   Just ctx -> toBuiltinUnit $ script ctx
 
-compileGenericMultiPurposeScript :: (FromData a, ToBuiltinUnit b) => (a -> b) -> MultiPurposeScript
+compileGenericMultiPurposeScript
+  :: (PlutusTx.FromData a, ToBuiltinUnit b) => (a -> b) -> MultiPurposeScript
 compileGenericMultiPurposeScript = compileUntypedMultiPurposeScript . genericToUntypedMultiPurposeScript

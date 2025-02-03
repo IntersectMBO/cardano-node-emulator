@@ -69,7 +69,7 @@ class ValidatorTypes (a :: Type) where
   type DatumType a :: Type
 
   -- Defaults
-  type RedeemerType a = BuiltinUnit
+  type RedeemerType a = ()
   type DatumType a = BuiltinUnit
 
 instance ValidatorTypes Void where

@@ -18,6 +18,7 @@ import Data.Default (
   def,
  )
 import GHC.Generics (Generic)
+import Optics.Core (Getter, view)
 import Plutus.Script.Utils.Scripts (
   Language (PlutusV3),
   MintingPolicy (MintingPolicy),
@@ -27,7 +28,7 @@ import Plutus.Script.Utils.Scripts (
   StakeValidator (StakeValidator),
   StakeValidatorHash,
   Validator (Validator),
-  ValidatorHash,
+  ValidatorHash (ValidatorHash),
   Versioned (Versioned),
   mintingPolicyHash,
   scriptCurrencySymbol,
@@ -43,11 +44,13 @@ import PlutusTx.IsData (
  )
 import PlutusTx.Prelude (
   Bool (False),
+  BuiltinByteString,
   BuiltinData,
   BuiltinString,
   Either (Left, Right),
   Integer,
   Maybe (Just, Nothing),
+  any,
   check,
   either,
   maybe,
@@ -55,13 +58,15 @@ import PlutusTx.Prelude (
   trace,
   traceError,
   ($),
+  (&&),
   (.),
   (<$>),
+  (==),
  )
 import PlutusTx.TH (compile)
 import Prettyprinter (Pretty)
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
-import Prelude (Eq, Ord, Show (show), fmap)
+import Prelude (Eq, Ord, Show (show))
 
 class ValidatorTypes a where
   -- Minting purpose type variables with default
@@ -108,51 +113,94 @@ class ValidatorTypes a where
   type ProposingRedeemerType a = ()
   type ProposingTxInfo a = Api.TxInfo
 
-data TypedValidatorV3 a = TypedValidatorV3
-  { mintingTypedValidator
-      :: Api.CurrencySymbol
-      -> MintingRedeemerType a
-      -> MintingTxInfo a
-      -> Bool
-  , spendingTypedValidator
-      :: Api.TxOutRef
-      -> Maybe (DatumType a)
-      -> SpendingRedeemerType a
-      -> SpendingTxInfo a
-      -> Bool
-  , rewardingTypedValidator
-      :: Api.Credential
-      -> RewardingRedeemerType a
-      -> RewardingTxInfo a
-      -> Bool
-  , certifyingTypedValidator
-      :: Integer
-      -> Api.TxCert
-      -> CertifyingRedeemerType a
-      -> CertifyingTxInfo a
-      -> Bool
-  , votingTypedValidator
-      :: Api.Voter
-      -> VotingRedeemerType a
-      -> VotingTxInfo a
-      -> Bool
-  , proposingTypedValidator
-      :: Integer
-      -> Api.ProposalProcedure
-      -> ProposingRedeemerType a
-      -> ProposingTxInfo a
-      -> Bool
+type MintingScriptType a = Api.CurrencySymbol -> MintingRedeemerType a -> MintingTxInfo a -> Bool
+
+type SpendingScriptType a =
+  Api.TxOutRef -> Maybe (DatumType a) -> SpendingRedeemerType a -> SpendingTxInfo a -> Bool
+
+type RewardingScriptType a = Api.Credential -> RewardingRedeemerType a -> RewardingTxInfo a -> Bool
+
+type CertifyingScriptType a =
+  Integer -> Api.TxCert -> CertifyingRedeemerType a -> CertifyingTxInfo a -> Bool
+
+type VotingScriptType a = Api.Voter -> VotingRedeemerType a -> VotingTxInfo a -> Bool
+
+type ProposingScriptType a =
+  Integer -> Api.ProposalProcedure -> ProposingRedeemerType a -> ProposingTxInfo a -> Bool
+
+data TypedScriptV3 a = TypedScriptV3
+  { mintingTypedScript :: MintingScriptType a
+  , spendingTypedScript :: SpendingScriptType a
+  , rewardingTypedScript :: RewardingScriptType a
+  , certifyingTypedScript :: CertifyingScriptType a
+  , votingTypedScript :: VotingScriptType a
+  , proposingTypedScript :: ProposingScriptType a
   }
 
-instance Default (TypedValidatorV3 a) where
+instance Default (TypedScriptV3 a) where
+  {-# INLINEABLE def #-}
   def =
-    TypedValidatorV3
+    TypedScriptV3
       (\_ _ _ -> False)
       (\_ _ _ _ -> False)
       (\_ _ _ -> False)
       (\_ _ _ _ -> False)
       (\_ _ _ -> False)
       (\_ _ _ _ -> False)
+
+-- | Adds (or overrides) the minting purpose to a V3 typed script
+{-# INLINEABLE withMintingPurpose #-}
+withMintingPurpose :: TypedScriptV3 a -> MintingScriptType a -> TypedScriptV3 a
+withMintingPurpose ts ms = ts{mintingTypedScript = ms}
+
+-- | Adds a minting constraint to an existing minting purpose
+{-# INLINEABLE addMintingConstraint #-}
+addMintingConstraint :: TypedScriptV3 a -> MintingScriptType a -> TypedScriptV3 a
+addMintingConstraint ts ms = ts `withMintingPurpose` \cs red txInfo -> mintingTypedScript ts cs red txInfo && ms cs red txInfo
+
+-- | Utility function to check that an input exists at a given script address
+{-# INLINEABLE inputExistsAtScriptAddress #-}
+inputExistsAtScriptAddress :: [Api.TxInInfo] -> BuiltinByteString -> Bool
+inputExistsAtScriptAddress txInfo bs =
+  any
+    (== bs)
+    [ h
+    | Api.TxInInfo _ (Api.TxOut (Api.Address (Api.ScriptCredential (Api.ScriptHash h)) _) _ _ _) <- txInfo
+    ]
+
+-- | Minting policy that ensure a given validator is called in the transaction
+{-# INLINEABLE withForwardingMintingPolicy #-}
+withForwardingMintingPolicy
+  :: TypedScriptV3 a -> ValidatorHash -> Getter (MintingTxInfo a) [Api.TxInInfo] -> TypedScriptV3 a
+withForwardingMintingPolicy ts (ValidatorHash hash) l = ts `withMintingPurpose` \_ _ txInfo -> inputExistsAtScriptAddress (view l txInfo) hash
+
+-- | Minting policy that ensure the own spending purpose check is called in the transaction
+{-# INLINEABLE withForwardingMintingPolicyToOwn #-}
+withForwardingMintingPolicyToOwn
+  :: TypedScriptV3 a -> Getter (MintingTxInfo a) [Api.TxInInfo] -> TypedScriptV3 a
+withForwardingMintingPolicyToOwn ts l =
+  ts `withMintingPurpose` \(Api.CurrencySymbol cs) _ txInfo -> inputExistsAtScriptAddress (view l txInfo) cs
+
+-- | Adds (or overrides) the spending purpose to a V3 typed script
+{-# INLINEABLE withSpendingPurpose #-}
+withSpendingPurpose :: TypedScriptV3 a -> SpendingScriptType a -> TypedScriptV3 a
+withSpendingPurpose ts ss = ts{spendingTypedScript = ss}
+
+{-# INLINEABLE withRewardingPurpose #-}
+withRewardingPurpose :: TypedScriptV3 a -> RewardingScriptType a -> TypedScriptV3 a
+withRewardingPurpose ts rs = ts{rewardingTypedScript = rs}
+
+{-# INLINEABLE withCertifyingPurpose #-}
+withCertifyingPurpose :: TypedScriptV3 a -> CertifyingScriptType a -> TypedScriptV3 a
+withCertifyingPurpose ts cs = ts{certifyingTypedScript = cs}
+
+{-# INLINEABLE withVotingPurpose #-}
+withVotingPurpose :: TypedScriptV3 a -> VotingScriptType a -> TypedScriptV3 a
+withVotingPurpose ts vs = ts{votingTypedScript = vs}
+
+{-# INLINEABLE withProposingPurpose #-}
+withProposingPurpose :: TypedScriptV3 a -> ProposingScriptType a -> TypedScriptV3 a
+withProposingPurpose ts ps = ts{proposingTypedScript = ps}
 
 data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
   { scriptContextTxInfo :: BuiltinData
@@ -162,7 +210,7 @@ data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
 
 unstableMakeIsData ''ScriptContextResolvedScriptInfo
 
-type TypedValidatorV3Constraints a =
+type TypedScriptV3Constraints a =
   ( ValidatorTypes a
   , FromData (MintingRedeemerType a)
   , FromData (MintingTxInfo a)
@@ -196,31 +244,29 @@ multiPurposeToValidator = Validator . getMultiPurposeScript
 multiPurposeToStakeValidator :: MultiPurposeScript -> StakeValidator
 multiPurposeToStakeValidator = StakeValidator . getMultiPurposeScript
 
-multiPurposeToScriptHash :: Versioned MultiPurposeScript -> ScriptHash
-multiPurposeToScriptHash = scriptHash . fmap getMultiPurposeScript
+multiPurposeToScriptHash :: MultiPurposeScript -> ScriptHash
+multiPurposeToScriptHash = scriptHash . (`Versioned` PlutusV3) . getMultiPurposeScript
 
-multiPurposeToValidatorHash :: Versioned MultiPurposeScript -> ValidatorHash
-multiPurposeToValidatorHash = validatorHash . fmap multiPurposeToValidator
+multiPurposeToValidatorHash :: MultiPurposeScript -> ValidatorHash
+multiPurposeToValidatorHash = validatorHash . (`Versioned` PlutusV3) . multiPurposeToValidator
 
-multiPurposeToStakeValidatorHash :: Versioned MultiPurposeScript -> StakeValidatorHash
-multiPurposeToStakeValidatorHash = stakeValidatorHash . fmap multiPurposeToStakeValidator
+multiPurposeToStakeValidatorHash :: MultiPurposeScript -> StakeValidatorHash
+multiPurposeToStakeValidatorHash = stakeValidatorHash . (`Versioned` PlutusV3) . multiPurposeToStakeValidator
 
-multiPurposeMintingPolicyHash :: Versioned MultiPurposeScript -> MintingPolicyHash
-multiPurposeMintingPolicyHash = mintingPolicyHash . fmap multiPurposeToMintingPolicy
+multiPurposeMintingPolicyHash :: MultiPurposeScript -> MintingPolicyHash
+multiPurposeMintingPolicyHash = mintingPolicyHash . (`Versioned` PlutusV3) . multiPurposeToMintingPolicy
 
-multiPurposeScriptCurrencySymbol :: Versioned MultiPurposeScript -> Api.CurrencySymbol
-multiPurposeScriptCurrencySymbol = scriptCurrencySymbol . fmap multiPurposeToMintingPolicy
+multiPurposeScriptCurrencySymbol :: MultiPurposeScript -> Api.CurrencySymbol
+multiPurposeScriptCurrencySymbol = scriptCurrencySymbol . (`Versioned` PlutusV3) . multiPurposeToMintingPolicy
 
 {-# INLINEABLE fromBuiltinDataEither #-}
 fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
 fromBuiltinDataEither err = maybe (Left err) Right . fromBuiltinData
 
 {-# INLINEABLE toValidator #-}
-toValidator :: (TypedValidatorV3Constraints a) => TypedValidatorV3 a -> Versioned MultiPurposeScript
-toValidator (TypedValidatorV3{..}) =
-  Versioned
-    (MultiPurposeScript $ Script $ Api.serialiseCompiledCode $$(compile [||validatorCode||]))
-    PlutusV3
+toValidator :: (TypedScriptV3Constraints a) => TypedScriptV3 a -> MultiPurposeScript
+toValidator (TypedScriptV3{..}) =
+  MultiPurposeScript $ Script $ Api.serialiseCompiledCode $$(compile [||validatorCode||])
   where
     validatorCode dat = either traceError check $ do
       ScriptContextResolvedScriptInfo{..} <-
@@ -231,7 +277,7 @@ toValidator (TypedValidatorV3{..}) =
           txInfo <- fromBuiltinDataEither "Error when deserializing the minting tx info" scriptContextTxInfo
           return
             $ trace "Running the validator with the Minting purpose"
-            $ mintingTypedValidator cur red txInfo
+            $ mintingTypedScript cur red txInfo
         Api.SpendingScript oRef mDat -> do
           red <- fromBuiltinDataEither "Error when deserializing the spending redeemer" scriptContextRedeemer
           txInfo <- fromBuiltinDataEither "Error when deserializing the spending tx info" scriptContextTxInfo
@@ -240,13 +286,13 @@ toValidator (TypedValidatorV3{..}) =
             Just (Api.Datum bDat) -> Just <$> fromBuiltinDataEither "Error when deserializing the datum" bDat
           return
             $ trace "Running the validator with the Spending purpose"
-            $ spendingTypedValidator oRef mResolvedDat red txInfo
+            $ spendingTypedScript oRef mResolvedDat red txInfo
         Api.RewardingScript cred -> do
           red <- fromBuiltinDataEither "Error when deserializing the rewarding redeemer" scriptContextRedeemer
           txInfo <- fromBuiltinDataEither "Error when deserializing the rewarding tx info" scriptContextTxInfo
           return
             $ trace "Running the validator with the Rewarding purpose"
-            $ rewardingTypedValidator cred red txInfo
+            $ rewardingTypedScript cred red txInfo
         Api.CertifyingScript i cert -> do
           red <-
             fromBuiltinDataEither "Error when deserializing the certifying redeemer" scriptContextRedeemer
@@ -254,16 +300,16 @@ toValidator (TypedValidatorV3{..}) =
             fromBuiltinDataEither "Error when deserializing the certifying tx info" scriptContextTxInfo
           return
             $ trace "Running the validator with the Certifying purpose"
-            $ certifyingTypedValidator i cert red txInfo
+            $ certifyingTypedScript i cert red txInfo
         Api.VotingScript voter -> do
           red <- fromBuiltinDataEither "Error when deserializing the voting redeemer" scriptContextRedeemer
           txInfo <- fromBuiltinDataEither "Error when deserializing the voting tx info" scriptContextTxInfo
           return
             $ trace "Running the validator with the Voting purpose"
-            $ votingTypedValidator voter red txInfo
+            $ votingTypedScript voter red txInfo
         Api.ProposingScript i prop -> do
           red <- fromBuiltinDataEither "Error when deserializing the proposing redeemer" scriptContextRedeemer
           txInfo <- fromBuiltinDataEither "Error when deserializing the proposing tx info" scriptContextTxInfo
           return
             $ trace "Running the validator with the Proposing purpose"
-            $ proposingTypedValidator i prop red txInfo
+            $ proposingTypedScript i prop red txInfo

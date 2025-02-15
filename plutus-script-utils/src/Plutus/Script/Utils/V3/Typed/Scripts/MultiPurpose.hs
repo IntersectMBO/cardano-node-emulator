@@ -118,6 +118,12 @@ alwaysTrueTypedMultiPurposeScript =
     (\_ _ _ -> True)
     (\_ _ _ _ -> True)
 
+alwaysTrueMintingScript :: TypedMultiPurposeScript a
+alwaysTrueMintingScript = alwaysFalseTypedMultiPurposeScript `withMintingPurpose` \_ _ _ -> True
+
+alwaysTrueSpendingScript :: TypedMultiPurposeScript a
+alwaysTrueSpendingScript = alwaysFalseTypedMultiPurposeScript `withSpendingPurpose` \_ _ _ _ -> True
+
 -- * Working with the Minting purpose of a multipurpose script
 
 -- | Adds (or overrides) the minting purpose to a V3 typed script

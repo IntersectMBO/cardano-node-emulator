@@ -72,13 +72,14 @@ import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
 import Data.Default (Default (def))
 import Data.Map qualified as Map
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust)
 import Data.Ratio ((%))
 import Data.SOP (K (K))
 import Data.SOP.Counting qualified as Ouroboros
 import Data.SOP.NonEmpty qualified as Ouroboros
 import Data.SOP.Strict (NP (Nil, (:*)))
 import Data.Set qualified as Set
+import Debug.Trace qualified as Debug
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
@@ -195,7 +196,8 @@ emulatorAlonzoGenesisDefaults =
   where
     costModel lang =
       fromJust $
-        defaultCostModelParamsForTesting >>= Alonzo.costModelFromMap lang . projectLangParams lang
+        Debug.traceShow (isJust defaultCostModelParamsForTesting) defaultCostModelParamsForTesting
+          >>= Alonzo.costModelFromMap lang . projectLangParams lang
     costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
     projectLangParams lang m =
       Map.restrictKeys

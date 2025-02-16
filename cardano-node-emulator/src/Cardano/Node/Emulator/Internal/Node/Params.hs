@@ -197,6 +197,7 @@ emulatorAlonzoGenesisDefaults =
     costModel lang =
       fromJust
         ( do
+            Debug.traceShowM lang
             defaultCM <- defaultCostModelParamsForTesting
             Debug.traceM $ "successfully retrieving default cost model with size" <> show (Map.size defaultCM)
             let plp = projectLangParams lang defaultCM

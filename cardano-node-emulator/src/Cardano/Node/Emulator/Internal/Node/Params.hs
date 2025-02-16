@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -79,7 +80,6 @@ import Data.SOP.Counting qualified as Ouroboros
 import Data.SOP.NonEmpty qualified as Ouroboros
 import Data.SOP.Strict (NP (Nil, (:*)))
 import Data.Set qualified as Set
-import Debug.Trace qualified as Debug
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
@@ -185,6 +185,9 @@ emulatorShelleyGenesisDefaults =
           & C.ppKeyDepositL .~ Coin 2_000_000
     }
 
+instance MonadFail (Either String) where
+  fail = Left
+
 emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
 emulatorAlonzoGenesisDefaults =
   (C.alonzoGenesisDefaults C.ConwayEra)
@@ -195,17 +198,14 @@ emulatorAlonzoGenesisDefaults =
     }
   where
     costModel lang =
-      fromJust
-        ( do
-            Debug.traceShowM lang
-            defaultCM <- defaultCostModelParamsForTesting
-            Debug.traceM $ "successfully retrieving default cost model with size" <> show (Map.size defaultCM)
-            let plp = projectLangParams lang defaultCM
-            Debug.traceM $ "successfully key retriction with size" <> show (Map.size plp)
-            retrievedCM <- Alonzo.costModelFromMap lang plp
-            Debug.traceM $ "successfully extracting cost model with size" <> show retrievedCM
-            return retrievedCM
-        )
+      case ( do
+              defaultCM <- case defaultCostModelParamsForTesting of
+                Nothing -> Left ("hm" :: String)
+                Just v -> return v
+              Alonzo.costModelFromMap lang $ projectLangParams lang defaultCM
+           ) of
+        Left err -> error $ show err
+        Right v -> v
 
     costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
     projectLangParams lang m =

@@ -12,32 +12,32 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | The set of parameters, like protocol parameters and slot configuration.
-module Cardano.Node.Emulator.Internal.Node.Params (
-  Params (..),
-  paramsFromConfig,
-  C.mkLatestTransitionConfig,
-  slotConfigL,
-  networkIdL,
-  emulatorPParamsL,
-  emulatorPParams,
-  ledgerProtocolParameters,
-  increaseTransactionLimits,
-  increaseTransactionLimits',
-  emulatorEpochSize,
-  emulatorShelleyGenesisDefaults,
-  emulatorAlonzoGenesisDefaults,
-  emulatorConwayGenesisDefaults,
-  keptBlocks,
+module Cardano.Node.Emulator.Internal.Node.Params
+  ( Params (..),
+    paramsFromConfig,
+    C.mkLatestTransitionConfig,
+    slotConfigL,
+    networkIdL,
+    emulatorPParamsL,
+    emulatorPParams,
+    ledgerProtocolParameters,
+    increaseTransactionLimits,
+    increaseTransactionLimits',
+    emulatorEpochSize,
+    emulatorShelleyGenesisDefaults,
+    emulatorAlonzoGenesisDefaults,
+    emulatorConwayGenesisDefaults,
+    keptBlocks,
 
-  -- * cardano-ledger specific types and conversion functions
-  EmulatorEra,
-  PParams,
-  TransitionConfig,
-  slotLength,
-  testnet,
-  emulatorGlobals,
-  emulatorEraHistory,
-)
+    -- * cardano-ledger specific types and conversion functions
+    EmulatorEra,
+    PParams,
+    TransitionConfig,
+    slotLength,
+    testnet,
+    emulatorGlobals,
+    emulatorEraHistory,
+  )
 where
 
 import Cardano.Api qualified as C
@@ -57,14 +57,14 @@ import Cardano.Ledger.Plutus.ExUnits (ExUnits (ExUnits), Prices (Prices))
 import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Cardano.Ledger.Slot (EpochSize (EpochSize))
-import Cardano.Node.Emulator.Internal.Node.TimeSlot (
-  SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime),
-  beginningOfTime,
-  nominalDiffTimeToPOSIXTime,
-  posixTimeToNominalDiffTime,
-  posixTimeToUTCTime,
-  utcTimeToPOSIXTime,
- )
+import Cardano.Node.Emulator.Internal.Node.TimeSlot
+  ( SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime),
+    beginningOfTime,
+    nominalDiffTimeToPOSIXTime,
+    posixTimeToNominalDiffTime,
+    posixTimeToUTCTime,
+    utcTimeToPOSIXTime,
+  )
 import Cardano.Slotting.EpochInfo (fixedEpochInfo)
 import Cardano.Slotting.Time (SlotLength, mkSlotLength)
 import Control.Lens (makeLensesFor, over, (%~), (&), (.~), (^.))
@@ -99,11 +99,11 @@ type PParams = C.PParams EmulatorEra
 type TransitionConfig = C.TransitionConfig EmulatorEra
 
 data Params = Params
-  { pSlotConfig :: !SlotConfig
-  , pEmulatorPParams :: !PParams
-  , pNetworkId :: !C.NetworkId
-  , pEpochSize :: !EpochSize
-  , pConfig :: !TransitionConfig
+  { pSlotConfig :: !SlotConfig,
+    pEmulatorPParams :: !PParams,
+    pNetworkId :: !C.NetworkId,
+    pEpochSize :: !EpochSize,
+    pConfig :: !TransitionConfig
   }
   deriving (Eq, Show, Generic)
 
@@ -122,9 +122,9 @@ deriving newtype instance ToJSON C.NetworkMagic
 deriving newtype instance FromJSON C.NetworkMagic
 
 makeLensesFor
-  [ ("pSlotConfig", "slotConfigL")
-  , ("pEmulatorPParams", "emulatorPParamsL")
-  , ("pNetworkId", "networkIdL")
+  [ ("pSlotConfig", "slotConfigL"),
+    ("pEmulatorPParams", "emulatorPParamsL"),
+    ("pNetworkId", "networkIdL")
   ]
   ''Params
 
@@ -132,11 +132,11 @@ instance Default Params where
   def = paramsFromConfig defaultConfig
 
 instance Pretty Params where
-  pretty Params{..} =
+  pretty Params {..} =
     vsep
-      [ "Slot config:" <+> pretty pSlotConfig
-      , "Network ID:" <+> viaShow pNetworkId
-      , "Protocol Parameters:" <+> viaShow pEmulatorPParams
+      [ "Slot config:" <+> pretty pSlotConfig,
+        "Network ID:" <+> viaShow pNetworkId,
+        "Protocol Parameters:" <+> viaShow pEmulatorPParams
       ]
 
 -- | Convert `Params` to cardano-ledger `PParams`
@@ -146,10 +146,9 @@ emulatorPParams = pEmulatorPParams
 ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
-{- | Set higher limits on transaction size and execution units.
-This can be used to work around @MaxTxSizeUTxO@ and @ExUnitsTooBigUTxO@ errors.
-Note that if you need this your Plutus script will probably not validate on Mainnet.
--}
+-- | Set higher limits on transaction size and execution units.
+-- This can be used to work around @MaxTxSizeUTxO@ and @ExUnitsTooBigUTxO@ errors.
+-- Note that if you need this your Plutus script will probably not validate on Mainnet.
 increaseTransactionLimits :: Params -> Params
 increaseTransactionLimits = increaseTransactionLimits' 2 10 10
 
@@ -175,9 +174,9 @@ defaultConfig =
 emulatorShelleyGenesisDefaults :: C.ShelleyGenesis StandardCrypto
 emulatorShelleyGenesisDefaults =
   C.shelleyGenesisDefaults
-    { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm
-    , C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime
-    , C.sgProtocolParams =
+    { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm,
+      C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime,
+      C.sgProtocolParams =
         C.sgProtocolParams C.shelleyGenesisDefaults
           & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
           & C.ppMinFeeBL .~ Coin 155_381
@@ -192,17 +191,17 @@ emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
 emulatorAlonzoGenesisDefaults =
   (C.alonzoGenesisDefaults C.ConwayEra)
     { C.agPrices =
-        Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
-    , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
-    , C.agCostModels = mkCostModels costModels
+        Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000)),
+      C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
+      -- , C.agCostModels = mkCostModels costModels
     }
   where
     costModel lang =
       case ( do
-              defaultCM <- case defaultCostModelParamsForTesting of
-                Nothing -> Left ("hm" :: String)
-                Just v -> return v
-              Alonzo.costModelFromMap lang $ projectLangParams lang defaultCM
+               defaultCM <- case defaultCostModelParamsForTesting of
+                 Nothing -> Left ("hm" :: String)
+                 Just v -> return v
+               Alonzo.costModelFromMap lang $ projectLangParams lang defaultCM
            ) of
         Left err -> error $ show err
         Right v -> v
@@ -228,24 +227,24 @@ paramsFromConfig tc =
   Params
     { pSlotConfig =
         SlotConfig
-          { scSlotZeroTime = utcTimeToPOSIXTime $ C.sgSystemStart sg
-          , scSlotLength =
+          { scSlotZeroTime = utcTimeToPOSIXTime $ C.sgSystemStart sg,
+            scSlotLength =
               getPOSIXTime $ nominalDiffTimeToPOSIXTime $ C.Ledger.fromNominalDiffTimeMicro $ C.sgSlotLength sg
-          }
-    , pEmulatorPParams = tc ^. C.tcInitialPParamsG
-    , pNetworkId = C.fromShelleyNetwork (C.sgNetworkId sg) (C.NetworkMagic $ C.sgNetworkMagic sg)
-    , pEpochSize = C.sgEpochLength sg
-    , pConfig = tc
+          },
+      pEmulatorPParams = tc ^. C.tcInitialPParamsG,
+      pNetworkId = C.fromShelleyNetwork (C.sgNetworkId sg) (C.NetworkMagic $ C.sgNetworkMagic sg),
+      pEpochSize = C.sgEpochLength sg,
+      pConfig = tc
     }
   where
     sg = tc ^. C.tcShelleyGenesisL
 
 -- | Calculate the cardano-ledger `SlotLength`
 slotLength :: Params -> SlotLength
-slotLength Params{pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
+slotLength Params {pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
 
 keptBlocks :: Params -> Integer
-keptBlocks Params{pConfig} = fromIntegral $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
+keptBlocks Params {pConfig} = fromIntegral $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
 
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize
@@ -253,7 +252,7 @@ emulatorEpochSize = EpochSize 432_000
 
 -- | A sensible default 'Globals' value for the emulator
 emulatorGlobals :: Params -> Globals
-emulatorGlobals params@Params{pEpochSize, pConfig} =
+emulatorGlobals params@Params {pEpochSize, pConfig} =
   mkShelleyGlobals
     (pConfig ^. C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))

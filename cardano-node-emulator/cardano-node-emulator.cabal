@@ -54,7 +54,6 @@ library
   build-depends:
     , freer-extras         ^>=1.4.0
     , plutus-ledger        ^>=1.4.0
-    , plutus-script-utils  ^>=1.4.0
 
   --------------------------
   -- Other IOG dependencies
@@ -70,7 +69,6 @@ library
     , cardano-ledger-shelley
     , cardano-slotting
     , ouroboros-consensus
-    , plutus-core                               >=1.0.0
     , plutus-ledger-api                         >=1.0.0
     , plutus-tx                                 >=1.0.0
     , sop-extras

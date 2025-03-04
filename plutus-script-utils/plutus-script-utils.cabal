@@ -79,10 +79,7 @@ library
     Plutus.Script.Utils.V3.Scripts
     Plutus.Script.Utils.V3.Tx
     Plutus.Script.Utils.V3.Typed.Scripts
-    Plutus.Script.Utils.V3.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose
-    Plutus.Script.Utils.V3.Typed.Scripts.StakeValidators
-    Plutus.Script.Utils.V3.Typed.Scripts.Validators
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 

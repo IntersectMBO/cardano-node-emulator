@@ -45,14 +45,12 @@ import Cardano.Api.NetworkId qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.Genesis qualified as C
 import Cardano.Ledger.Alonzo.PParams qualified as C
-import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (ProtVer (ProtVer), boundRational)
 import Cardano.Ledger.Binary.Version (Version, natVersion)
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Crypto (StandardCrypto)
-import Cardano.Ledger.Plutus.CostModels (mkCostModels)
 import Cardano.Ledger.Plutus.ExUnits (ExUnits (ExUnits), Prices (Prices))
 import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
@@ -72,22 +70,18 @@ import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
 import Data.Default (Default (def))
-import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import Data.SOP (K (K))
 import Data.SOP.Counting qualified as Ouroboros
 import Data.SOP.NonEmpty qualified as Ouroboros
 import Data.SOP.Strict (NP (Nil, (:*)))
-import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
 import Ledger.Test (testNetworkMagic, testnet)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
-import Plutus.Script.Utils.Scripts (Language (PlutusV1))
-import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParamsForTesting)
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
@@ -193,31 +187,7 @@ emulatorAlonzoGenesisDefaults =
     { C.agPrices =
         Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000)),
       C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
-      -- , C.agCostModels = mkCostModels costModels
     }
-  where
-    costModel lang =
-      case ( do
-               defaultCM <- case defaultCostModelParamsForTesting of
-                 Nothing -> Left ("hm" :: String)
-                 Just v -> return v
-               Alonzo.costModelFromMap lang $ projectLangParams lang defaultCM
-           ) of
-        Left err -> error $ show err
-        Right v -> v
-
-    costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
-    projectLangParams lang m =
-      Map.restrictKeys
-        (Map.mapKeys (mapParamNames lang) m)
-        (Set.fromList (Alonzo.costModelParamNames lang))
-    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-intercept" = "blake2b-cpu-arguments-intercept"
-    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-slope" = "blake2b-cpu-arguments-slope"
-    mapParamNames PlutusV1 "blake2b_256-memory-arguments" = "blake2b-memory-arguments"
-    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-intercept" = "verifySignature-cpu-arguments-intercept"
-    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
-    mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
-    mapParamNames _ name = name
 
 emulatorConwayGenesisDefaults :: C.ConwayGenesis StandardCrypto
 emulatorConwayGenesisDefaults = C.conwayGenesisDefaults

@@ -1,31 +1,32 @@
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Plutus.Script.Utils.V3.Scripts (
-  -- * Script data hashes
-  PV3.Datum,
-  PV3.DatumHash,
-  PV3.Redeemer,
-  PV3.RedeemerHash,
-  P.datumHash,
-  P.redeemerHash,
-  P.dataHash,
+module Plutus.Script.Utils.V3.Scripts
+  ( -- * Script data hashes
+    PV3.Datum,
+    PV3.DatumHash,
+    PV3.Redeemer,
+    PV3.RedeemerHash,
+    P.datumHash,
+    P.redeemerHash,
+    P.dataHash,
 
-  -- * Script hashes
-  PV3.Validator,
-  PV3.ValidatorHash,
-  PV3.MintingPolicy,
-  PV3.MintingPolicyHash,
-  PV3.StakeValidator,
-  PV3.StakeValidatorHash,
-  validatorHash,
-  mintingPolicyHash,
-  stakeValidatorHash,
-  scriptHash,
+    -- * Script hashes
+    PV3.Validator,
+    PV3.ValidatorHash,
+    PV3.MintingPolicy,
+    PV3.MintingPolicyHash,
+    PV3.StakeValidator,
+    PV3.StakeValidatorHash,
+    validatorHash,
+    mintingPolicyHash,
+    stakeValidatorHash,
+    scriptHash,
 
-  -- * Script utilities
-  scriptCurrencySymbol,
-  toCardanoApiScript,
-) where
+    -- * Script utilities
+    scriptCurrencySymbol,
+    toCardanoApiScript,
+  )
+where
 
 import Cardano.Api qualified as Script
 import Cardano.Api.Shelley qualified as Script
@@ -58,14 +59,13 @@ stakeValidatorHash =
     . scriptHash
     . PV3.getStakeValidator
 
-{- | Convert a 'Builtins.BuiltinsData' value to a 'cardano-api' script
-  data value.
-
-For why we depend on `cardano-api`,
-see note [Hash computation of datums, redeemers and scripts]
-toCardanoAPIData :: Builtins.BuiltinData -> Script.ScriptData
-toCardanoAPIData = Script.fromPlutusData . Builtins.builtinDataToData
--}
+-- | Convert a 'Builtins.BuiltinsData' value to a 'cardano-api' script
+--  data value.
+--
+-- For why we depend on `cardano-api`,
+-- see note [Hash computation of datums, redeemers and scripts]
+-- toCardanoAPIData :: Builtins.BuiltinData -> Script.ScriptData
+-- toCardanoAPIData = Script.fromPlutusData . Builtins.builtinDataToData
 
 -- | Hash a 'Script'
 scriptHash :: PV3.Script -> PV3.ScriptHash
@@ -76,11 +76,10 @@ scriptHash =
     . Script.hashScript
     . toCardanoApiScript
 
-{- | Convert a 'Script' to a 'cardano-api' script.
-
-For why we depend on `cardano-api`,
-see note [Hash computation of datums, redeemers and scripts]
--}
+-- | Convert a 'Script' to a 'cardano-api' script.
+--
+-- For why we depend on `cardano-api`,
+-- see note [Hash computation of datums, redeemers and scripts]
 toCardanoApiScript :: PV3.Script -> Script.Script Script.PlutusScriptV3
 toCardanoApiScript =
   Script.PlutusScript Script.PlutusScriptV3

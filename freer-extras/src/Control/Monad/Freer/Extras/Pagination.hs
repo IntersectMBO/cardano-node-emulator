@@ -34,12 +34,13 @@ Here's a simple illustrative example:
   items after the last item (which is 100).
 \* We obtain a page with no elements, thus we don't need to query for more pages.
 -}
-module Control.Monad.Freer.Extras.Pagination (
-  PageQuery (..),
-  Page (..),
-  PageSize (..),
-  pageOf,
-) where
+module Control.Monad.Freer.Extras.Pagination
+  ( PageQuery (..),
+    Page (..),
+    PageSize (..),
+    pageOf,
+  )
+where
 
 import Control.Monad (guard)
 import Data.Aeson (FromJSON, ToJSON)
@@ -53,10 +54,10 @@ import Numeric.Natural (Natural)
 
 -- | Query parameters for pagination.
 data PageQuery a = PageQuery
-  { pageQuerySize :: PageSize
-  -- ^ Number of items per page.
-  , pageQueryLastItem :: Maybe a
-  -- ^ Last item of the queried page.
+  { -- | Number of items per page.
+    pageQuerySize :: PageSize,
+    -- | Last item of the queried page.
+    pageQueryLastItem :: Maybe a
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
   deriving anyclass (ToJSON, FromJSON)
@@ -74,24 +75,24 @@ instance Default PageSize where
 
 -- | Part of a collection.
 data Page a = Page
-  { currentPageQuery :: PageQuery a
-  -- ^ The 'PageQuery' which was used to request this 'Page'.
-  , nextPageQuery :: Maybe (PageQuery a)
-  -- ^ The 'PageQuery' to use to request the next 'Page'. Nothing if we requested the last page.
-  , pageItems :: [a]
-  -- ^ Items in the current 'Page'.
+  { -- | The 'PageQuery' which was used to request this 'Page'.
+    currentPageQuery :: PageQuery a,
+    -- | The 'PageQuery' to use to request the next 'Page'. Nothing if we requested the last page.
+    nextPageQuery :: Maybe (PageQuery a),
+    -- | Items in the current 'Page'.
+    pageItems :: [a]
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
   deriving anyclass (ToJSON, FromJSON)
 
 -- | Given a 'Set', request the 'Page' with the given 'PageQuery'.
-pageOf
-  :: (Eq a)
-  => PageQuery a
-  -- ^ Pagination query parameters.
-  -> Set a
-  -> Page a
-pageOf pageQuery@PageQuery{pageQuerySize = PageSize ps, pageQueryLastItem} items =
+pageOf ::
+  (Eq a) =>
+  -- | Pagination query parameters.
+  PageQuery a ->
+  Set a ->
+  Page a
+pageOf pageQuery@PageQuery {pageQuerySize = PageSize ps, pageQueryLastItem} items =
   let ps' = fromIntegral ps
       -- The extract the @PageSize + 1@ next elements after the last query
       -- element. The @+1@ allows to now if there is a next page or not.
@@ -104,7 +105,7 @@ pageOf pageQuery@PageQuery{pageQuerySize = PageSize ps, pageQueryLastItem} items
           >> L.nonEmpty pageItems
           >>= listToMaybe . L.tail . L.reverse
    in Page
-        { currentPageQuery = pageQuery
-        , nextPageQuery = fmap (PageQuery (PageSize ps) . Just) nextLastItem
-        , pageItems = if isJust nextLastItem then init pageItems else pageItems
+        { currentPageQuery = pageQuery,
+          nextPageQuery = fmap (PageQuery (PageSize ps) . Just) nextLastItem,
+          pageItems = if isJust nextLastItem then init pageItems else pageItems
         }

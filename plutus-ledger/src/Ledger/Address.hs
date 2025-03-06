@@ -5,34 +5,34 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.Address (
-  module Export,
-  CardanoAddress,
-  PaymentPrivateKey (..),
-  PaymentPubKey (..),
-  PaymentPubKeyHash (..),
-  StakePrivateKey (..),
-  StakePubKey (..),
-  StakePubKeyHash (..),
-  ToWitness (..),
-  toPlutusAddress,
-  toPlutusPubKeyHash,
-  cardanoAddressCredential,
-  cardanoPubKeyHash,
-  cardanoStakingCredential,
-  paymentPubKeyHash,
-  pubKeyHashAddress,
-  pubKeyAddress,
-  scriptValidatorHashAddress,
-  stakePubKeyHashCredential,
-  stakeValidatorHashCredential,
-  xprvToPaymentPubKey,
-  xprvToPaymentPubKeyHash,
-  xprvToStakingCredential,
-  xprvToStakePubKey,
-  xprvToStakePubKeyHash,
-  mkValidatorCardanoAddress,
-)
+module Ledger.Address
+  ( module Export,
+    CardanoAddress,
+    PaymentPrivateKey (..),
+    PaymentPubKey (..),
+    PaymentPubKeyHash (..),
+    StakePrivateKey (..),
+    StakePubKey (..),
+    StakePubKeyHash (..),
+    ToWitness (..),
+    toPlutusAddress,
+    toPlutusPubKeyHash,
+    cardanoAddressCredential,
+    cardanoPubKeyHash,
+    cardanoStakingCredential,
+    paymentPubKeyHash,
+    pubKeyHashAddress,
+    pubKeyAddress,
+    scriptValidatorHashAddress,
+    stakePubKeyHashCredential,
+    stakeValidatorHashCredential,
+    xprvToPaymentPubKey,
+    xprvToPaymentPubKeyHash,
+    xprvToStakingCredential,
+    xprvToStakePubKey,
+    xprvToStakePubKeyHash,
+    toCardanoAddressInConway,
+  )
 where
 
 import Cardano.Api qualified as C
@@ -46,17 +46,17 @@ import GHC.Generics (Generic)
 import Ledger.Address.Orphans as Export ()
 import Ledger.Crypto (PubKey (PubKey), PubKeyHash (PubKeyHash), pubKeyHash, toPublicKey)
 import Ledger.Orphans ()
-import Ledger.Scripts (
-  ScriptHash (..),
-  StakeValidatorHash (..),
-  ValidatorHash (..),
-  mkValidatorCardanoAddress,
- )
-import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress)
-import PlutusLedgerApi.V1.Credential (
-  Credential (PubKeyCredential, ScriptCredential),
-  StakingCredential (StakingHash),
- )
+import Ledger.Scripts
+  ( ScriptHash (..),
+    StakeValidatorHash (..),
+    ValidatorHash (..),
+    toCardanoAddressInConway,
+  )
+import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress, toScriptHash)
+import PlutusLedgerApi.V1.Credential
+  ( Credential (PubKeyCredential, ScriptCredential),
+    StakingCredential (StakingHash),
+  )
 import PlutusTx qualified
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude qualified as PlutusTx
@@ -91,7 +91,7 @@ cardanoStakingCredential (C.AddressInEra _ (C.ShelleyAddress _ _ stakeAddressRef
     C.NoStakeAddress -> Nothing
     (C.StakeAddressByValue stakeCredential) ->
       Just (StakingHash $ fromCardanoStakeCredential stakeCredential)
-    C.StakeAddressByPointer{} -> Nothing -- Not supported
+    C.StakeAddressByPointer {} -> Nothing -- Not supported
   where
     fromCardanoStakeCredential :: C.StakeCredential -> Credential
     fromCardanoStakeCredential (C.StakeCredentialByKey stakeKeyHash) =
@@ -133,13 +133,13 @@ newtype PaymentPubKeyHash = PaymentPubKeyHash {unPaymentPubKeyHash :: PubKeyHash
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
   deriving newtype
-    ( PlutusTx.Eq
-    , PlutusTx.Ord
-    , Serialise
-    , Hashable
-    , PlutusTx.ToData
-    , PlutusTx.FromData
-    , PlutusTx.UnsafeFromData
+    ( PlutusTx.Eq,
+      PlutusTx.Ord,
+      Serialise,
+      Hashable,
+      PlutusTx.ToData,
+      PlutusTx.FromData,
+      PlutusTx.UnsafeFromData
     )
   deriving (Show, Pretty) via PubKeyHash
 
@@ -166,13 +166,13 @@ newtype StakePubKeyHash = StakePubKeyHash {unStakePubKeyHash :: PubKeyHash}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
   deriving newtype
-    ( PlutusTx.Eq
-    , PlutusTx.Ord
-    , Serialise
-    , Hashable
-    , PlutusTx.ToData
-    , PlutusTx.FromData
-    , PlutusTx.UnsafeFromData
+    ( PlutusTx.Eq,
+      PlutusTx.Ord,
+      Serialise,
+      Hashable,
+      PlutusTx.ToData,
+      PlutusTx.FromData,
+      PlutusTx.UnsafeFromData
     )
   deriving (Show, Pretty) via PubKeyHash
 
@@ -190,25 +190,22 @@ paymentPubKeyHash (PaymentPubKey pk) = PaymentPubKeyHash (pubKeyHash pk)
 
 {-# INLINEABLE pubKeyHashAddress #-}
 
-{- | The address that should be targeted by a transaction output locked by the
-given public payment key (with its staking credentials).
--}
+-- | The address that should be targeted by a transaction output locked by the
+-- given public payment key (with its staking credentials).
 pubKeyHashAddress :: PaymentPubKeyHash -> Maybe StakingCredential -> Address
 pubKeyHashAddress (PaymentPubKeyHash pkh) = Address (PubKeyCredential pkh)
 
 {-# INLINEABLE pubKeyAddress #-}
 
-{- | The address that should be targeted by a transaction output locked by the given public key.
-(with its staking credentials).
--}
+-- | The address that should be targeted by a transaction output locked by the given public key.
+-- (with its staking credentials).
 pubKeyAddress :: PaymentPubKey -> Maybe StakingCredential -> Address
 pubKeyAddress (PaymentPubKey pk) = Address (PubKeyCredential (pubKeyHash pk))
 
 {-# INLINEABLE scriptValidatorHashAddress #-}
 
-{- | The address that should be used by a transaction output locked by the given validator script
-(with its staking credentials).
--}
+-- | The address that should be used by a transaction output locked by the given validator script
+-- (with its staking credentials).
 scriptValidatorHashAddress :: ValidatorHash -> Maybe StakingCredential -> Address
 scriptValidatorHashAddress (ValidatorHash vh) = Address (ScriptCredential (ScriptHash vh))
 

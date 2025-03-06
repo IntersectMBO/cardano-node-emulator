@@ -2,7 +2,7 @@
 
 module Cardano.Node.Socket.Emulator.Params where
 
-import Cardano.Api.Genesis (ShelleyGenesis)
+import Cardano.Api.Internal.Genesis (ShelleyGenesis)
 import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Node.Emulator.Internal.Node.Params
 import Cardano.Node.Socket.Emulator.Types
@@ -12,7 +12,7 @@ import Data.ByteString.Lazy qualified as BSL
 type ShelleyConfigUpdater = ShelleyGenesis StandardCrypto -> ShelleyGenesis StandardCrypto
 
 fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO Params
-fromNodeServerConfig updateShelley NodeServerConfig{nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do
+fromNodeServerConfig updateShelley NodeServerConfig {nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do
   shelleyConfig <- readConfig emulatorShelleyGenesisDefaults nscShelleyGenesisPath
   alonzoConfig <- readConfig emulatorAlonzoGenesisDefaults nscAlonzoGenesisPath
   conwayConfig <- readConfig emulatorConwayGenesisDefaults nscConwayGenesisPath

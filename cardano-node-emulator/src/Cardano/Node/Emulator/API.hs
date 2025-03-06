@@ -3,104 +3,105 @@
 {-# LANGUAGE GADTs #-}
 
 -- | If you want to run the node emulator without using the `Contract` monad, this module provides a simple MTL-based interface.
-module Cardano.Node.Emulator.API (
-  -- * Updating the blockchain
-  queueTx,
-  nextSlot,
-  currentSlot,
-  currentTimeRange,
-  awaitSlot,
-  awaitTime,
+module Cardano.Node.Emulator.API
+  ( -- * Updating the blockchain
+    queueTx,
+    nextSlot,
+    currentSlot,
+    currentTimeRange,
+    awaitSlot,
+    awaitTime,
 
-  -- * Querying the blockchain
-  utxosAt,
-  utxosAtPlutus,
-  utxoAtTxIn,
-  utxosAtTxIns,
-  utxoAtTxOutRef,
-  fundsAt,
-  lookupDatum,
-  getMemPoolEnv,
-  getLedgerState,
+    -- * Querying the blockchain
+    utxosAt,
+    utxosAtPlutus,
+    utxoAtTxIn,
+    utxosAtTxIns,
+    utxoAtTxOutRef,
+    fundsAt,
+    lookupDatum,
+    getMemPoolEnv,
+    getLedgerState,
 
-  -- * Transactions
-  signTx,
+    -- * Transactions
+    signTx,
 
-  -- * Logging
-  logDebug,
-  logInfo,
-  logWarn,
-  logError,
+    -- * Logging
+    logDebug,
+    logInfo,
+    logWarn,
+    logError,
 
-  -- * Types
-  EmulatorEra,
-  EmulatorState (EmulatorState),
-  esChainState,
-  esAddressMap,
-  esDatumMap,
-  EmulatedLedgerState,
-  ledgerEnv,
-  memPoolState,
-  EmulatorError (..),
-  EmulatorLogs,
-  EmulatorMsg (..),
-  L.LogMessage (..),
-  MonadEmulator,
-  EmulatorT,
-  EmulatorM,
-  emptyEmulatorState,
-  emptyEmulatorStateWithInitialDist,
-  Params (..),
-  getParams,
-) where
+    -- * Types
+    EmulatorEra,
+    EmulatorState (EmulatorState),
+    esChainState,
+    esAddressMap,
+    esDatumMap,
+    EmulatedLedgerState,
+    ledgerEnv,
+    memPoolState,
+    EmulatorError (..),
+    EmulatorLogs,
+    EmulatorMsg (..),
+    L.LogMessage (..),
+    MonadEmulator,
+    EmulatorT,
+    EmulatorM,
+    emptyEmulatorState,
+    emptyEmulatorStateWithInitialDist,
+    Params (..),
+    getParams,
+  )
+where
 
 import Cardano.Api qualified as C
-import Cardano.Ledger.Shelley.API (
-  LedgerState,
-  MempoolEnv,
- )
-import Cardano.Node.Emulator.Internal.API (
-  EmulatorError (CustomError, ToCardanoError, ValidationError),
-  EmulatorLogs,
-  EmulatorM,
-  EmulatorState (EmulatorState),
-  EmulatorT,
-  MonadEmulator,
-  esAddressMap,
-  esChainState,
-  esDatumMap,
-  handleChain,
-  modifySlot,
-  processBlock,
- )
-import Cardano.Node.Emulator.Internal.Node (
-  EmulatedLedgerState,
-  Params (pConfig, pSlotConfig),
-  ledgerEnv,
-  memPoolState,
-  posixTimeToEnclosingSlot,
-  slotToBeginPOSIXTime,
-  slotToEndPOSIXTime,
- )
-import Cardano.Node.Emulator.Internal.Node.Chain qualified as E (
-  chainNewestFirst,
-  emptyChainState,
-  getCurrentSlot,
-  index,
-  ledgerState,
-  queueTx,
- )
+import Cardano.Ledger.Shelley.API
+  ( LedgerState,
+    MempoolEnv,
+  )
+import Cardano.Node.Emulator.Internal.API
+  ( EmulatorError (CustomError, ToCardanoError, ValidationError),
+    EmulatorLogs,
+    EmulatorM,
+    EmulatorState (EmulatorState),
+    EmulatorT,
+    MonadEmulator,
+    esAddressMap,
+    esChainState,
+    esDatumMap,
+    handleChain,
+    modifySlot,
+    processBlock,
+  )
+import Cardano.Node.Emulator.Internal.Node
+  ( EmulatedLedgerState,
+    Params (pConfig, pSlotConfig),
+    ledgerEnv,
+    memPoolState,
+    posixTimeToEnclosingSlot,
+    slotToBeginPOSIXTime,
+    slotToEndPOSIXTime,
+  )
+import Cardano.Node.Emulator.Internal.Node.Chain qualified as E
+  ( chainNewestFirst,
+    emptyChainState,
+    getCurrentSlot,
+    index,
+    ledgerState,
+    queueTx,
+  )
 import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
-import Cardano.Node.Emulator.Internal.Node.Validation qualified as E (
-  ledgerEnv,
-  memPoolState,
-  setUtxo,
-  unsafeMakeValid,
- )
-import Cardano.Node.Emulator.LogMessages (
-  EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
-  TxBalanceMsg (SigningTx, SubmittingTx),
- )
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as E
+  ( ledgerEnv,
+    memPoolState,
+    setUtxo,
+    unsafeMakeValid,
+  )
+import Cardano.Node.Emulator.LogMessages
+  ( EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
+    TxBalanceMsg (SigningTx, SubmittingTx),
+  )
 import Control.Lens (use, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
 import Control.Monad.Freer.Extras.Log qualified as L
@@ -108,33 +109,33 @@ import Control.Monad.RWS.Class (ask, asks, get, tell)
 import Data.Aeson (ToJSON (toJSON))
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Ledger (
-  CardanoAddress,
-  Datum,
-  DatumHash,
-  DecoratedTxOut,
-  POSIXTime,
-  Slot,
-  TxOutRef,
-  UtxoIndex,
- )
+import Ledger
+  ( CardanoAddress,
+    Datum,
+    DatumHash,
+    DecoratedTxOut,
+    POSIXTime,
+    Slot,
+    TxOutRef,
+    UtxoIndex,
+  )
 import Ledger.AddressMap qualified as AM
 import Ledger.Index qualified as Index
-import Ledger.Tx (
-  CardanoTx,
-  TxOut,
-  addCardanoTxWitness,
-  cardanoTxOutValue,
-  getCardanoTxData,
-  toCtxUTxOTxOut,
-  toDecoratedTxOut,
- )
-import Ledger.Tx.CardanoAPI (
-  EmulatorEra,
-  fromCardanoTxIn,
-  fromPlutusIndex,
-  toCardanoTxIn,
- )
+import Ledger.Tx
+  ( CardanoTx,
+    TxOut,
+    addCardanoTxWitness,
+    cardanoTxOutValue,
+    getCardanoTxData,
+    toCtxUTxOTxOut,
+    toDecoratedTxOut,
+  )
+import Ledger.Tx.CardanoAPI
+  ( EmulatorEra,
+    fromCardanoTxIn,
+    fromPlutusIndex,
+    toCardanoTxIn,
+  )
 
 emptyEmulatorState :: E.Params -> EmulatorState
 emptyEmulatorState params = EmulatorState (E.emptyChainState params) mempty mempty
@@ -174,8 +175,8 @@ currentTimeRange = do
   slotConfig <- asks pSlotConfig
   slot <- currentSlot
   pure
-    ( slotToBeginPOSIXTime slotConfig slot
-    , slotToEndPOSIXTime slotConfig slot
+    ( slotToBeginPOSIXTime slotConfig slot,
+      slotToEndPOSIXTime slotConfig slot
     )
 
 -- | Call `nextSlot` until the current slot number equals or exceeds the given slot number.
@@ -250,12 +251,12 @@ getMemPoolEnv = do
   pure $ es ^. esChainState . E.ledgerState . E.ledgerEnv
 
 -- | Sign a transaction with the given signatures.
-signTx
-  :: (MonadEmulator m, Foldable f)
-  => f C.ShelleyWitnessSigningKey
-  -- ^ Signatures
-  -> CardanoTx
-  -> m CardanoTx
+signTx ::
+  (MonadEmulator m, Foldable f) =>
+  -- | Signatures
+  f C.ShelleyWitnessSigningKey ->
+  CardanoTx ->
+  m CardanoTx
 signTx witnesses tx = do
   logMsg L.Info $ TxBalanceMsg $ SigningTx tx
   pure $ foldr addCardanoTxWitness tx witnesses

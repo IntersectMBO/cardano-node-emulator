@@ -9,55 +9,54 @@
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 
 -- | Functions for working with 'Ada' in Template Haskell.
-module Plutus.Script.Utils.Ada (
-  Ada (..),
-  getAda,
-  adaSymbol,
-  adaToken,
+module Plutus.Script.Utils.Ada
+  ( Ada (..),
+    getAda,
+    adaSymbol,
+    adaToken,
 
-  -- * Constructors
-  fromValue,
-  toValue,
-  lovelaceOf,
-  adaOf,
-  lovelaceValueOf,
-  adaValueOf,
+    -- * Constructors
+    fromValue,
+    toValue,
+    lovelaceOf,
+    adaOf,
+    lovelaceValueOf,
+    adaValueOf,
 
-  -- * Num operations
-  divide,
+    -- * Num operations
+    divide,
 
-  -- * Etc.
-  isZero,
-) where
-
-import Prelude qualified as Haskell
-
-import Data.Fixed (Fixed (MkFixed), Micro)
+    -- * Etc.
+    isZero,
+  )
+where
 
 import Codec.Serialise.Class (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Fixed (Fixed (MkFixed), Micro)
 import Data.Tagged (Tagged (Tagged))
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (CurrencySymbol (CurrencySymbol), TokenName (TokenName), Value)
 import PlutusLedgerApi.V1.Value qualified as TH
 import PlutusTx qualified
 import PlutusTx.Lift (makeLift)
-import PlutusTx.Prelude (
-  AdditiveGroup,
-  AdditiveMonoid,
-  AdditiveSemigroup ((+)),
-  Bool,
-  Eq ((==)),
-  Integer,
-  Monoid,
-  MultiplicativeMonoid,
-  MultiplicativeSemigroup,
-  Ord,
-  Semigroup,
-  emptyByteString,
- )
+import PlutusTx.Prelude
+  ( AdditiveGroup,
+    AdditiveMonoid,
+    AdditiveSemigroup ((+)),
+    Bool,
+    Eq ((==)),
+    Integer,
+    Monoid,
+    MultiplicativeMonoid,
+    MultiplicativeSemigroup,
+    Ord,
+    Semigroup,
+    emptyByteString,
+  )
 import PlutusTx.Prelude qualified as P
 import Prettyprinter (Pretty)
+import Prelude qualified as Haskell
 
 {-# INLINEABLE adaSymbol #-}
 
@@ -71,29 +70,28 @@ adaSymbol = CurrencySymbol emptyByteString
 adaToken :: TokenName
 adaToken = TokenName emptyByteString
 
-{- | ADA, the special currency on the Cardano blockchain. The unit of Ada is Lovelace, and
-  1M Lovelace is one Ada.
-  See note [Currencies] in 'Ledger.Validation.Value.TH'.
--}
+-- | ADA, the special currency on the Cardano blockchain. The unit of Ada is Lovelace, and
+--  1M Lovelace is one Ada.
+--  See note [Currencies] in 'Ledger.Validation.Value.TH'.
 newtype Ada = Lovelace {getLovelace :: Integer}
   deriving (Haskell.Enum)
   deriving stock (Haskell.Eq, Haskell.Ord, Haskell.Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
   deriving newtype
-    ( Eq
-    , Ord
-    , Haskell.Num
-    , AdditiveSemigroup
-    , AdditiveMonoid
-    , AdditiveGroup
-    , MultiplicativeSemigroup
-    , MultiplicativeMonoid
-    , Haskell.Integral
-    , Haskell.Real
-    , Serialise
-    , PlutusTx.ToData
-    , PlutusTx.FromData
-    , PlutusTx.UnsafeFromData
+    ( Eq,
+      Ord,
+      Haskell.Num,
+      AdditiveSemigroup,
+      AdditiveMonoid,
+      AdditiveGroup,
+      MultiplicativeSemigroup,
+      MultiplicativeMonoid,
+      Haskell.Integral,
+      Haskell.Real,
+      Serialise,
+      PlutusTx.ToData,
+      PlutusTx.FromData,
+      PlutusTx.UnsafeFromData
     )
   deriving (Pretty) via (Tagged "Lovelace:" Integer)
 
@@ -143,19 +141,17 @@ adaOf (MkFixed x) = Lovelace x
 
 {-# INLINEABLE lovelaceValueOf #-}
 
-{- | A 'Value' with the given amount of Lovelace (the currency unit).
-
-  @lovelaceValueOf == toValue . lovelaceOf@
--}
+-- | A 'Value' with the given amount of Lovelace (the currency unit).
+--
+--  @lovelaceValueOf == toValue . lovelaceOf@
 lovelaceValueOf :: Integer -> Value
 lovelaceValueOf = TH.singleton adaSymbol adaToken
 
 {-# INLINEABLE adaValueOf #-}
 
-{- | A 'Value' with the given amount of Ada (the currency unit).
-
-  @adaValueOf == toValue . adaOf@
--}
+-- | A 'Value' with the given amount of Ada (the currency unit).
+--
+--  @adaValueOf == toValue . adaOf@
 adaValueOf :: Micro -> Value
 adaValueOf (MkFixed x) = TH.singleton adaSymbol adaToken x
 

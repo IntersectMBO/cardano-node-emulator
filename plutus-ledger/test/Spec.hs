@@ -37,15 +37,15 @@ tests =
     "all tests"
     [ testGroup
         "intervals"
-        [ testPropertyNamed "member" "intvlMember," intvlMember
-        , testPropertyNamed "contains" "intvlContains" intvlContains
-        ]
-    , testGroup
+        [ testPropertyNamed "member" "intvlMember," intvlMember,
+          testPropertyNamed "contains" "intvlContains" intvlContains
+        ],
+      testGroup
         "Etc."
-        [ testPropertyNamed "encodeByteString" "encodeByteStringTest," encodeByteStringTest
-        , testPropertyNamed "encodeSerialise" "encodeSerialiseTest" encodeSerialiseTest
-        ]
-    , testGroup
+        [ testPropertyNamed "encodeByteString" "encodeByteStringTest," encodeByteStringTest,
+          testPropertyNamed "encodeSerialise" "encodeSerialiseTest" encodeSerialiseTest
+        ],
+      testGroup
         "Value"
         ( [ testPropertyNamed
               "TokenName looks like escaped bytestring ToJSON/FromJSON"
@@ -62,19 +62,19 @@ tests =
                      vlValue = Ada.lovelaceValueOf 50
                   in byteStringJson vlJson vlValue
                )
-        )
-    , testGroup
+        ),
+      testGroup
         "TxIn"
         [ testPropertyNamed
             "Check that Ord instances of TxIn match"
             "txInOrdInstanceEquivalenceTest"
             txInOrdInstanceEquivalenceTest
-        ]
-    , testGroup
+        ],
+      testGroup
         "CardanoTx"
         [ testPropertyNamed "Value ToJSON/FromJSON" "genCardanoTx" (jsonRoundTrip genCardanoTx)
-        ]
-    , Ledger.Tx.CardanoAPISpec.tests
+        ],
+      Ledger.Tx.CardanoAPISpec.tests
     ]
 
 intvlMember :: Property
@@ -129,12 +129,12 @@ jsonRoundTrip gen = property $ do
   Hedgehog.annotateShow (result, bts)
   Hedgehog.assert $ result == Aeson.ISuccess bts
 
-byteStringJson
-  :: (Show a, Eq a, JSON.ToJSON a, JSON.FromJSON a) => BSL.ByteString -> a -> [TestTree]
+byteStringJson ::
+  (Show a, Eq a, JSON.ToJSON a, JSON.FromJSON a) => BSL.ByteString -> a -> [TestTree]
 byteStringJson jsonString value =
   [ testCase "decoding" $
-      HUnit.assertEqual "Simple Decode" (Right value) (JSON.eitherDecode jsonString)
-  , testCase "encoding" $ HUnit.assertEqual "Simple Encode" jsonString (JSON.encode value)
+      HUnit.assertEqual "Simple Decode" (Right value) (JSON.eitherDecode jsonString),
+    testCase "encoding" $ HUnit.assertEqual "Simple Encode" jsonString (JSON.encode value)
   ]
 
 -- | Check that Ord instances of cardano-api's 'TxIn' and plutus-ledger-api's 'TxIn' match.
@@ -150,15 +150,15 @@ genCardanoBuildTx = do
   tx <- Gen.genTxBodyContent C.ShelleyBasedEraConway
   let tx' =
         tx
-          { C.txCertificates = C.TxCertificatesNone
-          , C.txUpdateProposal = C.TxUpdateProposalNone
-          , C.txAuxScripts = onlyPlutusScripts $ C.txAuxScripts tx
+          { C.txCertificates = C.TxCertificatesNone,
+            C.txUpdateProposal = C.TxUpdateProposalNone,
+            C.txAuxScripts = onlyPlutusScripts $ C.txAuxScripts tx
           }
   pure $ CardanoBuildTx tx'
   where
     onlyPlutusScripts C.TxAuxScriptsNone = C.TxAuxScriptsNone
     onlyPlutusScripts (C.TxAuxScripts p scripts) = C.TxAuxScripts p $ filter isPlutusScript scripts
-    isPlutusScript (C.ScriptInEra _ C.PlutusScript{}) = True
+    isPlutusScript (C.ScriptInEra _ C.PlutusScript {}) = True
     isPlutusScript _ = False
 
 -- TODO Unfortunately, there's no way to get a warning if another era has been
@@ -166,12 +166,12 @@ genCardanoBuildTx = do
 genCardanoTx :: Hedgehog.Gen CardanoTx
 genCardanoTx =
   Gen.choice
-    [ genShelleyEraInCardanoModeTx
-    , genAllegraEraInCardanoModeTx
-    , genMaryEraInCardanoModeTx
-    , genAlonzoEraInCardanoModeTx
-    , genBabbageEraInCardanoModeTx
-    , genConwayEraInCardanoModeTx
+    [ genShelleyEraInCardanoModeTx,
+      genAllegraEraInCardanoModeTx,
+      genMaryEraInCardanoModeTx,
+      genAlonzoEraInCardanoModeTx,
+      genBabbageEraInCardanoModeTx,
+      genConwayEraInCardanoModeTx
     ]
 
 genShelleyEraInCardanoModeTx :: Hedgehog.Gen CardanoTx

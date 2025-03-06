@@ -8,14 +8,15 @@
 {-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-strictness #-}
 
-module Plutus.Script.Utils.V3.Contexts (
-  module Contexts,
-  findTxRefInByTxOutRef,
-  outputsAt,
-  scriptOutputsAt,
-  ownHash,
-  ownHashes,
-) where
+module Plutus.Script.Utils.V3.Contexts
+  ( module Contexts,
+    findTxRefInByTxOutRef,
+    outputsAt,
+    scriptOutputsAt,
+    ownHash,
+    ownHashes,
+  )
+where
 
 import Plutus.Script.Utils.Scripts (ValidatorHash (..))
 import PlutusLedgerApi.V1 (Address, Value)
@@ -25,15 +26,15 @@ import PlutusTx.Prelude (Maybe (Just, Nothing), find, fst, mapMaybe, traceError,
 
 {-# INLINEABLE findTxRefInByTxOutRef #-}
 findTxRefInByTxOutRef :: PV3.TxOutRef -> PV3.TxInfo -> Maybe PV3.TxInInfo
-findTxRefInByTxOutRef outRef PV3.TxInfo{PV3.txInfoReferenceInputs} =
-  find (\PV3.TxInInfo{PV3.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoReferenceInputs
+findTxRefInByTxOutRef outRef PV3.TxInfo {PV3.txInfoReferenceInputs} =
+  find (\PV3.TxInInfo {PV3.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoReferenceInputs
 
 {-# INLINEABLE outputsAt #-}
 
 -- | Get the datums and values paid to an address by a pending transaction.
 outputsAt :: Address -> TxInfo -> [(PV3.OutputDatum, Value)]
 outputsAt addr p =
-  let flt PV3.TxOut{PV3.txOutAddress, PV3.txOutValue, PV3.txOutDatum} | txOutAddress == addr = Just (txOutDatum, txOutValue)
+  let flt PV3.TxOut {PV3.txOutAddress, PV3.txOutValue, PV3.txOutDatum} | txOutAddress == addr = Just (txOutDatum, txOutValue)
       flt _ = Nothing
    in mapMaybe flt (txInfoOutputs p)
 
@@ -52,10 +53,10 @@ ownHashes
       Just
         PV3.TxInInfo
           { PV3.txInInfoResolved =
-            PV3.TxOut
-              { PV3.txOutAddress = PV3.Address (PV3.ScriptCredential (PV3.ScriptHash s)) _
-              , PV3.txOutDatum = d
-              }
+              PV3.TxOut
+                { PV3.txOutAddress = PV3.Address (PV3.ScriptCredential (PV3.ScriptHash s)) _,
+                  PV3.txOutDatum = d
+                }
           }
     ) = (ValidatorHash s, d)
 ownHashes _ = traceError "Lg" -- "Can't get validator and datum hashes"

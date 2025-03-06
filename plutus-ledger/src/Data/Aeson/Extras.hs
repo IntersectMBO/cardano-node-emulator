@@ -1,14 +1,14 @@
-{- | Encoding and decoding of 'ByteString' and serialisable values
-  as base16 encoded JSON strings
--}
-module Data.Aeson.Extras (
-  encodeByteString,
-  decodeByteString,
-  encodeSerialise,
-  decodeSerialise,
-  tryDecode,
-  JSONViaSerialise (..),
-) where
+-- | Encoding and decoding of 'ByteString' and serialisable values
+--  as base16 encoded JSON strings
+module Data.Aeson.Extras
+  ( encodeByteString,
+    decodeByteString,
+    encodeSerialise,
+    decodeSerialise,
+    tryDecode,
+    JSONViaSerialise (..),
+  )
+where
 
 import Codec.CBOR.Write qualified as Write
 import Codec.Serialise (Serialise, deserialiseOrFail, encode)
@@ -42,9 +42,8 @@ decodeSerialise = decodeByteString >=> go
         Left e -> fail e
         Right v -> pure v
 
-{- | Newtype for deriving 'ToJSON' and 'FromJSON' for types that have a 'Serialise'
-instance by just encoding the serialized bytes as a JSON string.
--}
+-- | Newtype for deriving 'ToJSON' and 'FromJSON' for types that have a 'Serialise'
+-- instance by just encoding the serialized bytes as a JSON string.
 newtype JSONViaSerialise a = JSONViaSerialise a
 
 instance (Serialise a) => Aeson.ToJSON (JSONViaSerialise a) where

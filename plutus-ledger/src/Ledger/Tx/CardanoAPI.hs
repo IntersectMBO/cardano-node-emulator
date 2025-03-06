@@ -5,32 +5,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-{- |
-Interface to the transaction types from 'cardano-api'
--}
-module Ledger.Tx.CardanoAPI (
-  module Ledger.Tx.CardanoAPI.Internal,
-  CardanoBuildTx (..),
-  CardanoTx (..),
-  fromCardanoTxInsCollateral,
-  fromCardanoTotalCollateral,
-  fromCardanoReturnCollateral,
-  toCardanoTotalCollateral,
-  toCardanoReturnCollateral,
-  toCardanoDatumWitness,
-  toCardanoTxInReferenceWitnessHeader,
-  toCardanoTxInScriptWitnessHeader,
-  toCardanoMintWitness,
-  ToCardanoError (..),
-  FromCardanoError (..),
-  getRequiredSigners,
+-- |
+-- Interface to the transaction types from 'cardano-api'
+module Ledger.Tx.CardanoAPI
+  ( module Ledger.Tx.CardanoAPI.Internal,
+    CardanoBuildTx (..),
+    CardanoTx (..),
+    fromCardanoTxInsCollateral,
+    fromCardanoTotalCollateral,
+    fromCardanoReturnCollateral,
+    toCardanoTotalCollateral,
+    toCardanoReturnCollateral,
+    toCardanoDatumWitness,
+    toCardanoTxInReferenceWitnessHeader,
+    toCardanoTxInScriptWitnessHeader,
+    toCardanoMintWitness,
+    ToCardanoError (..),
+    FromCardanoError (..),
+    getRequiredSigners,
 
-  -- * Conversion from Plutus types
-  toPlutusIndex,
-  fromPlutusIndex,
-  fromPlutusTxOut,
-  fromPlutusTxOutRef,
-) where
+    -- * Conversion from Plutus types
+    toPlutusIndex,
+    fromPlutusIndex,
+    fromPlutusTxOut,
+    fromPlutusTxOutRef,
+  )
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
@@ -52,23 +52,23 @@ import Plutus.Script.Utils.Scripts qualified as PV1
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V3 qualified as PV3
 
-toCardanoMintWitness
-  :: PV1.Redeemer
-  -> Maybe (P.Versioned PV3.TxOutRef)
-  -> Maybe (P.Versioned PV1.MintingPolicy)
-  -> Either ToCardanoError (C.ScriptWitness C.WitCtxMint C.ConwayEra)
+toCardanoMintWitness ::
+  PV1.Redeemer ->
+  Maybe (P.Versioned PV3.TxOutRef) ->
+  Maybe (P.Versioned PV1.MintingPolicy) ->
+  Either ToCardanoError (C.ScriptWitness C.WitCtxMint C.ConwayEra)
 toCardanoMintWitness _ Nothing Nothing = Left MissingMintingPolicy
 toCardanoMintWitness redeemer (Just ref) _ =
   toCardanoScriptWitness C.NoScriptDatumForMint redeemer (Right ref)
 toCardanoMintWitness redeemer _ (Just script) =
   toCardanoScriptWitness C.NoScriptDatumForMint redeemer (Left (fmap P.getMintingPolicy script))
 
-toCardanoScriptWitness
-  :: (PV1.ToData a)
-  => C.ScriptDatum witctx
-  -> a
-  -> Either (P.Versioned PV1.Script) (P.Versioned PV3.TxOutRef)
-  -> Either ToCardanoError (C.ScriptWitness witctx C.ConwayEra)
+toCardanoScriptWitness ::
+  (PV1.ToData a) =>
+  C.ScriptDatum witctx ->
+  a ->
+  Either (P.Versioned PV1.Script) (P.Versioned PV3.TxOutRef) ->
+  Either ToCardanoError (C.ScriptWitness witctx C.ConwayEra)
 toCardanoScriptWitness datum redeemer scriptOrRef =
   ( case scriptOrRef of
       Left script -> pure $ toCardanoTxInScriptWitnessHeader script
@@ -88,8 +88,8 @@ toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . Just .
 type WitnessHeader witctx =
   C.ScriptDatum witctx -> C.ScriptRedeemer -> C.ExecutionUnits -> C.ScriptWitness witctx C.ConwayEra
 
-toCardanoTxInReferenceWitnessHeader
-  :: P.Versioned PV3.TxOutRef -> Either ToCardanoError (WitnessHeader witctx)
+toCardanoTxInReferenceWitnessHeader ::
+  P.Versioned PV3.TxOutRef -> Either ToCardanoError (WitnessHeader witctx)
 toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
   txIn <- toCardanoTxIn ref
   pure $ case lang of
@@ -128,14 +128,14 @@ toCardanoReturnCollateral =
     (C.TxReturnCollateral C.BabbageEraOnwardsConway . P.getTxOut)
 
 getRequiredSigners :: C.Tx C.ConwayEra -> [P.PaymentPubKeyHash]
-getRequiredSigners (C.ShelleyTx _ (AlonzoTx ConwayTxBody{ctbReqSignerHashes = rsq} _ _ _)) =
+getRequiredSigners (C.ShelleyTx _ (AlonzoTx ConwayTxBody {ctbReqSignerHashes = rsq} _ _ _)) =
   foldMap
     (pure . P.PaymentPubKeyHash . P.toPlutusPubKeyHash . C.PaymentKeyHash . C.Ledger.coerceKeyRole)
     rsq
 
-toPlutusIndex
-  :: C.Ledger.UTxO EmulatorEra
-  -> P.UtxoIndex
+toPlutusIndex ::
+  C.Ledger.UTxO EmulatorEra ->
+  P.UtxoIndex
 toPlutusIndex (C.Ledger.UTxO utxo) =
   C.UTxO
     . Map.fromList

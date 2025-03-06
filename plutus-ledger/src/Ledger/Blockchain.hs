@@ -4,19 +4,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Ledger.Blockchain (
-  OnChainTx (..),
-  Block,
-  BlockId (..),
-  Blockchain,
-  Context (..),
-  eitherTx,
-  unOnChain,
-  onChainTxIsValid,
-  consumableInputs,
-  outputsProduced,
-) where
+module Ledger.Blockchain
+  ( OnChainTx (..),
+    Block,
+    BlockId (..),
+    Blockchain,
+    Context (..),
+    eitherTx,
+    unOnChain,
+    onChainTxIsValid,
+    consumableInputs,
+    outputsProduced,
+  )
+where
 
+import Cardano.Api qualified as C
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Extras qualified as JSON
@@ -26,18 +28,16 @@ import Data.Map (Map)
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8')
 import GHC.Generics (Generic)
-import Prettyprinter (Pretty (..))
-
-import Cardano.Api qualified as C
 import Ledger.Index.Internal (OnChainTx (..), eitherTx, unOnChain)
-import Ledger.Tx (
-  TxOut,
-  getCardanoTxCollateralInputs,
-  getCardanoTxInputs,
-  getCardanoTxProducedOutputs,
-  getCardanoTxProducedReturnCollateral,
- )
+import Ledger.Tx
+  ( TxOut,
+    getCardanoTxCollateralInputs,
+    getCardanoTxInputs,
+    getCardanoTxProducedOutputs,
+    getCardanoTxProducedReturnCollateral,
+  )
 import PlutusLedgerApi.V1.Scripts
+import Prettyprinter (Pretty (..))
 
 -- | Block identifier (usually a hash)
 newtype BlockId = BlockId {getBlockId :: BS.ByteString}
@@ -57,9 +57,8 @@ instance Pretty BlockId where
     "BlockId "
       <> pretty (fromRight (JSON.encodeByteString blockId) $ decodeUtf8' blockId)
 
-{- | A block on the blockchain. This is just a list of transactions
-following on from the chain so far.
--}
+-- | A block on the blockchain. This is just a list of transactions
+-- following on from the chain so far.
 type Block = [OnChainTx]
 
 -- | A blockchain, which is just a list of blocks, starting with the newest.

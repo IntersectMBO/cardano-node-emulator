@@ -12,52 +12,52 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Control.Monad.Freer.Extras.Log (
-  -- $log
-  LogMsg (..),
-  LogLevel (..),
-  LogMessage (..),
-  logLevel,
-  logMessageContent,
-  logMessage,
-  logDebug,
-  logInfo,
-  logWarn,
-  logError,
+module Control.Monad.Freer.Extras.Log
+  ( -- $log
+    LogMsg (..),
+    LogLevel (..),
+    LogMessage (..),
+    logLevel,
+    logMessageContent,
+    logMessage,
+    logDebug,
+    logInfo,
+    logWarn,
+    logError,
 
-  -- * Modifying logs
-  mapLog,
-  mapMLog,
+    -- * Modifying logs
+    mapLog,
+    mapMLog,
 
-  -- * Running logs
-  handleWriterLog,
-  handleLogIgnore,
-  handleLogTrace,
-  handleLogWriter,
-  renderLogMessages,
+    -- * Running logs
+    handleWriterLog,
+    handleLogIgnore,
+    handleLogTrace,
+    handleLogWriter,
+    renderLogMessages,
 
-  -- * Observing
-  LogObserve (..),
-  ObservationHandle,
-  Observation (..),
-  observeBefore,
-  observeAfter,
+    -- * Observing
+    LogObserve (..),
+    ObservationHandle,
+    Observation (..),
+    observeBefore,
+    observeAfter,
 
-  -- * Combinators
-  surround,
-  surroundDebug,
-  surroundInfo,
-  surroundWarn,
+    -- * Combinators
+    surround,
+    surroundDebug,
+    surroundInfo,
+    surroundWarn,
 
-  -- ** Handlers
-  handleObserveLog,
-  handleObserve,
-) where
-
-import Control.Monad.Freer.Extras.Modify (raiseUnder)
+    -- ** Handlers
+    handleObserveLog,
+    handleObserve,
+  )
+where
 
 import Control.Lens (AReview, Prism', makeLenses, prism', review)
 import Control.Monad.Freer
+import Control.Monad.Freer.Extras.Modify (raiseUnder)
 import Control.Monad.Freer.State (State, get, put, runState)
 import Control.Monad.Freer.Writer (Writer (..), tell)
 import Data.Aeson (FromJSON, ToJSON)
@@ -69,10 +69,9 @@ import Prettyprinter hiding (surround)
 import Prettyprinter.Render.String qualified as Render
 import Prettyprinter.Render.Text qualified as Render
 
-{- $log
-This module provides effects and handlers for structured logging and
-tracing.
--}
+-- $log
+-- This module provides effects and handlers for structured logging and
+-- tracing.
 
 {- Note [Logging and Tracing]
 
@@ -121,18 +120,16 @@ interpretation site.
 data LogMsg a r where
   LMessage :: LogMessage a -> LogMsg a ()
 
-{- | An abstract type used to tie the beginning and end of observations
-  together.
--}
+-- | An abstract type used to tie the beginning and end of observations
+--  together.
 newtype ObservationHandle = ObservationHandle Integer
 
 data LogObserve a r where
   ObserveBefore :: a -> LogObserve a ObservationHandle
   ObserveAfter :: Maybe a -> ObservationHandle -> LogObserve a ()
 
-{- | The severity level of a log message
-  See https://en.wikipedia.org/wiki/Syslog#Severity_level
--}
+-- | The severity level of a log message
+--  See https://en.wikipedia.org/wiki/Syslog#Severity_level
 data LogLevel
   = Debug
   | Info
@@ -166,7 +163,7 @@ logMessage :: LogLevel -> Prism' (LogMessage a) a
 logMessage lvl = prism' (LogMessage lvl) (\case LogMessage lvl' a | lvl' == lvl -> Just a; _ -> Nothing)
 
 instance (Pretty a) => Pretty (LogMessage a) where
-  pretty LogMessage{_logLevel, _logMessageContent} =
+  pretty LogMessage {_logLevel, _logMessageContent} =
     pretty _logLevel <+> hang 0 (pretty _logMessageContent)
 
 logDebug :: forall a effs. (Member (LogMsg a) effs) => a -> Eff effs ()
@@ -181,62 +178,60 @@ logInfo m = send $ LMessage (LogMessage Info m)
 logError :: forall a effs. (Member (LogMsg a) effs) => a -> Eff effs ()
 logError m = send $ LMessage (LogMessage Error m)
 
-{- | Re-interpret a logging effect by mapping the
-  log messages.
-  (Does the same thing as 'Covariant.contramap' for
-  'Control.Tracer.Trace')
--}
-mapLog
-  :: forall a b effs
-   . (Member (LogMsg b) effs)
-  => (a -> b)
-  -> LogMsg a
+-- | Re-interpret a logging effect by mapping the
+--  log messages.
+--  (Does the same thing as 'Covariant.contramap' for
+--  'Control.Tracer.Trace')
+mapLog ::
+  forall a b effs.
+  (Member (LogMsg b) effs) =>
+  (a -> b) ->
+  LogMsg a
     ~> Eff effs
 mapLog f = \case
   LMessage msg -> send $ LMessage (fmap f msg)
 
-{- | Re-interpret a logging effect by mapping the
-  log messages. Can use other effects.
--}
-mapMLog
-  :: forall a b effs
-   . (Member (LogMsg b) effs)
-  => (a -> Eff effs b)
-  -> LogMsg a
+-- | Re-interpret a logging effect by mapping the
+--  log messages. Can use other effects.
+mapMLog ::
+  forall a b effs.
+  (Member (LogMsg b) effs) =>
+  (a -> Eff effs b) ->
+  LogMsg a
     ~> Eff effs
 mapMLog f = \case
   LMessage msg -> traverse f msg >>= send . LMessage
 
 -- | Pretty-print the log messages
-renderLogMessages
-  :: forall a effs
-   . ( Member (LogMsg Text) effs
-     , Pretty a
-     )
-  => LogMsg a
+renderLogMessages ::
+  forall a effs.
+  ( Member (LogMsg Text) effs,
+    Pretty a
+  ) =>
+  LogMsg a
     ~> Eff effs
 renderLogMessages =
   mapLog (Render.renderStrict . layoutPretty defaultLayoutOptions . pretty)
 
 -- | Re-interpret a 'Writer' effect by writing the events to the log
-handleWriterLog
-  :: forall a f effs
-   . ( Member (LogMsg a) effs
-     , Traversable f
-     )
-  => (a -> LogLevel)
-  -> Eff (Writer (f a) ': effs)
+handleWriterLog ::
+  forall a f effs.
+  ( Member (LogMsg a) effs,
+    Traversable f
+  ) =>
+  (a -> LogLevel) ->
+  Eff (Writer (f a) ': effs)
     ~> Eff effs
 handleWriterLog f = interpret $ \case
   Tell es -> traverse_ (\a -> send $ LMessage $ LogMessage (f a) a) es
 
 -- | Re-interpret a 'Log' effect with a 'Writer'
-handleLogWriter
-  :: forall a w effs
-   . ( Member (Writer w) effs
-     )
-  => AReview w (LogMessage a)
-  -> LogMsg a
+handleLogWriter ::
+  forall a w effs.
+  ( Member (Writer w) effs
+  ) =>
+  AReview w (LogMessage a) ->
+  LogMsg a
     ~> Eff effs
 handleLogWriter p = \case
   LMessage msg -> tell @w (review p msg)
@@ -251,10 +246,9 @@ handleLogTrace :: (Pretty a) => Eff (LogMsg a ': effs) ~> Eff effs
 handleLogTrace = interpret $ \case
   LMessage msg -> Trace.trace (Render.renderString . layoutPretty defaultLayoutOptions . pretty $ msg) (pure ())
 
-{- | Write a log message before and after an action. Consider using
-  'observeBefore' and 'observeAfter' directly if you need more control
-  over the values that are observed at the call site.
--}
+-- | Write a log message before and after an action. Consider using
+--  'observeBefore' and 'observeAfter' directly if you need more control
+--  over the values that are observed at the call site.
 surround :: forall v a effs. (Member (LogObserve v) effs) => v -> Eff effs a -> Eff effs a
 surround v action = do
   i <- send $ ObserveBefore v
@@ -284,27 +278,27 @@ data ExitMode
 
 -- | An observation with measurements before and after running an action.
 data Observation v s = Observation
-  { obsLabelStart :: v
-  -- ^ Call-site information about the start of the observation
-  , obsStart :: s
-  -- ^ Measurement taken before running the action
-  , obsLabelEnd :: Maybe v
-  -- ^ Call-site information about the end of the observation
-  , obsExit :: ExitMode
-  -- ^ 'ExitMode' of the action.
+  { -- | Call-site information about the start of the observation
+    obsLabelStart :: v,
+    -- | Measurement taken before running the action
+    obsStart :: s,
+    -- | Call-site information about the end of the observation
+    obsLabelEnd :: Maybe v,
+    -- | 'ExitMode' of the action.
+    obsExit :: ExitMode
   }
 
 --  | An 'Observation' that doesn't have an 'obsEnd' value yet.
 data PartialObservation v s = PartialObservation
-  { obsMsg :: v
-  , obsValue :: s
-  , obsDepth :: Integer
+  { obsMsg :: v,
+    obsValue :: s,
+    obsDepth :: Integer
   }
 
 -- | State of partial observations
 data ObsState v s = ObsState
-  { obsMaxDepth :: Integer
-  , obsPartials :: [PartialObservation v s]
+  { obsMaxDepth :: Integer,
+    obsPartials :: [PartialObservation v s]
   }
 
 initialState :: ObsState v s
@@ -312,16 +306,15 @@ initialState = ObsState 0 []
 
 -- see note [Logging and Tracing]
 
-{- | Handle the 'LogObserve' effect by recording observations
-  @s@ before and after the observed action, and turning
-  them into 'LogMessage (Observation s)' values.
--}
-handleObserve
-  :: forall v s effs
-   . (v -> Eff effs s)
-  -- ^ How to get the current 's'
-  -> (Observation v s -> Eff effs ()) -- what to do with the observation
-  -> Eff (LogObserve v ': effs)
+-- | Handle the 'LogObserve' effect by recording observations
+--  @s@ before and after the observed action, and turning
+--  them into 'LogMessage (Observation s)' values.
+handleObserve ::
+  forall v s effs.
+  -- | How to get the current 's'
+  (v -> Eff effs s) ->
+  (Observation v s -> Eff effs ()) -> -- what to do with the observation
+  Eff (LogObserve v ': effs)
     ~> Eff effs
 handleObserve getCurrent handleObs =
   handleFinalState
@@ -339,9 +332,9 @@ handleObserve getCurrent handleObs =
     -- when an action with the given depth is finished, take the final
     -- measurement and clear the stack of partial observations.
     handleObserveAfter :: Maybe v -> ObsState v s -> Integer -> Eff effs (ObsState v s)
-    handleObserveAfter v' ObsState{obsPartials} i = do
+    handleObserveAfter v' ObsState {obsPartials} i = do
       let (finishedPartials, remainingPartials) = span ((<=) i . obsDepth) obsPartials
-      for_ finishedPartials $ \PartialObservation{obsMsg, obsValue, obsDepth} -> do
+      for_ finishedPartials $ \PartialObservation {obsMsg, obsValue, obsDepth} -> do
         -- we assume that a 'PartialObservation' was completed
         -- regularly if it is handled at its own depth level.
         -- If the @obsDepth@ is greater than @i@ then one or more
@@ -350,29 +343,29 @@ handleObserve getCurrent handleObs =
         let exitMode = if obsDepth == i then Regular else Irregular
             message =
               Observation
-                { obsLabelStart = obsMsg
-                , obsStart = obsValue
-                , obsExit = exitMode
-                , obsLabelEnd = case exitMode of Regular -> v'; Irregular -> Nothing
+                { obsLabelStart = obsMsg,
+                  obsStart = obsValue,
+                  obsExit = exitMode,
+                  obsLabelEnd = case exitMode of Regular -> v'; Irregular -> Nothing
                 }
         handleObs message
-      pure ObsState{obsMaxDepth = i - 1, obsPartials = remainingPartials}
+      pure ObsState {obsMaxDepth = i - 1, obsPartials = remainingPartials}
 
     handleObserveBefore :: v -> ObsState v s -> Eff effs (ObsState v s, ObservationHandle)
-    handleObserveBefore v ObsState{obsPartials, obsMaxDepth} = do
+    handleObserveBefore v ObsState {obsPartials, obsMaxDepth} = do
       current <- getCurrent v
       let newMaxDepth = obsMaxDepth + 1
           msg =
             PartialObservation
-              { obsMsg = v
-              , obsValue = current
-              , obsDepth = newMaxDepth
+              { obsMsg = v,
+                obsValue = current,
+                obsDepth = newMaxDepth
               }
-          newState = ObsState{obsMaxDepth = newMaxDepth, obsPartials = msg : obsPartials}
+          newState = ObsState {obsMaxDepth = newMaxDepth, obsPartials = msg : obsPartials}
       pure (newState, ObservationHandle newMaxDepth)
 
-    handler
-      :: Eff (LogObserve v ': State (ObsState v s) ': effs)
+    handler ::
+      Eff (LogObserve v ': State (ObsState v s) ': effs)
         ~> Eff (State (ObsState v s) ': effs)
     handler = interpret $ \case
       ObserveBefore vl -> do
@@ -385,13 +378,12 @@ handleObserve getCurrent handleObs =
         newState <- raise (handleObserveAfter v' currentState i)
         put newState
 
-{- | Interpret the 'LogObserve' effect by logging a "start" message
-  before the action and an "end" message after the action.
--}
-handleObserveLog
-  :: forall effs
-   . (Member (LogMsg Text) effs)
-  => Eff (LogObserve (LogMessage Text) ': effs)
+-- | Interpret the 'LogObserve' effect by logging a "start" message
+--  before the action and an "end" message after the action.
+handleObserveLog ::
+  forall effs.
+  (Member (LogMsg Text) effs) =>
+  Eff (LogObserve (LogMessage Text) ': effs)
     ~> Eff effs
 handleObserveLog =
   handleObserve (\_ -> pure ()) handleAfter
@@ -404,7 +396,7 @@ handleObserveLog =
         send $ LMessage msg'
         send $ ObserveBefore msg
       ObserveAfter v' i -> send @(LogObserve (LogMessage Text)) $ ObserveAfter v' i
-    handleAfter Observation{obsLabelStart, obsExit} = do
+    handleAfter Observation {obsLabelStart, obsExit} = do
       let msg' =
             fmap
               (\lbl -> case obsExit of Regular -> lbl <> " end"; Irregular -> lbl <> " end (irregular)")

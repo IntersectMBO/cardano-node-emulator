@@ -21,20 +21,22 @@ module Cardano.Node.Socket.Emulator.Types where
 import Cardano.Api (Value)
 import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
-import Cardano.Ledger.Era qualified as CL
+import Cardano.Ledger.Core qualified as CL
 import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
-import Cardano.Node.Emulator.API (
-  EmulatorError,
-  EmulatorLogs,
-  EmulatorMsg,
-  EmulatorState,
-  EmulatorT,
-  emptyEmulatorStateWithInitialDist,
-  esChainState,
- )
+import Cardano.Node.Emulator.API
+  ( EmulatorError,
+    EmulatorLogs,
+    EmulatorMsg,
+    EmulatorState,
+    EmulatorT,
+    emptyEmulatorStateWithInitialDist,
+    esChainState,
+  )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation (getSlot)
+import Cardano.Protocol.TPraos.BHeader
+import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
 import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
@@ -69,44 +71,43 @@ import Ledger (Block, CardanoTx, OnChainTx (..))
 import Ledger.Address (CardanoAddress)
 import Ledger.CardanoWallet
 import Ledger.Test (testNetworkMagic)
-import Network.TypedProtocol.Codec (Codec)
+import Network.Mux.Types
+import Network.TypedProtocol.Codec.CBOR (Codec)
+import Network.TypedProtocol.Stateful.Codec qualified as TP (Codec)
 import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, CodecConfig (..))
 import Ouroboros.Consensus.Cardano.Block qualified as OC
 import Ouroboros.Consensus.HardFork.Combinator.AcrossEras (OneEraHash (..))
 import Ouroboros.Consensus.Ledger.Query (Query)
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
-import Ouroboros.Consensus.Network.NodeToClient (
-  ClientCodecs,
-  cChainSyncCodec,
-  cStateQueryCodec,
-  cTxSubmissionCodec,
-  clientCodecs,
- )
-import Ouroboros.Consensus.Node.NetworkProtocolVersion (
-  BlockNodeToClientVersion,
-  supportedNodeToClientVersions,
- )
+import Ouroboros.Consensus.Network.NodeToClient
+  ( ClientCodecs,
+    cChainSyncCodec,
+    cStateQueryCodec,
+    cTxSubmissionCodec,
+    clientCodecs,
+  )
+import Ouroboros.Consensus.Node.NetworkProtocolVersion
+  ( BlockNodeToClientVersion,
+    supportedNodeToClientVersions,
+  )
 import Ouroboros.Consensus.Protocol.Praos.Header qualified as Praos
 import Ouroboros.Consensus.Shelley.Eras (StandardCrypto)
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Network.Block (Point)
 import Ouroboros.Network.Block qualified as Ouroboros
 import Ouroboros.Network.Mux
-import Ouroboros.Network.NodeToClient (
-  LocalAddress,
-  NodeToClientVersion (..),
-  NodeToClientVersionData (..),
- )
+import Ouroboros.Network.NodeToClient
+  ( LocalAddress,
+    NodeToClientVersion (..),
+    NodeToClientVersionData (..),
+  )
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
-
-import Cardano.Protocol.TPraos.BHeader
-import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
 import Test.Cardano.Ledger.Common
 import Test.Cardano.Ledger.Shelley.Constants (defaultConstants)
 import Test.Cardano.Ledger.Shelley.Generator.Presets (coreNodeKeys)
@@ -118,9 +119,9 @@ type Tip = Ouroboros.Tip (CardanoBlock StandardCrypto)
 type TxPool = [CardanoTx]
 
 data SocketEmulatorState = SocketEmulatorState
-  { _emulatorState :: EmulatorState
-  , _channel :: TChan Block
-  , _tip :: Tip
+  { _emulatorState :: EmulatorState,
+    _channel :: TChan Block,
+    _tip :: Tip
   }
   deriving (Generic)
 
@@ -128,7 +129,7 @@ makeLenses ''SocketEmulatorState
 
 instance Show SocketEmulatorState where
   -- Skip showing the full chain
-  show SocketEmulatorState{_emulatorState, _tip} =
+  show SocketEmulatorState {_emulatorState, _tip} =
     "SocketEmulatorState { "
       <> show _emulatorState
       <> ", "
@@ -137,16 +138,16 @@ instance Show SocketEmulatorState where
 
 -- | Node server configuration
 data NodeServerConfig = NodeServerConfig
-  { nscInitialTxWallets :: [WalletNumber]
-  -- ^ The wallets that receive money from the initial transaction.
-  , nscSocketPath :: FilePath
-  -- ^ Path to the socket used to communicate with the server.
-  , nscShelleyGenesisPath :: Maybe FilePath
-  -- ^ Path to a JSON file containing the Shelley genesis parameters
-  , nscAlonzoGenesisPath :: Maybe FilePath
-  -- ^ Path to a JSON file containing the Alonzo genesis parameters
-  , nscConwayGenesisPath :: Maybe FilePath
-  -- ^ Path to a JSON file containing the Conway genesis parameters
+  { -- | The wallets that receive money from the initial transaction.
+    nscInitialTxWallets :: [WalletNumber],
+    -- | Path to the socket used to communicate with the server.
+    nscSocketPath :: FilePath,
+    -- | Path to a JSON file containing the Shelley genesis parameters
+    nscShelleyGenesisPath :: Maybe FilePath,
+    -- | Path to a JSON file containing the Alonzo genesis parameters
+    nscAlonzoGenesisPath :: Maybe FilePath,
+    -- | Path to a JSON file containing the Conway genesis parameters
+    nscConwayGenesisPath :: Maybe FilePath
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -155,21 +156,21 @@ defaultNodeServerConfig :: NodeServerConfig
 defaultNodeServerConfig =
   NodeServerConfig
     { nscInitialTxWallets =
-        [ WalletNumber 1
-        , WalletNumber 2
-        , WalletNumber 3
-        , WalletNumber 4
-        , WalletNumber 5
-        , WalletNumber 6
-        , WalletNumber 7
-        , WalletNumber 8
-        , WalletNumber 9
-        , WalletNumber 10
-        ]
-    , nscSocketPath = "/tmp/node-server.sock"
-    , nscShelleyGenesisPath = Nothing
-    , nscAlonzoGenesisPath = Nothing
-    , nscConwayGenesisPath = Nothing
+        [ WalletNumber 1,
+          WalletNumber 2,
+          WalletNumber 3,
+          WalletNumber 4,
+          WalletNumber 5,
+          WalletNumber 6,
+          WalletNumber 7,
+          WalletNumber 8,
+          WalletNumber 9,
+          WalletNumber 10
+        ],
+      nscSocketPath = "/tmp/node-server.sock",
+      nscShelleyGenesisPath = Nothing,
+      nscAlonzoGenesisPath = Nothing,
+      nscConwayGenesisPath = Nothing
     }
 
 instance Default NodeServerConfig where
@@ -177,11 +178,11 @@ instance Default NodeServerConfig where
 
 -- | Application State
 data AppState = AppState
-  { _socketEmulatorState :: SocketEmulatorState
-  -- ^ blockchain state
-  , _emulatorLogs :: EmulatorLogs
-  -- ^ history of all log messages
-  , _emulatorParams :: Params
+  { -- | blockchain state
+    _socketEmulatorState :: SocketEmulatorState,
+    -- | history of all log messages
+    _emulatorLogs :: EmulatorLogs,
+    _emulatorParams :: Params
   }
   deriving (Show)
 
@@ -197,9 +198,9 @@ fromEmulatorChainState state = do
       mapM_ (atomically . writeTChan ch) chainNewestFirst
   pure $
     SocketEmulatorState
-      { _channel = ch
-      , _emulatorState = state
-      , _tip = case listToMaybe chainNewestFirst of
+      { _channel = ch,
+        _emulatorState = state,
+        _tip = case listToMaybe chainNewestFirst of
           Nothing -> Ouroboros.TipGenesis
           Just block -> Ouroboros.Tip (fromInteger currentSlot) (coerce $ blockId block) (fromInteger currentSlot)
       }
@@ -225,10 +226,10 @@ setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
         .~ Ouroboros.Tip (fromInteger slot) (coerce $ blockId block) (fromInteger slot)
 
 -- | Run all chain effects in the IO Monad
-runChainEffects
-  :: MVar AppState
-  -> EmulatorT IO a
-  -> IO (EmulatorLogs, Either EmulatorError a)
+runChainEffects ::
+  MVar AppState ->
+  EmulatorT IO a ->
+  IO (EmulatorLogs, Either EmulatorError a)
 runChainEffects stateVar eff = do
   AppState (SocketEmulatorState oldState chan tip') events params <- liftIO $ takeMVar stateVar
   (a, newState, newEvents) <- runRWST (runExceptT eff) params oldState
@@ -238,9 +239,8 @@ runChainEffects stateVar eff = do
 
 -- Logging ------------------------------------------------------------------------------------------------------------
 
-{- | Top-level logging data type for structural logging
-inside the CNSE server.
--}
+-- | Top-level logging data type for structural logging
+-- inside the CNSE server.
 data CNSEServerLogMsg
   = StartingSlotCoordination UTCTime Millisecond
   | StartingCNSEServer
@@ -281,22 +281,21 @@ blockId =
 nodeToClientVersion :: NodeToClientVersion
 nodeToClientVersion = NodeToClientV_16
 
-{- | A temporary definition of the protocol version. This will be moved as an
-argument to the client connection function in a future PR (the network magic
-number matches the one in the test net created by scripts)
--}
+-- | A temporary definition of the protocol version. This will be moved as an
+-- argument to the client connection function in a future PR (the network magic
+-- number matches the one in the test net created by scripts)
 nodeToClientVersionData :: NodeToClientVersionData
-nodeToClientVersionData = NodeToClientVersionData{networkMagic = testNetworkMagic, query = False}
+nodeToClientVersionData = NodeToClientVersionData {networkMagic = testNetworkMagic, query = False}
 
-doNothingResponderProtocol
-  :: (MonadTimer m)
-  => RunMiniProtocolWithMinimalCtx
-      'ResponderMode
-      LocalAddress
-      BSL.ByteString
-      m
-      Void
-      a
+doNothingResponderProtocol ::
+  (MonadTimer m) =>
+  RunMiniProtocolWithMinimalCtx
+    'ResponderMode
+    LocalAddress
+    BSL.ByteString
+    m
+    Void
+    a
 doNothingResponderProtocol =
   ResponderProtocolOnly $
     MiniProtocolCb $
@@ -304,11 +303,10 @@ doNothingResponderProtocol =
 
 -- | Boilerplate codecs used for protocol serialisation.
 
-{- | The number of epochSlots is specific to each blockchain instance. This value
-is what the cardano main and testnet uses. Only applies to the Byron era.
--}
+-- | The number of epochSlots is specific to each blockchain instance. This value
+-- is what the cardano main and testnet uses. Only applies to the Byron era.
 epochSlots :: EpochSlots
-epochSlots = EpochSlots 21600
+epochSlots = EpochSlots 21_600
 
 codecVersion :: BlockNodeToClientVersion (CardanoBlock StandardCrypto)
 codecVersion = versionMap Map.! nodeToClientVersion
@@ -328,45 +326,45 @@ codecConfig =
     Shelley.ShelleyCodecConfig
     Shelley.ShelleyCodecConfig
 
-nodeToClientCodecs
-  :: forall m
-   . (MonadST m)
-  => ClientCodecs (CardanoBlock StandardCrypto) m
+nodeToClientCodecs ::
+  forall m.
+  (MonadST m) =>
+  ClientCodecs (CardanoBlock StandardCrypto) m
 nodeToClientCodecs =
   clientCodecs codecConfig codecVersion nodeToClientVersion
 
-{- | These codecs are currently used in the mock nodes and will
-  probably soon get removed as the mock nodes are phased out.
--}
-chainSyncCodec
-  :: (block ~ CardanoBlock StandardCrypto)
-  => Codec
-      (ChainSync.ChainSync block (Point block) Tip)
-      DeserialiseFailure
-      IO
-      BSL.ByteString
+-- | These codecs are currently used in the mock nodes and will
+-- probably soon get removed as the mock nodes are phased out.
+chainSyncCodec ::
+  (block ~ CardanoBlock StandardCrypto) =>
+  Codec
+    (ChainSync.ChainSync block (Point block) Tip)
+    DeserialiseFailure
+    IO
+    BSL.ByteString
 chainSyncCodec = cChainSyncCodec nodeToClientCodecs
 
-txSubmissionCodec
-  :: (block ~ CardanoBlock StandardCrypto)
-  => Codec
-      (TxSubmission.LocalTxSubmission (Shelley.GenTx block) (ApplyTxErr block))
-      DeserialiseFailure
-      IO
-      BSL.ByteString
+txSubmissionCodec ::
+  (block ~ CardanoBlock StandardCrypto) =>
+  Codec
+    (TxSubmission.LocalTxSubmission (Shelley.GenTx block) (ApplyTxErr block))
+    DeserialiseFailure
+    IO
+    BSL.ByteString
 txSubmissionCodec = cTxSubmissionCodec nodeToClientCodecs
 
-stateQueryCodec
-  :: (block ~ CardanoBlock StandardCrypto)
-  => Codec
-      (StateQuery.LocalStateQuery block (Point block) (Query block))
-      DeserialiseFailure
-      IO
-      BSL.ByteString
+stateQueryCodec ::
+  (block ~ CardanoBlock StandardCrypto) =>
+  TP.Codec
+    (StateQuery.LocalStateQuery block (Point block) (Query block))
+    DeserialiseFailure
+    StateQuery.State
+    IO
+    BSL.ByteString
 stateQueryCodec = cStateQueryCodec nodeToClientCodecs
 
-toCardanoBlock
-  :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
+toCardanoBlock ::
+  Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
 toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
 toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
   prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.ConwayEra StandardCrypto))))
@@ -390,16 +388,16 @@ toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
         where
           hBody =
             Praos.HeaderBody
-              { Praos.hbBlockNo = bheaderBlockNo bhBody
-              , Praos.hbSlotNo = bheaderSlotNo bhBody
-              , Praos.hbPrev = bheaderPrev bhBody
-              , Praos.hbVk = bheaderVk bhBody
-              , Praos.hbVrfVk = bheaderVrfVk bhBody
-              , Praos.hbVrfRes = coerce $ bheaderEta bhBody
-              , Praos.hbBodySize = bsize bhBody
-              , Praos.hbBodyHash = bhash bhBody
-              , Praos.hbOCert = bheaderOCert bhBody
-              , Praos.hbProtVer = bprotver bhBody
+              { Praos.hbBlockNo = bheaderBlockNo bhBody,
+                Praos.hbSlotNo = bheaderSlotNo bhBody,
+                Praos.hbPrev = bheaderPrev bhBody,
+                Praos.hbVk = bheaderVk bhBody,
+                Praos.hbVrfVk = bheaderVrfVk bhBody,
+                Praos.hbVrfRes = coerce $ bheaderEta bhBody,
+                Praos.hbBodySize = bsize bhBody,
+                Praos.hbBodyHash = bhash bhBody,
+                Praos.hbOCert = bheaderOCert bhBody,
+                Praos.hbProtVer = bprotver bhBody
               }
           hSig = coerce bhSig
   pure $ OC.BlockConway $ Shelley.mkShelleyBlock $ CL.Block (translateHeader hdr1) bdy

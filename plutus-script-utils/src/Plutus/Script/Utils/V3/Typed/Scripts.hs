@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -24,20 +25,20 @@ import Control.Monad (unless)
 import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
-import Plutus.Script.Utils.Scripts (MintingPolicy, StakeValidator, Validator, datumHash)
+import Plutus.Script.Utils.Scripts (MintingPolicy, Script, StakeValidator, Validator, datumHash, toScriptHash, toVersioned)
 import Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V3
-  ( BuiltinData,
-    Credential (PubKeyCredential, ScriptCredential),
+  ( Address (..),
+    BuiltinData,
+    Credential (ScriptCredential),
     Datum,
     DatumHash,
     FromData,
     OutputDatum (OutputDatum, OutputDatumHash),
     ToData (..),
-    TxOut (txOutAddress, txOutDatum),
+    TxOut (..),
     TxOutRef,
-    addressCredential,
   )
 import Prettyprinter (Pretty (pretty), viaShow, (<+>))
 
@@ -49,12 +50,13 @@ data WrongOutTypeError
 
 -- | An error we can get while trying to type an existing transaction part.
 data ConnectionError
-  = WrongValidatorAddress PV1.Address PV1.Address
+  = WrongValidatorAddress PV1.ScriptHash PV1.ScriptHash
   | WrongOutType WrongOutTypeError
   | WrongValidatorType String
   | WrongRedeemerType BuiltinData
   | WrongDatumType BuiltinData
   | NoDatum TxOutRef DatumHash
+  | WrongDatumHash DatumHash DatumHash
   | UnknownRef TxOutRef
   deriving stock (Show, Eq, Ord, Generic)
 
@@ -65,38 +67,22 @@ instance Pretty ConnectionError where
   pretty (WrongRedeemerType d) = "Wrong redeemer type" <+> pretty (PV1.builtinDataToData d)
   pretty (WrongDatumType d) = "Wrong datum type" <+> pretty (PV1.builtinDataToData d)
   pretty (NoDatum t d) = "No datum with hash " <+> pretty d <+> "for tx output" <+> pretty t
+  pretty (WrongDatumHash dh1 dh2) = "Wrong datum hash, " <> "expected " <> pretty dh1 <> ", got " <> pretty dh2
   pretty (UnknownRef d) = "Unknown reference" <+> pretty d
 
 -- | Checks that the given validator hash is consistent with the actual validator.
-checkValidatorAddress ::
-  forall a m. (MonadError ConnectionError m) => MultiPurposeScript a -> PV1.Address -> m ()
-checkValidatorAddress ct actualAddr = do
-  let expectedAddr = multiPurposeScriptAddress ct
-  unless (expectedAddr == actualAddr) $ throwError $ WrongValidatorAddress expectedAddr actualAddr
-
--- -- | Checks that the given redeemer script has the right type.
--- checkRedeemerForPurpose ::
---   forall inn m.
---   (PV1.FromData (RedeemerType inn), MonadError ConnectionError m) =>
---   TypedValidator inn ->
---   PV1.Redeemer ->
---   m (RedeemerType inn)
--- checkRedeemerForPurpose _ (PV1.Redeemer d) =
---   case PV1.fromBuiltinData d of
---     Just v -> pure v
---     Nothing -> throwError $ WrongRedeemerType d
+checkValidatorHash :: (MonadError ConnectionError m) => MultiPurposeScript a -> PV1.ScriptHash -> m ()
+checkValidatorHash script expectedHash = do
+  let actualHash = toScriptHash $ toVersioned @Script script
+  unless (expectedHash == actualHash) $ throwError $ WrongValidatorAddress expectedHash actualHash
 
 -- | Checks that the given datum has the right type.
 checkDatum ::
-  forall a m.
   (PV1.FromData (DatumType a), MonadError ConnectionError m) =>
   MultiPurposeScript a ->
   Datum ->
   m (DatumType a)
-checkDatum _ (PV1.Datum d) =
-  case PV1.fromBuiltinData @(DatumType a) d of
-    Just v -> pure v
-    Nothing -> throwError $ WrongDatumType d
+checkDatum _ (PV1.Datum d) = maybe (throwError $ WrongDatumType d) return $ PV1.fromBuiltinData d
 
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
 data TypedScriptTxOut a = (FromData (DatumType a), ToData (DatumType a)) =>
@@ -123,35 +109,29 @@ instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a) where
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
 typeScriptTxOut ::
-  forall out m.
-  ( FromData (DatumType out),
-    ToData (DatumType out),
-    MonadError ConnectionError m
-  ) =>
+  (FromData (DatumType out), ToData (DatumType out), MonadError ConnectionError m) =>
   MultiPurposeScript out ->
   TxOutRef ->
   TxOut ->
   Datum ->
   m (TypedScriptTxOut out)
-typeScriptTxOut tv txOutRef txOut datum = do
-  case addressCredential (txOutAddress txOut) of
-    PubKeyCredential _ ->
-      throwError $ WrongOutType ExpectedScriptGotPubkey
-    ScriptCredential _vh ->
-      case txOutDatum txOut of
-        OutputDatum d | datumHash datum == datumHash d -> do
-          checkValidatorAddress tv (txOutAddress txOut)
-          dsVal <- checkDatum tv datum
-          pure $ TypedScriptTxOut @out txOut dsVal
-        OutputDatumHash dh | datumHash datum == dh -> do
-          checkValidatorAddress tv (txOutAddress txOut)
-          dsVal <- checkDatum tv datum
-          pure $ TypedScriptTxOut @out txOut dsVal
-        _ -> throwError $ NoDatum txOutRef (datumHash datum)
+typeScriptTxOut script txOutRef txOut@TxOut {txOutAddress = Address (ScriptCredential sHash) _, txOutDatum} datum = do
+  let mDatumHash = case txOutDatum of
+        OutputDatum d -> Just $ datumHash d
+        OutputDatumHash hash -> Just hash
+        _ -> Nothing
+      inputDatumHash = datumHash datum
+  case mDatumHash of
+    Just dHash | dHash == inputDatumHash -> do
+      checkValidatorHash script sHash
+      dsVal <- checkDatum script datum
+      pure $ TypedScriptTxOut txOut dsVal
+    Just dHash -> throwError $ WrongDatumHash inputDatumHash dHash
+    Nothing -> throwError $ NoDatum txOutRef inputDatumHash
+typeScriptTxOut _ _ _ _ = throwError $ WrongOutType ExpectedScriptGotPubkey
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
 typeScriptTxOutRef ::
-  forall out m.
   ( FromData (DatumType out),
     ToData (DatumType out),
     MonadError ConnectionError m

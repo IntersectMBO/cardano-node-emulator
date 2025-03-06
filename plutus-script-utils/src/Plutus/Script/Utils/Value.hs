@@ -1,68 +1,68 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module Plutus.Script.Utils.Value (
-  module Export,
-  adaAssetClass,
-  lovelace,
-  ada,
-  noAdaValue,
-  adaOnlyValue,
-  isAdaOnlyValue,
-  currencyValueOf,
-  mpsSymbol,
-  currencyMPSHash,
-  adaL,
-  flattenValueI,
-)
+module Plutus.Script.Utils.Value
+  ( module Export,
+    adaAssetClass,
+    lovelace,
+    ada,
+    noAdaValue,
+    adaOnlyValue,
+    isAdaOnlyValue,
+    currencyValueOf,
+    mpsSymbol,
+    currencyMPSHash,
+    adaL,
+    flattenValueI,
+  )
 where
 
 import Optics.Core (Iso', Lens', iso, lens, over)
 import Plutus.Script.Utils.Ada qualified as Ada
 import Plutus.Script.Utils.Scripts (MintingPolicyHash (MintingPolicyHash))
-import PlutusLedgerApi.V1.Value as Export (
-  AssetClass (AssetClass, unAssetClass),
-  CurrencySymbol (CurrencySymbol, unCurrencySymbol),
-  TokenName (TokenName, unTokenName),
-  Value (Value, getValue),
-  adaSymbol,
-  adaToken,
-  assetClass,
-  assetClassValue,
-  assetClassValueOf,
-  currencySymbol,
-  flattenValue,
-  geq,
-  gt,
-  isZero,
-  leq,
-  lt,
-  scale,
-  singleton,
-  split,
-  symbols,
-  toString,
-  tokenName,
-  unionWith,
-  valueOf,
- )
+import PlutusLedgerApi.V1.Value as Export
+  ( AssetClass (AssetClass, unAssetClass),
+    CurrencySymbol (CurrencySymbol, unCurrencySymbol),
+    TokenName (TokenName, unTokenName),
+    Value (Value, getValue),
+    adaSymbol,
+    adaToken,
+    assetClass,
+    assetClassValue,
+    assetClassValueOf,
+    currencySymbol,
+    flattenValue,
+    geq,
+    gt,
+    isZero,
+    leq,
+    lt,
+    scale,
+    singleton,
+    split,
+    symbols,
+    toString,
+    tokenName,
+    unionWith,
+    valueOf,
+  )
 import PlutusTx.AssocMap qualified as Map
-import PlutusTx.Prelude (
-  Bool,
-  Eq ((==)),
-  Integer,
-  Maybe (Just, Nothing),
-  filter,
-  foldl,
-  fst,
-  map,
-  mempty,
-  (*),
-  (-),
-  (.),
-  (/=),
-  (<>),
- )
+import PlutusTx.Prelude
+  ( Bool,
+    Eq ((==)),
+    Integer,
+    Maybe (Just, Nothing),
+    filter,
+    foldl,
+    fst,
+    map,
+    mempty,
+    (*),
+    (-),
+    (.),
+    (/=),
+    (<>),
+  )
 
 {-# INLINEABLE adaAssetClass #-}
 
@@ -102,10 +102,9 @@ isAdaOnlyValue v = adaOnlyValue v == v
 
 {-# INLINEABLE currencyValueOf #-}
 
-{- | Get the quantities of just the given 'CurrencySymbol' in the 'Value'. This
-is useful when implementing minting policies as they are responsible for
-checking all minted/burnt tokens of their own 'CurrencySymbol'.
--}
+-- | Get the quantities of just the given 'CurrencySymbol' in the 'Value'. This
+-- is useful when implementing minting policies as they are responsible for
+-- checking all minted/burnt tokens of their own 'CurrencySymbol'.
 currencyValueOf :: Value -> CurrencySymbol -> Value
 currencyValueOf (Value m) c = case Map.lookup c m of
   Nothing -> mempty

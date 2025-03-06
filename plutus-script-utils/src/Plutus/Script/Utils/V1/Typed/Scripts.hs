@@ -5,19 +5,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Plutus.Script.Utils.V1.Typed.Scripts (
-  module Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies,
-  module Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators,
-  module Plutus.Script.Utils.V1.Typed.Scripts.Validators,
-  Validator,
-  MintingPolicy,
-  StakeValidator,
-  TypedScriptTxOut (tyTxOutData, tyTxOutTxOut),
-  TypedScriptTxOutRef (tyTxOutRefOut, tyTxOutRefRef),
-  makeTypedScriptTxOut,
-  typeScriptTxOut,
-  typeScriptTxOutRef,
-)
+module Plutus.Script.Utils.V1.Typed.Scripts
+  ( module Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies,
+    module Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators,
+    module Plutus.Script.Utils.V1.Typed.Scripts.Validators,
+    Validator,
+    MintingPolicy,
+    StakeValidator,
+    TypedScriptTxOut (tyTxOutData, tyTxOutTxOut),
+    TypedScriptTxOutRef (tyTxOutRefOut, tyTxOutRefRef),
+    makeTypedScriptTxOut,
+    typeScriptTxOut,
+    typeScriptTxOutRef,
+  )
 where
 
 import Control.Monad.Except (MonadError (throwError))
@@ -25,16 +25,16 @@ import Plutus.Script.Utils.Scripts (MintingPolicy, StakeValidator, Validator, da
 import Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies hiding (forwardToValidator)
 import Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators hiding (forwardToValidator)
 import Plutus.Script.Utils.V1.Typed.Scripts.Validators
-import PlutusLedgerApi.V1 (
-  Credential (PubKeyCredential, ScriptCredential),
-  Datum (Datum),
-  FromData,
-  ToData (..),
-  TxOut (TxOut, txOutAddress, txOutDatumHash, txOutValue),
-  TxOutRef,
-  Value,
-  addressCredential,
- )
+import PlutusLedgerApi.V1
+  ( Credential (PubKeyCredential, ScriptCredential),
+    Datum (Datum),
+    FromData,
+    ToData (..),
+    TxOut (TxOut, txOutAddress, txOutDatumHash, txOutValue),
+    TxOutRef,
+    Value,
+    addressCredential,
+  )
 
 {- Note [Scripts returning Bool]
 It used to be that the signal for validation failure was a script being `error`. This is nice for
@@ -54,8 +54,8 @@ check for error in the overall evaluation.
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
 data TypedScriptTxOut a = (FromData (DatumType a), ToData (DatumType a)) =>
   TypedScriptTxOut
-  { tyTxOutTxOut :: TxOut
-  , tyTxOutData :: DatumType a
+  { tyTxOutTxOut :: TxOut,
+    tyTxOutData :: DatumType a
   }
 
 instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a) where
@@ -64,26 +64,26 @@ instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a) where
       && tyTxOutData l == tyTxOutData r
 
 -- | Create a 'TypedScriptTxOut' from a correctly-typed data script, an address, and a value.
-makeTypedScriptTxOut
-  :: forall out
-   . (ToData (DatumType out), FromData (DatumType out))
-  => TypedValidator out
-  -> DatumType out
-  -> Value
-  -> TypedScriptTxOut out
+makeTypedScriptTxOut ::
+  forall out.
+  (ToData (DatumType out), FromData (DatumType out)) =>
+  TypedValidator out ->
+  DatumType out ->
+  Value ->
+  TypedScriptTxOut out
 makeTypedScriptTxOut ct d value =
   TypedScriptTxOut @out
     TxOut
-      { txOutAddress = validatorAddress ct
-      , txOutValue = value
-      , txOutDatumHash = Just (datumHash $ Datum $ toBuiltinData d)
+      { txOutAddress = validatorAddress ct,
+        txOutValue = value,
+        txOutDatumHash = Just (datumHash $ Datum $ toBuiltinData d)
       }
     d
 
 -- | A 'TxOutRef' tagged by a phantom type: and the connection type of the output.
 data TypedScriptTxOutRef a = TypedScriptTxOutRef
-  { tyTxOutRefRef :: TxOutRef
-  , tyTxOutRefOut :: TypedScriptTxOut a
+  { tyTxOutRefRef :: TxOutRef,
+    tyTxOutRefOut :: TypedScriptTxOut a
   }
 
 instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a) where
@@ -92,17 +92,17 @@ instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a) where
       && tyTxOutRefOut l == tyTxOutRefOut r
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOut
-  :: forall out m
-   . ( FromData (DatumType out)
-     , ToData (DatumType out)
-     , MonadError ConnectionError m
-     )
-  => TypedValidator out
-  -> TxOutRef
-  -> TxOut
-  -> Datum
-  -> m (TypedScriptTxOut out)
+typeScriptTxOut ::
+  forall out m.
+  ( FromData (DatumType out),
+    ToData (DatumType out),
+    MonadError ConnectionError m
+  ) =>
+  TypedValidator out ->
+  TxOutRef ->
+  TxOut ->
+  Datum ->
+  m (TypedScriptTxOut out)
 typeScriptTxOut tv txOutRef txOut datum = do
   case addressCredential (txOutAddress txOut) of
     PubKeyCredential _ ->
@@ -116,17 +116,17 @@ typeScriptTxOut tv txOutRef txOut datum = do
         _ -> throwError $ NoDatum txOutRef (datumHash datum)
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOutRef
-  :: forall out m
-   . ( FromData (DatumType out)
-     , ToData (DatumType out)
-     , MonadError ConnectionError m
-     )
-  => TypedValidator out
-  -> TxOutRef
-  -> TxOut
-  -> Datum
-  -> m (TypedScriptTxOutRef out)
+typeScriptTxOutRef ::
+  forall out m.
+  ( FromData (DatumType out),
+    ToData (DatumType out),
+    MonadError ConnectionError m
+  ) =>
+  TypedValidator out ->
+  TxOutRef ->
+  TxOut ->
+  Datum ->
+  m (TypedScriptTxOutRef out)
 typeScriptTxOutRef tv txOutRef txOut datum = do
   tyOut <- typeScriptTxOut tv txOutRef txOut datum
   pure $ TypedScriptTxOutRef txOutRef tyOut

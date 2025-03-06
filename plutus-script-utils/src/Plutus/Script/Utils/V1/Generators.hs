@@ -1,44 +1,56 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 
-module Plutus.Script.Utils.V1.Generators (
-  alwaysSucceedValidator,
-  alwaysSucceedValidatorVersioned,
-  alwaysSucceedValidatorHash,
-  alwaysSucceedPolicy,
-  alwaysSucceedPolicyVersioned,
-  alwaysSucceedPolicyHash,
-  someTokenValue,
-) where
+module Plutus.Script.Utils.V1.Generators
+  ( alwaysSucceedValidator,
+    alwaysSucceedValidatorVersioned,
+    alwaysSucceedValidatorHash,
+    alwaysSucceedPolicy,
+    alwaysSucceedPolicyVersioned,
+    alwaysSucceedPolicyHash,
+    someTokenValue,
+  )
+where
 
-import Plutus.Script.Utils.Scripts qualified as Ledger
-import PlutusLedgerApi.V1.Value (TokenName, Value)
-import PlutusLedgerApi.V1.Value qualified as Value
+import Plutus.Script.Utils.Scripts
+  ( Language (PlutusV1),
+    MintingPolicy,
+    MintingPolicyHash,
+    Validator,
+    ValidatorHash,
+    Versioned (Versioned),
+    scriptCurrencySymbol,
+    toMintingPolicy,
+    toValidator,
+  )
+import Plutus.Script.Utils.V1.Scripts qualified as Scripts
+import PlutusLedgerApi.V1.Value (TokenName, Value, singleton)
 import PlutusTx qualified
 import PlutusTx.Builtins.Internal qualified as PlutusTx
 
-import Plutus.Script.Utils.V1.Scripts qualified as Scripts
+alwaysSucceedValidator :: Validator
+alwaysSucceedValidator = toValidator $$(PlutusTx.compile [||trueVal||])
+  where
+    trueVal :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
+    trueVal _ _ _ = PlutusTx.unitval
 
-alwaysSucceedValidator :: Ledger.Validator
-alwaysSucceedValidator =
-  Ledger.mkValidatorScript $$(PlutusTx.compile [||\_ _ _ -> PlutusTx.unitval||])
+alwaysSucceedValidatorVersioned :: Versioned Validator
+alwaysSucceedValidatorVersioned = Versioned alwaysSucceedValidator PlutusV1
 
-alwaysSucceedValidatorVersioned :: Ledger.Versioned Ledger.Validator
-alwaysSucceedValidatorVersioned = Ledger.Versioned alwaysSucceedValidator Ledger.PlutusV1
-
-alwaysSucceedValidatorHash :: Ledger.ValidatorHash
+alwaysSucceedValidatorHash :: ValidatorHash
 alwaysSucceedValidatorHash = Scripts.validatorHash alwaysSucceedValidator
 
-alwaysSucceedPolicy :: Ledger.MintingPolicy
-alwaysSucceedPolicy =
-  Ledger.mkMintingPolicyScript $$(PlutusTx.compile [||\_ _ -> PlutusTx.unitval||])
+alwaysSucceedPolicy :: MintingPolicy
+alwaysSucceedPolicy = toMintingPolicy $$(PlutusTx.compile [||trueMP||])
+  where
+    trueMP :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
+    trueMP _ _ = PlutusTx.unitval
 
-alwaysSucceedPolicyVersioned :: Ledger.Versioned Ledger.MintingPolicy
-alwaysSucceedPolicyVersioned = Ledger.Versioned alwaysSucceedPolicy Ledger.PlutusV1
+alwaysSucceedPolicyVersioned :: Versioned MintingPolicy
+alwaysSucceedPolicyVersioned = Versioned alwaysSucceedPolicy PlutusV1
 
-alwaysSucceedPolicyHash :: Ledger.MintingPolicyHash
+alwaysSucceedPolicyHash :: MintingPolicyHash
 alwaysSucceedPolicyHash = Scripts.mintingPolicyHash alwaysSucceedPolicy
 
 someTokenValue :: TokenName -> Integer -> Value
-someTokenValue = Value.singleton (Scripts.scriptCurrencySymbol alwaysSucceedPolicy)
+someTokenValue = singleton (scriptCurrencySymbol alwaysSucceedPolicyVersioned)

@@ -28,9 +28,8 @@ import Prettyprinter.Util (reflow)
 instance ToJSON CurrencySymbol where
   toJSON c =
     JSON.object
-      [
-        ( "unCurrencySymbol"
-        , JSON.String
+      [ ( "unCurrencySymbol",
+          JSON.String
             . JSON.encodeByteString
             . PlutusTx.fromBuiltin
             . unCurrencySymbol

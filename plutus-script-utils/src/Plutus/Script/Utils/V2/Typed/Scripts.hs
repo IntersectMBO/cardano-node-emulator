@@ -3,19 +3,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
-module Plutus.Script.Utils.V2.Typed.Scripts (
-  module Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies,
-  module Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators,
-  module Plutus.Script.Utils.V2.Typed.Scripts.Validators,
-  Validator,
-  MintingPolicy,
-  StakeValidator,
-  TypedScriptTxOut (..),
-  TypedScriptTxOutRef (..),
-  typeScriptTxOut,
-  typeScriptTxOutRef,
-  ConnectionError (..),
-)
+module Plutus.Script.Utils.V2.Typed.Scripts
+  ( module Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies,
+    module Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators,
+    module Plutus.Script.Utils.V2.Typed.Scripts.Validators,
+    Validator,
+    MintingPolicy,
+    StakeValidator,
+    TypedScriptTxOut (..),
+    TypedScriptTxOutRef (..),
+    typeScriptTxOut,
+    typeScriptTxOutRef,
+    ConnectionError (..),
+  )
 where
 
 import Control.Monad.Except (MonadError (throwError))
@@ -25,24 +25,24 @@ import Plutus.Script.Utils.V1.Typed.Scripts.Validators qualified as V1
 import Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies hiding (forwardToValidator)
 import Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators hiding (forwardToValidator)
 import Plutus.Script.Utils.V2.Typed.Scripts.Validators
-import PlutusLedgerApi.V2 (
-  Credential (PubKeyCredential, ScriptCredential),
-  Datum,
-  FromData,
-  OutputDatum (OutputDatum, OutputDatumHash),
-  ToData (..),
-  TxOut (txOutAddress, txOutDatum),
-  TxOutRef,
-  addressCredential,
- )
+import PlutusLedgerApi.V2
+  ( Credential (PubKeyCredential, ScriptCredential),
+    Datum,
+    FromData,
+    OutputDatum (OutputDatum, OutputDatumHash),
+    ToData (..),
+    TxOut (txOutAddress, txOutDatum),
+    TxOutRef,
+    addressCredential,
+  )
 
 --
 
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
 data TypedScriptTxOut a = (FromData (DatumType a), ToData (DatumType a)) =>
   TypedScriptTxOut
-  { tyTxOutTxOut :: TxOut
-  , tyTxOutData :: DatumType a
+  { tyTxOutTxOut :: TxOut,
+    tyTxOutData :: DatumType a
   }
 
 instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a) where
@@ -52,8 +52,8 @@ instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a) where
 
 -- | A 'TxOutRef' tagged by a phantom type: and the connection type of the output.
 data TypedScriptTxOutRef a = TypedScriptTxOutRef
-  { tyTxOutRefRef :: TxOutRef
-  , tyTxOutRefOut :: TypedScriptTxOut a
+  { tyTxOutRefRef :: TxOutRef,
+    tyTxOutRefOut :: TypedScriptTxOut a
   }
 
 instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a) where
@@ -62,17 +62,17 @@ instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a) where
       && tyTxOutRefOut l == tyTxOutRefOut r
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOut
-  :: forall out m
-   . ( FromData (DatumType out)
-     , ToData (DatumType out)
-     , MonadError ConnectionError m
-     )
-  => TypedValidator out
-  -> TxOutRef
-  -> TxOut
-  -> Datum
-  -> m (TypedScriptTxOut out)
+typeScriptTxOut ::
+  forall out m.
+  ( FromData (DatumType out),
+    ToData (DatumType out),
+    MonadError ConnectionError m
+  ) =>
+  TypedValidator out ->
+  TxOutRef ->
+  TxOut ->
+  Datum ->
+  m (TypedScriptTxOut out)
 typeScriptTxOut tv txOutRef txOut datum = do
   case addressCredential (txOutAddress txOut) of
     PubKeyCredential _ ->
@@ -90,17 +90,17 @@ typeScriptTxOut tv txOutRef txOut datum = do
         _ -> throwError $ V1.NoDatum txOutRef (datumHash datum)
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOutRef
-  :: forall out m
-   . ( FromData (DatumType out)
-     , ToData (DatumType out)
-     , MonadError ConnectionError m
-     )
-  => TypedValidator out
-  -> TxOutRef
-  -> TxOut
-  -> Datum
-  -> m (TypedScriptTxOutRef out)
+typeScriptTxOutRef ::
+  forall out m.
+  ( FromData (DatumType out),
+    ToData (DatumType out),
+    MonadError ConnectionError m
+  ) =>
+  TypedValidator out ->
+  TxOutRef ->
+  TxOut ->
+  Datum ->
+  m (TypedScriptTxOutRef out)
 typeScriptTxOutRef tv txOutRef txOut datum = do
   tyOut <- typeScriptTxOut tv txOutRef txOut datum
   pure $ TypedScriptTxOutRef txOutRef tyOut

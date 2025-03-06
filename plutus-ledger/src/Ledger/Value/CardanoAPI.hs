@@ -1,39 +1,40 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ledger.Value.CardanoAPI (
-  C.Value,
-  Coin (Coin),
-  C.AssetId (..),
-  C.PolicyId,
-  C.AssetName,
-  C.selectAsset,
-  C.valueToList,
-  C.valueFromList,
-  C.selectLovelace,
-  C.filterValue,
-  C.negateValue,
-  lovelaceToValue,
-  lovelaceValueOf,
-  adaValueOf,
-  isZero,
-  isAdaOnlyValue,
-  noAdaValue,
-  adaOnlyValue,
-  adaToCardanoValue,
-  singleton,
-  assetIdValue,
-  scale,
-  split,
-  policyId,
-  toCardanoValue,
-  fromCardanoValue,
-  toCardanoAssetId,
-  fromCardanoAssetId,
-  combine,
-  valueGeq,
-  valueLeq,
-) where
+module Ledger.Value.CardanoAPI
+  ( C.Value,
+    Coin (Coin),
+    C.AssetId (..),
+    C.PolicyId,
+    C.AssetName,
+    C.selectAsset,
+    C.valueToList,
+    C.valueFromList,
+    C.selectLovelace,
+    C.filterValue,
+    C.negateValue,
+    lovelaceToValue,
+    lovelaceValueOf,
+    adaValueOf,
+    isZero,
+    isAdaOnlyValue,
+    noAdaValue,
+    adaOnlyValue,
+    adaToCardanoValue,
+    singleton,
+    assetIdValue,
+    scale,
+    split,
+    policyId,
+    toCardanoValue,
+    fromCardanoValue,
+    toCardanoAssetId,
+    fromCardanoAssetId,
+    combine,
+    valueGeq,
+    valueLeq,
+  )
+where
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.Coin (Coin (Coin))
@@ -43,14 +44,14 @@ import Data.Maybe (isJust)
 import Data.Monoid (All (All, getAll))
 import Data.Ratio (denominator, numerator)
 import GHC.Exts
-import Ledger.Scripts (MintingPolicy (..), Versioned (..), withCardanoApiScript)
-import Ledger.Tx.CardanoAPI.Internal (
-  adaToCardanoValue,
-  fromCardanoAssetId,
-  fromCardanoValue,
-  toCardanoAssetId,
-  toCardanoValue,
- )
+import Ledger.Scripts (MintingPolicy (..), Versioned (..), toCardanoScriptHash)
+import Ledger.Tx.CardanoAPI.Internal
+  ( adaToCardanoValue,
+    fromCardanoAssetId,
+    fromCardanoValue,
+    toCardanoAssetId,
+    toCardanoValue,
+  )
 import PlutusTx.Lattice (JoinSemiLattice (..))
 
 lovelaceToValue :: Coin -> C.Value
@@ -93,7 +94,7 @@ split :: C.Value -> (C.Value, C.Value)
 split = bimap (C.negateValue . fromList) fromList . partition ((< 0) . snd) . toList
 
 policyId :: Versioned MintingPolicy -> C.PolicyId
-policyId = withCardanoApiScript C.scriptPolicyId . fmap getMintingPolicy
+policyId = C.PolicyId . toCardanoScriptHash
 
 combine :: (Monoid m) => (C.AssetId -> C.Quantity -> C.Quantity -> m) -> C.Value -> C.Value -> m
 combine f v1 v2 = merge (toList v1) (toList v2)

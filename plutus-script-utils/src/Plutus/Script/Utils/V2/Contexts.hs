@@ -8,16 +8,17 @@
 {-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-strictness #-}
 
-module Plutus.Script.Utils.V2.Contexts (
-  module Contexts,
-  findTxInByTxOutRef,
-  findTxRefInByTxOutRef,
-  outputsAt,
-  scriptOutputsAt,
-  valuePaidTo,
-  ownHash,
-  ownHashes,
-) where
+module Plutus.Script.Utils.V2.Contexts
+  ( module Contexts,
+    findTxInByTxOutRef,
+    findTxRefInByTxOutRef,
+    outputsAt,
+    scriptOutputsAt,
+    valuePaidTo,
+    ownHash,
+    ownHashes,
+  )
+where
 
 import Plutus.Script.Utils.Scripts (ValidatorHash (..))
 import PlutusLedgerApi.V1 (Address, Value)
@@ -27,20 +28,20 @@ import PlutusTx.Prelude (Maybe (Just, Nothing), find, foldMap, fst, mapMaybe, sn
 
 {-# INLINEABLE findTxInByTxOutRef #-}
 findTxInByTxOutRef :: TxOutRef -> PV2.TxInfo -> Maybe PV2.TxInInfo
-findTxInByTxOutRef outRef PV2.TxInfo{PV2.txInfoInputs} =
-  find (\PV2.TxInInfo{PV2.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoInputs
+findTxInByTxOutRef outRef PV2.TxInfo {PV2.txInfoInputs} =
+  find (\PV2.TxInInfo {PV2.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoInputs
 
 {-# INLINEABLE findTxRefInByTxOutRef #-}
 findTxRefInByTxOutRef :: TxOutRef -> PV2.TxInfo -> Maybe PV2.TxInInfo
-findTxRefInByTxOutRef outRef PV2.TxInfo{PV2.txInfoReferenceInputs} =
-  find (\PV2.TxInInfo{PV2.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoReferenceInputs
+findTxRefInByTxOutRef outRef PV2.TxInfo {PV2.txInfoReferenceInputs} =
+  find (\PV2.TxInInfo {PV2.txInInfoOutRef} -> txInInfoOutRef == outRef) txInfoReferenceInputs
 
 {-# INLINEABLE outputsAt #-}
 
 -- | Get the datums and values paid to an address by a pending transaction.
 outputsAt :: Address -> TxInfo -> [(PV2.OutputDatum, Value)]
 outputsAt addr p =
-  let flt TxOut{txOutAddress, txOutValue, txOutDatum} | txOutAddress == addr = Just (txOutDatum, txOutValue)
+  let flt TxOut {txOutAddress, txOutValue, txOutDatum} | txOutAddress == addr = Just (txOutDatum, txOutValue)
       flt _ = Nothing
    in mapMaybe flt (txInfoOutputs p)
 
@@ -65,7 +66,7 @@ ownHashes
       Just
         TxInInfo
           { txInInfoResolved =
-            TxOut{txOutAddress = PV2.Address (PV2.ScriptCredential (PV2.ScriptHash s)) _, txOutDatum = d}
+              TxOut {txOutAddress = PV2.Address (PV2.ScriptCredential (PV2.ScriptHash s)) _, txOutDatum = d}
           }
     ) = (ValidatorHash s, d)
 ownHashes _ = traceError "Lg" -- "Can't get validator and datum hashes"

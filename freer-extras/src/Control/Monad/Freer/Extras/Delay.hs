@@ -17,10 +17,10 @@ data DelayEffect r where
 delayThread :: (TimeUnit a) => (Member DelayEffect effs) => a -> Eff effs ()
 delayThread = send . DelayThread
 
-handleDelayEffect
-  :: forall effs m
-   . (LastMember m effs, MonadIO m)
-  => Eff (DelayEffect ': effs) ~> Eff effs
+handleDelayEffect ::
+  forall effs m.
+  (LastMember m effs, MonadIO m) =>
+  Eff (DelayEffect ': effs) ~> Eff effs
 handleDelayEffect =
   interpret $ \case
     DelayThread t ->

@@ -12,7 +12,9 @@
 module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Shelley qualified as C
 import Cardano.BM.Data.Trace (Trace)
+import Cardano.Ledger.Api.Era qualified as L
 import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
@@ -85,6 +87,7 @@ import Data.Void (Void)
 import Ledger (Block, CardanoTx (..), Slot (..))
 import Network.Mux.Types (Mode (ResponderMode))
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
+import Ouroboros.Consensus.Cardano.Block qualified as Consensus
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.Query (Query (..))
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
@@ -113,6 +116,7 @@ import Ouroboros.Network.Protocol.Handshake.Codec
 import Ouroboros.Network.Protocol.Handshake.Version
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (State (StateIdle))
 import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Snocket
@@ -543,18 +547,19 @@ txSubmission mvChainState =
             (pure $ txSubmissionServer mvChainState)
         )
 
--- stateQuery ::
---   MVar AppState ->
---   RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
--- stateQuery mvChainState =
---   ResponderProtocolOnly $
---     mkMiniProtocolCbFromPeer $
---       const
---         ( nullTracer,
---           stateQueryCodec,
---           Query.localStateQueryServerPeer
---             (stateQueryServer mvChainState)
---         )
+stateQuery ::
+  MVar AppState ->
+  RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
+stateQuery mvChainState =
+  ResponderProtocolOnly $
+    mkMiniProtocolCbFromPeerSt $
+      const
+        ( nullTracer,
+          stateQueryCodec,
+          StateIdle,
+          Query.localStateQueryServerPeer
+            (stateQueryServer mvChainState)
+        )
 
 -- * Computing intersections
 
@@ -601,12 +606,36 @@ txSubmissionServer state =
       TxSubmission.recvMsgDone = ()
     }
 
+-- Remove if Cardano.Api.Internal.InMode is exposed again
+fromConsensusGenTx :: () => (Consensus.CardanoBlock L.StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
+fromConsensusGenTx = \case
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (Z tx')) ->
+    C.TxInByronSpecial tx'
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (Z tx'))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraShelley (C.ShelleyTx C.ShelleyBasedEraShelley shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (Z tx')))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraAllegra (C.ShelleyTx C.ShelleyBasedEraAllegra shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (Z tx'))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraMary (C.ShelleyTx C.ShelleyBasedEraMary shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (Z tx')))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraAlonzo (C.ShelleyTx C.ShelleyBasedEraAlonzo shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx'))))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraBabbage (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (S (Z tx')))))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraConway (C.ShelleyTx C.ShelleyBasedEraConway shelleyEraTx)
+
 submitTx ::
   (block ~ CardanoBlock StandardCrypto) =>
   MVar AppState ->
   Shelley.GenTx block ->
   IO (TxSubmission.SubmitResult (ApplyTxErr block))
-submitTx state tx = case C.fromConsensusGenTx tx of
+submitTx state tx = case fromConsensusGenTx tx of
   C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
       (SocketEmulatorState (E.EmulatorState chainState _ _) _ _)

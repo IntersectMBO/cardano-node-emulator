@@ -81,8 +81,6 @@ import Ledger.Tx
 import Ledger.Tx.CardanoAPI (fromPlutusTxOut, toCardanoTxOutValue)
 import Ledger.Tx.Internal qualified as Tx
 import Ledger.Value.CardanoAPI (Value, lovelaceToValue)
-import Plutus.Script.Utils.Ada (Ada)
-import Plutus.Script.Utils.Ada qualified as Ada
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusTx.Lattice ((\/))
 import Prelude hiding (lookup)
@@ -106,7 +104,7 @@ insert tx (C.UTxO unspent) =
 insertCollateral :: CardanoTx -> UtxoIndex -> UtxoIndex
 insertCollateral tx (C.UTxO unspent) =
   C.UTxO $
-    (unspent `Map.withoutKeys` (Set.fromList $ getCardanoTxCollateralInputs tx))
+    (unspent `Map.withoutKeys` Set.fromList (getCardanoTxCollateralInputs tx))
       `Map.union` (Tx.toCtxUTxOTxOut <$> getCardanoTxProducedReturnCollateral tx)
 
 -- | Update the index for the addition of a block.
@@ -178,8 +176,8 @@ minAdaTxOut params txOut =
 -- a large inlined data (larger than a hash) nor a complex val with a lot of minted values.
 -- It's superior to the lowest minimum needed for an UTxO, as the lowest value require no datum.
 -- An estimate of the minimum required Ada for each tx output.
-minAdaTxOutEstimated :: Ada
-minAdaTxOutEstimated = Ada.lovelaceOf minTxOut
+minAdaTxOutEstimated :: PV1.Lovelace
+minAdaTxOutEstimated = PV1.Lovelace minTxOut
 
 minLovelaceTxOutEstimated :: Coin
 minLovelaceTxOutEstimated = Coin minTxOut
@@ -200,13 +198,13 @@ dataHashSize = 10
 These values are partly protocol parameters-based, but since this is used in on-chain code
 we want a constant to reduce code size.
 -}
-maxMinAdaTxOut :: Ada
-maxMinAdaTxOut = Ada.lovelaceOf 18_516_834
+maxMinAdaTxOut :: PV1.Lovelace
+maxMinAdaTxOut = PV1.Lovelace 18_516_834
 
 -- | TODO Should be calculated based on the maximum script size permitted on
 -- the Cardano blockchain.
-maxFee :: Ada
-maxFee = Ada.lovelaceOf 1_000_000
+maxFee :: PV1.Lovelace
+maxFee = PV1.Lovelace 1_000_000
 
 -- | cardano-ledger validation rules require the presence of inputs and
 -- we have to provide a stub TxIn for the genesis transaction.

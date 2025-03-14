@@ -1,5 +1,6 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-identities #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Plutus.Script.Utils.Value
   ( module Export,
@@ -10,19 +11,24 @@ module Plutus.Script.Utils.Value
     adaOnlyValue,
     isAdaOnlyValue,
     currencyValueOf,
-    mpsSymbol,
-    currencyMPSHash,
     adaL,
     flattenValueI,
+    divide,
+    isZero,
+    ToValue (..),
+    getAda,
+    adaOf,
+    adaValueOf,
   )
 where
 
-import Optics.Core (Iso', Lens', iso, lens, over)
-import Plutus.Script.Utils.Ada qualified as Ada
-import Plutus.Script.Utils.Scripts (MintingPolicyHash (MintingPolicyHash))
+import Codec.Serialise.Class (Serialise)
+import Data.Fixed (Fixed (MkFixed), Micro)
+import Optics.Core (Iso', Lens', iso, lens, over, (^.))
 import PlutusLedgerApi.V1.Value as Export
   ( AssetClass (AssetClass, unAssetClass),
     CurrencySymbol (CurrencySymbol, unCurrencySymbol),
+    Lovelace (Lovelace, getLovelace),
     TokenName (TokenName, unTokenName),
     Value (Value, getValue),
     adaSymbol,
@@ -31,11 +37,13 @@ import PlutusLedgerApi.V1.Value as Export
     assetClassValue,
     assetClassValueOf,
     currencySymbol,
+    currencySymbolValueOf,
     flattenValue,
     geq,
     gt,
-    isZero,
     leq,
+    lovelaceValue,
+    lovelaceValueOf,
     lt,
     scale,
     singleton,
@@ -45,28 +53,100 @@ import PlutusLedgerApi.V1.Value as Export
     tokenName,
     unionWith,
     valueOf,
+    withCurrencySymbol,
   )
+import PlutusLedgerApi.V1.Value qualified as V1 (isZero)
 import PlutusTx.AssocMap qualified as Map
 import PlutusTx.Prelude
   ( Bool,
     Eq ((==)),
     Integer,
     Maybe (Just, Nothing),
+    Monoid,
+    MultiplicativeMonoid,
+    MultiplicativeSemigroup,
+    Semigroup,
     filter,
     foldl,
     fst,
     map,
     mempty,
     (*),
+    (+),
     (-),
     (.),
     (/=),
     (<>),
   )
+import PlutusTx.Prelude qualified as P
+import Prelude qualified as Haskell
+
+class ToValue a where
+  toValue :: a -> Value
+
+instance ToValue Value where
+  toValue = Haskell.id
+
+{-# INLINEABLE isZero #-}
+isZero :: (ToValue a) => a -> Bool
+isZero = V1.isZero . toValue
+
+deriving newtype instance (MultiplicativeSemigroup Lovelace)
+
+deriving newtype instance (MultiplicativeMonoid Lovelace)
+
+deriving newtype instance (Haskell.Integral Lovelace)
+
+deriving newtype instance (Serialise Lovelace)
+
+instance Haskell.Semigroup Lovelace where
+  Lovelace a1 <> Lovelace a2 = Lovelace (a1 + a2)
+
+instance Semigroup Lovelace where
+  Lovelace a1 <> Lovelace a2 = Lovelace (a1 + a2)
+
+instance Haskell.Monoid Lovelace where
+  mempty = Lovelace 0
+
+instance Monoid Lovelace where
+  mempty = Lovelace 0
+
+instance ToValue Lovelace where
+  {-# INLINEABLE toValue #-}
+  toValue (Lovelace i) = singleton adaSymbol adaToken i
+
+{-# INLINEABLE divide #-}
+
+-- | Divide one 'Lovelace' value by another.
+divide :: Lovelace -> Lovelace -> Lovelace
+divide (Lovelace a) (Lovelace b) = Lovelace (P.divide a b)
+
+{-# INLINEABLE flattenValueI #-}
+
+-- | Isomorphism between values and lists of pairs AssetClass and Integers
+flattenValueI :: Iso' Value [(AssetClass, Integer)]
+flattenValueI =
+  iso
+    (map (\(cSymbol, tName, amount) -> (assetClass cSymbol tName, amount)) . flattenValue)
+    (foldl (\v (ac, amount) -> v <> assetClassValue ac amount) mempty)
+
+{-# INLINEABLE adaL #-}
+
+-- | Focus the Lovelace part in a value.
+adaL :: Lens' Value Lovelace
+adaL =
+  lens
+    lovelaceValueOf
+    ( \value (Lovelace amount) ->
+        over
+          flattenValueI
+          (((adaAssetClass, amount) :) . filter ((/= adaAssetClass) . fst))
+          value
+    )
 
 {-# INLINEABLE adaAssetClass #-}
 
--- | Ada asset class
+-- | Lovelace asset class
 adaAssetClass :: AssetClass
 adaAssetClass = assetClass adaSymbol adaToken
 
@@ -74,7 +154,7 @@ adaAssetClass = assetClass adaSymbol adaToken
 
 -- | Create a value from a certain amount of lovelace
 lovelace :: Integer -> Value
-lovelace = Ada.toValue . Ada.Lovelace
+lovelace = toValue . Lovelace
 
 {-# INLINEABLE ada #-}
 
@@ -84,15 +164,15 @@ ada = lovelace . (* 1_000_000)
 
 {-# INLINEABLE noAdaValue #-}
 
--- | Value without any Ada.
+-- | Value without any ada
 noAdaValue :: Value -> Value
 noAdaValue v = v - adaOnlyValue v
 
 {-# INLINEABLE adaOnlyValue #-}
 
--- | Value without any non-Ada.
+-- | Value without any non-ada tokens
 adaOnlyValue :: Value -> Value
-adaOnlyValue v = Ada.toValue (Ada.fromValue v)
+adaOnlyValue = toValue . (^. adaL)
 
 {-# INLINEABLE isAdaOnlyValue #-}
 
@@ -110,37 +190,22 @@ currencyValueOf (Value m) c = case Map.lookup c m of
   Nothing -> mempty
   Just t -> Value (Map.singleton c t)
 
-{-# INLINEABLE mpsSymbol #-}
+{-# INLINEABLE getAda #-}
 
--- | The currency symbol of a monetay policy hash
-mpsSymbol :: MintingPolicyHash -> CurrencySymbol
-mpsSymbol (MintingPolicyHash h) = CurrencySymbol h
+-- | Get the amount of Ada (the unit of the currency Ada) in this 'Ada' value.
+getAda :: Lovelace -> Micro
+getAda (Lovelace i) = MkFixed i
 
-{-# INLINEABLE currencyMPSHash #-}
+{-# INLINEABLE adaOf #-}
 
--- | The minting policy hash of a currency symbol
-currencyMPSHash :: CurrencySymbol -> MintingPolicyHash
-currencyMPSHash (CurrencySymbol h) = MintingPolicyHash h
+-- | Create 'Ada' representing the given quantity of Ada (1M Lovelace).
+adaOf :: Micro -> Lovelace
+adaOf (MkFixed x) = Lovelace x
 
-{-# INLINEABLE flattenValueI #-}
+{-# INLINEABLE adaValueOf #-}
 
--- | Isomorphism between values and lists of pairs AssetClass and Integers
-flattenValueI :: Iso' Value [(AssetClass, Integer)]
-flattenValueI =
-  iso
-    (map (\(cSymbol, tName, amount) -> (assetClass cSymbol tName, amount)) . flattenValue)
-    (foldl (\v (ac, amount) -> v <> assetClassValue ac amount) mempty)
-
-{-# INLINEABLE adaL #-}
-
--- | Focus the Ada part in a value.
-adaL :: Lens' Value Ada.Ada
-adaL =
-  lens
-    Ada.fromValue
-    ( \value (Ada.Lovelace amount) ->
-        over
-          flattenValueI
-          (((adaAssetClass, amount) :) . filter ((/= adaAssetClass) . fst))
-          value
-    )
+-- | A 'Value' with the given amount of Ada (the currency unit).
+--
+--  @adaValueOf == toValue . adaOf@
+adaValueOf :: Micro -> Value
+adaValueOf (MkFixed x) = lovelace x

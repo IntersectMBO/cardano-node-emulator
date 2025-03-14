@@ -1,11 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | This module contains functions related to versioning scripts and
@@ -214,6 +206,12 @@ instance (ToValidator a) => ToValidator (Versioned a) where
 instance ToValidator (CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit)) where
   toValidator = toValidator . toScript
 
+instance ToVersioned Script (Versioned Validator) where
+  toVersioned = fmap getValidator
+
+instance ToVersioned Validator (Versioned Script) where
+  toVersioned = fmap Validator
+
 -- * Validators hashes
 
 newtype ValidatorHash = ValidatorHash {getValidatorHash :: Builtins.BuiltinByteString}
@@ -274,6 +272,12 @@ instance (ToMintingPolicy a) => ToMintingPolicy (Versioned a) where
 instance ToMintingPolicy (CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)) where
   toMintingPolicy = toMintingPolicy . toScript
 
+instance ToVersioned Script (Versioned MintingPolicy) where
+  toVersioned = fmap getMintingPolicy
+
+instance ToVersioned MintingPolicy (Versioned Script) where
+  toVersioned = fmap MintingPolicy
+
 -- * Minting policies hashes
 
 -- | Script runtime representation of a @Digest SHA256@.
@@ -295,6 +299,9 @@ instance ToMintingPolicyHash PV1.ScriptHash where
 
 instance ToMintingPolicyHash (Versioned MintingPolicy) where
   toMintingPolicyHash = toMintingPolicyHash . toScriptHash . fmap toScript
+
+instance ToMintingPolicyHash PV1.CurrencySymbol where
+  toMintingPolicyHash = coerce
 
 instance ToScriptHash MintingPolicyHash where
   toScriptHash = coerce
@@ -334,6 +341,12 @@ instance (ToStakeValidator a) => ToStakeValidator (Versioned a) where
 
 instance ToStakeValidator (CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)) where
   toStakeValidator = toStakeValidator . toScript
+
+instance ToVersioned Script (Versioned StakeValidator) where
+  toVersioned = fmap getStakeValidator
+
+instance ToVersioned StakeValidator (Versioned Script) where
+  toVersioned = fmap StakeValidator
 
 -- * Stake validators hashes
 

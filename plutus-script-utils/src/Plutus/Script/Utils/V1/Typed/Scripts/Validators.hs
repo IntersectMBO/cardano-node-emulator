@@ -7,10 +7,6 @@ module Plutus.Script.Utils.V1.Typed.Scripts.Validators
     TypedValidator,
     mkTypedValidator,
     mkTypedValidatorParam,
-    validatorHash,
-    validatorAddress,
-    validatorScript,
-    vValidatorScript,
     forwardingMintingPolicy,
     vForwardingMintingPolicy,
     forwardingMintingPolicyHash,
@@ -21,6 +17,7 @@ module Plutus.Script.Utils.V1.Typed.Scripts.Validators
     checkValidatorAddress,
     checkDatum,
     checkRedeemer,
+    validatorToTypedValidator,
   )
 where
 
@@ -29,8 +26,10 @@ import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Kind (Type)
 import GHC.Generics (Generic)
+import Plutus.Script.Utils.Address (toAddress)
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV1),
+    Validator,
     Versioned (Versioned),
     toValidator,
   )
@@ -45,10 +44,6 @@ import Plutus.Script.Utils.Typed
     generalise,
     mkUntypedValidator,
     vForwardingMintingPolicy,
-    vValidatorScript,
-    validatorAddress,
-    validatorHash,
-    validatorScript,
   )
 import Plutus.Script.Utils.V1.Scripts qualified as Scripts
 import Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies qualified as MPS
@@ -61,6 +56,18 @@ import Prettyprinter (Pretty (pretty), viaShow, (<+>))
 -- | The type of validators for the given connection type.
 type ValidatorType (a :: Type) = DatumType a -> RedeemerType a -> PV1.ScriptContext -> Bool
 
+validatorToTypedValidator :: Validator -> TypedValidator a
+validatorToTypedValidator val =
+  TypedValidator
+    { tvValidator = Versioned val PlutusV1,
+      tvValidatorHash = hsh,
+      tvForwardingMPS = Versioned mps PlutusV1,
+      tvForwardingMPSHash = Scripts.mintingPolicyHash mps
+    }
+  where
+    hsh = Scripts.validatorHash val
+    mps = MPS.mkForwardingMintingPolicy hsh
+
 -- | Make a 'TypedValidator' from the 'CompiledCode' of a validator script and its wrapper.
 mkTypedValidator ::
   -- | Validator script (compiled)
@@ -69,16 +76,7 @@ mkTypedValidator ::
   CompiledCode (ValidatorType a -> UntypedValidator) ->
   TypedValidator a
 mkTypedValidator vc wrapper =
-  TypedValidator
-    { tvValidator = Versioned val PlutusV1,
-      tvValidatorHash = hsh,
-      tvForwardingMPS = Versioned mps PlutusV1,
-      tvForwardingMPSHash = Scripts.mintingPolicyHash mps
-    }
-  where
-    val = toValidator $ wrapper `unsafeApplyCode` vc
-    hsh = Scripts.validatorHash val
-    mps = MPS.mkForwardingMintingPolicy hsh
+  validatorToTypedValidator $ toValidator $ wrapper `unsafeApplyCode` vc
 
 -- | Make a 'TypedValidator' from the 'CompiledCode' of a parameterized validator script and its wrapper.
 mkTypedValidatorParam ::
@@ -124,7 +122,7 @@ instance Pretty ConnectionError where
 checkValidatorAddress ::
   forall a m. (MonadError ConnectionError m) => TypedValidator a -> PV1.Address -> m ()
 checkValidatorAddress ct actualAddr = do
-  let expectedAddr = validatorAddress ct
+  let expectedAddr = toAddress ct
   unless (expectedAddr == actualAddr) $ throwError $ WrongValidatorAddress expectedAddr actualAddr
 
 -- | Checks that the given redeemer script has the right type.

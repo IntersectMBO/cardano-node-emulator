@@ -4,6 +4,7 @@ module Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose where
 
 import Codec.Serialise (Serialise)
 import GHC.Generics (Generic)
+import Plutus.Script.Utils.Address qualified as PSU
 import Plutus.Script.Utils.Scripts qualified as PSU
 import PlutusLedgerApi.V1.Address qualified as Api
 import PlutusLedgerApi.V3 qualified as Api
@@ -316,19 +317,19 @@ addProposingPurpose ts ps =
       && ps ix prop red txInfo
 
 -- | Overrides the rewardings purpose
-withRewardingsPurpose ::
+withRewardingPurpose ::
   TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
   RewardingScriptType rr' rtx' ->
   TypedMultiPurposeScript cr ctx mr mtx pr ptx rr' rtx' sd sr stx vr vtx
-withRewardingsPurpose ts rs = ts {rewardingTypedScript = rs}
+withRewardingPurpose ts rs = ts {rewardingTypedScript = rs}
 
 -- | Combines a new rewardings purpose with the existing one
-addRewardingsPurpose ::
+addRewardingPurpose ::
   TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
   RewardingScriptType rr rtx ->
   TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addRewardingsPurpose ts rs =
-  ts `withRewardingsPurpose` \cred red txInfo ->
+addRewardingPurpose ts rs =
+  ts `withRewardingPurpose` \cred red txInfo ->
     rewardingTypedScript ts cred red txInfo
       && rs cred red txInfo
 
@@ -388,6 +389,12 @@ instance PSU.ToVersioned PSU.Script (MultiPurposeScript a) where
 
 instance PSU.ToScriptHash (MultiPurposeScript a) where
   toScriptHash = PSU.toScriptHash . PSU.toVersioned @PSU.Script
+
+instance PSU.ToCredential (MultiPurposeScript a) where
+  toCredential = Api.ScriptCredential . PSU.toScriptHash
+
+instance PSU.ToAddress (MultiPurposeScript a) where
+  toAddress = (`Api.Address` Nothing) . PSU.toCredential
 
 instance PSU.ToValidator (MultiPurposeScript a) where
   toValidator = PSU.Validator . PSU.toScript
@@ -529,3 +536,11 @@ trueSpendingMPScript :: MultiPurposeScript a
 trueSpendingMPScript = MultiPurposeScript $ PSU.toScript $$(compile [||script||])
   where
     script = mkMultiPurposeScript $ falseTypedMultiPurposeScript `withSpendingPurpose` trueSpendingScript @() @() @()
+
+falseMPScript :: MultiPurposeScript a
+falseMPScript = MultiPurposeScript $ PSU.toScript $$(compile [||script||])
+  where
+    script = mkMultiPurposeScript falseTypedMultiPurposeScript
+
+multiPurposeScriptValue :: MultiPurposeScript a -> Api.BuiltinByteString -> Integer -> Api.Value
+multiPurposeScriptValue mpScript bs = Api.singleton (PSU.scriptCurrencySymbol mpScript) (Api.TokenName bs)

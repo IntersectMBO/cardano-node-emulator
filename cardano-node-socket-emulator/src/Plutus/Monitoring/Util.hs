@@ -9,14 +9,15 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Plutus.Monitoring.Util (
-  handleLogMsgTrace,
-  handleLogMsgTraceMap,
-  handleObserveTrace,
-  runLogEffects,
-  convertLog,
-  toSeverity,
-) where
+module Plutus.Monitoring.Util
+  ( handleLogMsgTrace,
+    handleLogMsgTraceMap,
+    handleObserveTrace,
+    runLogEffects,
+    convertLog,
+    toSeverity,
+  )
+where
 
 import Cardano.BM.Configuration.Model qualified as CM
 import Cardano.BM.Data.Counter
@@ -50,36 +51,36 @@ toSeverity = \case
   L.Emergency -> Emergency
 
 -- | Handle the 'LogMsg' effect by logging messages to a 'Trace'
-handleLogMsgTrace
-  :: forall a m effs
-   . ( LastMember m effs
-     , MonadIO m
-     )
-  => Trace m a
-  -> LogMsg a
+handleLogMsgTrace ::
+  forall a m effs.
+  ( LastMember m effs,
+    MonadIO m
+  ) =>
+  Trace m a ->
+  LogMsg a
     ~> Eff effs
 handleLogMsgTrace trace = \case
-  LMessage L.LogMessage{L._logLevel, L._logMessageContent} ->
+  LMessage L.LogMessage {L._logLevel, L._logMessageContent} ->
     let defaultPrivacy = Public -- TODO: Configurable / add to 'L.LogMessage'?
      in sendM $ traceNamedItem trace defaultPrivacy (toSeverity _logLevel) _logMessageContent
 
 -- | Handle the 'LogMsg' effect by logging messages to a mapped 'Trace'
-handleLogMsgTraceMap
-  :: forall b a m effs
-   . ( LastMember m effs
-     , MonadIO m
-     )
-  => (b -> a)
-  -> Trace m a
-  -> LogMsg b
+handleLogMsgTraceMap ::
+  forall b a m effs.
+  ( LastMember m effs,
+    MonadIO m
+  ) =>
+  (b -> a) ->
+  Trace m a ->
+  LogMsg b
     ~> Eff effs
 handleLogMsgTraceMap f t = handleLogMsgTrace (convertLog f t)
 
-runLogEffects
-  :: forall m l
-   . (MonadIO m)
-  => Trace m l
-  -> Eff '[LogMsg l, m]
+runLogEffects ::
+  forall m l.
+  (MonadIO m) =>
+  Trace m l ->
+  Eff '[LogMsg l, m]
     ~> m
 runLogEffects trace = runM . interpret (handleLogMsgTrace trace)
 
@@ -87,18 +88,17 @@ runLogEffects trace = runM . interpret (handleLogMsgTrace trace)
 convertLog :: (a -> b) -> Trace m b -> Trace m a
 convertLog f = contramap (second (fmap f))
 
-{- | Handle the 'LogObserve' effect using the 'Cardano.BM.Observer.Monadic'
-  observer functions
--}
-handleObserveTrace
-  :: forall effs m a
-   . ( LastMember m effs
-     , MonadIO m
-     , MonadCatch m
-     )
-  => CM.Configuration
-  -> Trace m a
-  -> Eff (LogObserve (L.LogMessage Text) ': effs)
+-- | Handle the 'LogObserve' effect using the 'Cardano.BM.Observer.Monadic'
+--  observer functions
+handleObserveTrace ::
+  forall effs m a.
+  ( LastMember m effs,
+    MonadIO m,
+    MonadCatch m
+  ) =>
+  CM.Configuration ->
+  Trace m a ->
+  Eff (LogObserve (L.LogMessage Text) ': effs)
     ~> Eff effs
 handleObserveTrace config t =
   -- We need to call 'observeOpen' and 'observeClose' with the appropriate
@@ -108,7 +108,7 @@ handleObserveTrace config t =
   -- makes the call to 'observeClose.'
 
   let observeBefore :: L.LogMessage Text -> Eff effs (Maybe (SubTrace, CounterState))
-      observeBefore L.LogMessage{L._logLevel, L._logMessageContent} = do
+      observeBefore L.LogMessage {L._logLevel, L._logMessageContent} = do
         -- find the correct subtrace using the logging config and the content
         -- of the message.
         subtrace <-
@@ -123,7 +123,7 @@ handleObserveTrace config t =
           Right counterState -> pure (Just (subtrace, counterState))
 
       observeAfter :: Observation (L.LogMessage Text) (Maybe (SubTrace, CounterState)) -> Eff effs ()
-      observeAfter Observation{obsStart} =
+      observeAfter Observation {obsStart} =
         for_ obsStart $ \(subtrace, counterState) ->
           void $ sendM $ observeClose subtrace Info t counterState []
    in L.handleObserve

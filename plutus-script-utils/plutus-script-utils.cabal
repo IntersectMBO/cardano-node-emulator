@@ -26,7 +26,7 @@ common lang
     DeriveFunctor
     DeriveGeneric
     DeriveLift
-    DeriveTraversable                     
+    DeriveTraversable
     DerivingStrategies
     DerivingVia
     EmptyDataDeriving
@@ -52,30 +52,21 @@ common lang
     TypeFamilies
     TypeOperators
     ViewPatterns
-    
+
   -- See Plutus Tx readme for why we need the following flags:
   -- -fobject-code -fno-ignore-interface-pragmas and -fno-omit-interface-pragmas
   ghc-options:
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wnoncanonical-monad-instances
-    -Wno-unused-packages
-    -Wincomplete-uni-patterns
-    -Wincomplete-record-updates
-    -Wredundant-constraints
-    -Widentities
-    -Wmissing-import-lists
-    -Wno-missed-extra-shared-lib
-    -fobject-code
-    -fno-ignore-interface-pragmas
-    -fignore-hpc-changes
-    -fno-omit-interface-pragmas
-    -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
-    -fplugin-opt PlutusTx.Plugin:defer-errors
-    -fplugin-opt PlutusTx.Plugin:conservative-optimisation
-    
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
+    -Wno-unused-packages -Wincomplete-uni-patterns
+    -Wincomplete-record-updates -Wredundant-constraints -Widentities
+    -Wmissing-import-lists -Wno-missed-extra-shared-lib -fobject-code
+    -fno-ignore-interface-pragmas -fignore-hpc-changes
+    -fno-omit-interface-pragmas -fplugin-opt
+    PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
+    PlutusTx.Plugin:defer-errors -fplugin-opt
+    PlutusTx.Plugin:conservative-optimisation
+
   -- The limitation of plutus-tx-plugin
   if (impl(ghc <9.6) || impl(ghc >=9.7))
     buildable: False
@@ -89,28 +80,22 @@ library
     Plutus.Script.Utils.Data
     Plutus.Script.Utils.Scripts
     Plutus.Script.Utils.Typed
-    Plutus.Script.Utils.V1.Address
     Plutus.Script.Utils.V1.Contexts
     Plutus.Script.Utils.V1.Generators
     Plutus.Script.Utils.V1.Scripts
-    Plutus.Script.Utils.V1.Tx
     Plutus.Script.Utils.V1.Typed.Scripts
     Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators
     Plutus.Script.Utils.V1.Typed.Scripts.Validators
-    Plutus.Script.Utils.V2.Address
     Plutus.Script.Utils.V2.Contexts
     Plutus.Script.Utils.V2.Generators
     Plutus.Script.Utils.V2.Scripts
-    Plutus.Script.Utils.V2.Tx
     Plutus.Script.Utils.V2.Typed.Scripts
     Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators
     Plutus.Script.Utils.V2.Typed.Scripts.Validators
-    Plutus.Script.Utils.V3.Address
     Plutus.Script.Utils.V3.Contexts
     Plutus.Script.Utils.V3.Scripts
-    Plutus.Script.Utils.V3.Tx
     Plutus.Script.Utils.V3.Typed.Scripts
     Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose
     Plutus.Script.Utils.Value
@@ -124,7 +109,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api          ^>=10.10
+    , cardano-api          ^>=10.12
     , cardano-ledger-core
     , plutus-core          >=1.0.0
     , plutus-ledger-api    >=1.0.0

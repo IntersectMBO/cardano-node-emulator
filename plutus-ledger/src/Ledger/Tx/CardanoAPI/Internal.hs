@@ -100,7 +100,6 @@ import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Conway.Scripts qualified as Conway
 import Cardano.Ledger.Core qualified as Ledger
-import Cardano.Ledger.Crypto (StandardCrypto)
 import Control.Lens ((<&>))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
 import Data.Aeson qualified as Aeson
@@ -119,9 +118,8 @@ import Ledger.Address qualified as P
 import Ledger.Scripts qualified as P
 import Ledger.Slot qualified as P
 import Plutus.Script.Utils.Data qualified as P
-import Plutus.Script.Utils.Scripts (scriptCurrencySymbol, toMintingPolicyHash)
+import Plutus.Script.Utils.Scripts (toCurrencySymbol, toMintingPolicyHash)
 import Plutus.Script.Utils.Scripts qualified as Scripts
-import Plutus.Script.Utils.V2.Scripts qualified as PV2
 import Plutus.Script.Utils.Value qualified as Value
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Credential qualified as Credential
@@ -131,7 +129,7 @@ import PlutusLedgerApi.V3 qualified as PV3
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
 
-type EmulatorEra = ConwayEra StandardCrypto
+type EmulatorEra = ConwayEra
 
 newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.ConwayEra}
   deriving (Show, Eq, Generic)
@@ -563,7 +561,7 @@ fromCardanoAssetId :: C.AssetId -> Value.AssetClass
 fromCardanoAssetId C.AdaAssetId = Value.assetClass Value.adaSymbol Value.adaToken
 fromCardanoAssetId (C.AssetId policyId assetName) =
   Value.assetClass
-    (scriptCurrencySymbol . fromCardanoPolicyId $ policyId)
+    (toCurrencySymbol . fromCardanoPolicyId $ policyId)
     (fromCardanoAssetName assetName)
 
 toCardanoAssetId :: Value.AssetClass -> Either ToCardanoError C.AssetId

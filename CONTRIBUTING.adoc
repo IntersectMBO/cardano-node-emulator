@@ -320,7 +320,7 @@ See link:https://plutus-apps.readthedocs.io/en/latest/adr/index.html[the readthe
 
 === Code formatting
 
-We use `fourmolu` for Haskell code formatting, and `cabal-fmt` for cabal files.
+We use `ormolu` for Haskell code formatting, `nixfmt-classic` for nix files and `cabal-fmt` for cabal files.
 They are run automatically as pre-commit hooks, but CI will run them again and expect that to be a no-op, so if you somehow don’t apply them your PR will not go green.
 
 To run `fourmolu` or `cabal-fmt` manually over your tree, type `pre-commit run fourmolu` or `pre-commit run cabal-fmt` respectively.

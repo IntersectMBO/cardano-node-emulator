@@ -59,13 +59,16 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api                        ^>=10.10
+    , cardano-api                      ^>=10.12
     , cardano-ledger-api
     , cardano-ledger-byron
-    , cardano-ledger-core:{cardano-ledger-core, testlib}
+    , cardano-ledger-core
+    , cardano-ledger-core:testlib
+    , cardano-ledger-shelley
     , cardano-ledger-shelley-test
-    , cardano-ledger-shelley:{cardano-ledger-shelley, testlib}
-    , cardano-protocol-tpraos:{cardano-protocol-tpraos, testlib}
+    , cardano-ledger-shelley:testlib
+    , cardano-protocol-tpraos
+    , cardano-protocol-tpraos:testlib
     , cardano-slotting
     , cryptonite
     , exceptions

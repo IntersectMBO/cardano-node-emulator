@@ -80,6 +80,7 @@ library
     Plutus.Script.Utils.Data
     Plutus.Script.Utils.Scripts
     Plutus.Script.Utils.Typed
+    Plutus.Script.Utils.V1.Address
     Plutus.Script.Utils.V1.Contexts
     Plutus.Script.Utils.V1.Generators
     Plutus.Script.Utils.V1.Scripts
@@ -87,6 +88,7 @@ library
     Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators
     Plutus.Script.Utils.V1.Typed.Scripts.Validators
+    Plutus.Script.Utils.V2.Address
     Plutus.Script.Utils.V2.Contexts
     Plutus.Script.Utils.V2.Generators
     Plutus.Script.Utils.V2.Scripts
@@ -94,6 +96,7 @@ library
     Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies
     Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators
     Plutus.Script.Utils.V2.Typed.Scripts.Validators
+    Plutus.Script.Utils.V3.Address
     Plutus.Script.Utils.V3.Contexts
     Plutus.Script.Utils.V3.Scripts
     Plutus.Script.Utils.V3.Typed.Scripts

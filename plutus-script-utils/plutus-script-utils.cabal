@@ -79,25 +79,20 @@ library
     Plutus.Script.Utils.Address
     Plutus.Script.Utils.Data
     Plutus.Script.Utils.Scripts
-    Plutus.Script.Utils.Typed
+    Plutus.Script.Utils.V1
     Plutus.Script.Utils.V1.Contexts
     Plutus.Script.Utils.V1.Generators
     Plutus.Script.Utils.V1.Scripts
-    Plutus.Script.Utils.V1.Typed.Scripts
-    Plutus.Script.Utils.V1.Typed.Scripts.MonetaryPolicies
-    Plutus.Script.Utils.V1.Typed.Scripts.StakeValidators
-    Plutus.Script.Utils.V1.Typed.Scripts.Validators
+    Plutus.Script.Utils.V1.Typed
+    Plutus.Script.Utils.V2
     Plutus.Script.Utils.V2.Contexts
     Plutus.Script.Utils.V2.Generators
     Plutus.Script.Utils.V2.Scripts
-    Plutus.Script.Utils.V2.Typed.Scripts
-    Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies
-    Plutus.Script.Utils.V2.Typed.Scripts.StakeValidators
-    Plutus.Script.Utils.V2.Typed.Scripts.Validators
+    Plutus.Script.Utils.V2.Typed
+    Plutus.Script.Utils.V3
     Plutus.Script.Utils.V3.Contexts
-    Plutus.Script.Utils.V3.Scripts
-    Plutus.Script.Utils.V3.Typed.Scripts
-    Plutus.Script.Utils.V3.Typed.Scripts.MultiPurpose
+    Plutus.Script.Utils.V3.Generators
+    Plutus.Script.Utils.V3.Typed
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 
@@ -109,7 +104,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api          ^>=10.12
+    , cardano-api          ^>=10.13
     , cardano-ledger-core
     , plutus-core          >=1.0.0
     , plutus-ledger-api    >=1.0.0
@@ -132,18 +127,3 @@ library
 
   -- TODO This needs to be changed to 1.35 once cardano-node creates the tag
   ghc-options:      -fprint-potential-instances
-
-test-suite plutus-script-utils-tests
-  import:             lang
-  type:               exitcode-stdio-1.0
-  main-is:            Spec.hs
-  hs-source-dirs:     test
-  default-language:   Haskell2010
-  default-extensions: ImportQualifiedPost
-
-  ------------------------
-  -- Non-IOG dependencies
-  ------------------------
-  build-depends:
-    , base   >=4.9 && <5
-    , tasty

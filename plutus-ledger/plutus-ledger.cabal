@@ -92,7 +92,7 @@ library
   --------------------
   -- Local components
   --------------------
-  build-depends:    plutus-script-utils ^>=1.4.0
+  build-depends:    plutus-script-utils ^>=2.0.0
 
   --------------------------
   -- Other IOG dependencies
@@ -158,7 +158,7 @@ test-suite plutus-ledger-test
   --------------------
   build-depends:
     , plutus-ledger        ^>=1.4.0
-    , plutus-script-utils  ^>=1.4.0
+    , plutus-script-utils  ^>=2.0.0
 
   --------------------------
   -- Other IOG dependencies

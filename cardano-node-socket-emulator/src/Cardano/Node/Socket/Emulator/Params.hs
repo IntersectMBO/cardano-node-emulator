@@ -3,13 +3,12 @@
 module Cardano.Node.Socket.Emulator.Params where
 
 import Cardano.Api.Internal.Genesis (ShelleyGenesis)
-import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Node.Emulator.Internal.Node.Params
 import Cardano.Node.Socket.Emulator.Types
 import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString.Lazy qualified as BSL
 
-type ShelleyConfigUpdater = ShelleyGenesis StandardCrypto -> ShelleyGenesis StandardCrypto
+type ShelleyConfigUpdater = ShelleyGenesis -> ShelleyGenesis
 
 fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO Params
 fromNodeServerConfig updateShelley NodeServerConfig {nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do

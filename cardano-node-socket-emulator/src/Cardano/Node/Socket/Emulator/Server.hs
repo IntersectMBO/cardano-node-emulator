@@ -14,7 +14,6 @@ module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, proces
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.BM.Data.Trace (Trace)
-import Cardano.Ledger.Api.Era qualified as L
 import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
@@ -607,7 +606,7 @@ txSubmissionServer state =
     }
 
 -- Remove if Cardano.Api.Internal.InMode is exposed again
-fromConsensusGenTx :: () => (Consensus.CardanoBlock L.StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
+fromConsensusGenTx :: () => (Consensus.CardanoBlock StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
 fromConsensusGenTx = \case
   Consensus.HardForkGenTx (Consensus.OneEraGenTx (Z tx')) ->
     C.TxInByronSpecial tx'

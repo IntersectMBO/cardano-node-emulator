@@ -53,13 +53,13 @@ library
     , cardano-node-emulator  ^>=1.4.0
     , freer-extras           ^>=1.4.0
     , plutus-ledger          ^>=1.4.0
-    , plutus-script-utils    ^>=1.4.0
+    , plutus-script-utils    ^>=2.0.0
 
   --------------------------
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api                      ^>=10.12
+    , cardano-api                      ^>=10.13
     , cardano-ledger-api
     , cardano-ledger-byron
     , cardano-ledger-core

@@ -63,10 +63,16 @@ module Cardano.Node.Emulator.Generators (
 ) where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Ledger (StandardCrypto)
 import Cardano.Api.Shelley qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
-import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
+import Cardano.Node.Emulator.Internal.Node.Params (
+  Params (pSlotConfig),
+  defaultConfig,
+  paramsFromConfig,
+  testnet,
+ )
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
 import Cardano.Node.Emulator.Internal.Node.Validation (
@@ -171,8 +177,8 @@ data Mockchain = Mockchain
   deriving (Show)
 
 -- | The empty mockchain.
-emptyChain :: Mockchain
-emptyChain = Mockchain [] Map.empty def
+emptyChain :: Params -> Mockchain
+emptyChain = Mockchain [] Map.empty
 
 {- | Generate a mockchain.
 
@@ -180,11 +186,12 @@ emptyChain = Mockchain [] Map.empty def
 -}
 genMockchain'
   :: GeneratorModel
+  -> C.CardanoEra StandardCrypto
   -> Gen Mockchain
-genMockchain' gm = do
+genMockchain' gm era = do
   slotCfg <- genSlotConfig
   (txn, ot) <- genInitialTransaction gm
-  let params = def{pSlotConfig = slotCfg}
+  let params = (paramsFromConfig $ defaultConfig era){pSlotConfig = slotCfg}
       -- There is a problem that txId of emulator tx and tx of cardano tx are different.
       -- We convert the emulator tx to cardano tx here to get the correct transaction id
       -- because later we anyway will use the converted cardano tx so the utxo should match it.
@@ -197,7 +204,7 @@ genMockchain' gm = do
       }
 
 -- | Generate a mockchain using the default 'GeneratorModel'.
-genMockchain :: Gen Mockchain
+genMockchain :: C.CardanoEra StandardCrypto -> Gen Mockchain
 genMockchain = genMockchain' generatorModel
 
 {- | A transaction with no inputs that mints some value (to be used at the

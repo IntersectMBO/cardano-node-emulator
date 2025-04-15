@@ -26,11 +26,11 @@ import PlutusLedgerApi.V3 (
   Address (Address, addressCredential),
   Credential (ScriptCredential),
   ScriptHash (ScriptHash),
+  ScriptInfo (MintingScript),
   txInInfoResolved,
  )
 import PlutusLedgerApi.V3.Contexts (
-  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
-  ScriptPurpose (Minting),
+  ScriptContext (ScriptContext, scriptContextScriptInfo, scriptContextTxInfo),
   TxInfo (TxInfo, txInfoInputs),
  )
 import PlutusLedgerApi.V3.Contexts qualified as PV3
@@ -55,7 +55,7 @@ mkForwardingMintingPolicy vshsh =
 
 {-# INLINEABLE forwardToValidator #-}
 forwardToValidator :: ValidatorHash -> () -> PV3.ScriptContext -> Bool
-forwardToValidator (ValidatorHash h) _ ScriptContext{scriptContextTxInfo = TxInfo{txInfoInputs}, scriptContextPurpose = Minting _} =
+forwardToValidator (ValidatorHash h) _ ScriptContext{scriptContextTxInfo = TxInfo{txInfoInputs}, scriptContextScriptInfo = MintingScript _} =
   let checkHash TxOut{txOutAddress = Address{addressCredential = ScriptCredential (ScriptHash vh)}} = vh == h
       checkHash _ = False
    in any (checkHash . txInInfoResolved) txInfoInputs

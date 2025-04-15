@@ -84,7 +84,7 @@ fromCardanoTxInsCollateral C.TxInsCollateralNone = []
 fromCardanoTxInsCollateral (C.TxInsCollateral _ txIns) = txIns
 
 toCardanoDatumWitness :: Maybe PV1.Datum -> C.ScriptDatum C.WitCtxTxIn
-toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . toCardanoScriptData . PV1.getDatum)
+toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . Just . toCardanoScriptData . PV1.getDatum)
 
 type WitnessHeader witctx =
   C.ScriptDatum witctx -> C.ScriptRedeemer -> C.ExecutionUnits -> C.ScriptWitness witctx C.ConwayEra

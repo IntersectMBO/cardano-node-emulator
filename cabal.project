@@ -12,8 +12,8 @@ repository cardano-haskell-packages
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
 index-state:
-  , hackage.haskell.org 2025-03-17T12:01:29Z
-  , cardano-haskell-packages 2025-04-04T13:50:31Z
+  , hackage.haskell.org 2025-04-16T16:04:13Z
+  , cardano-haskell-packages 2025-04-18T06:38:47Z
       
 packages: plutus-ledger
           plutus-script-utils

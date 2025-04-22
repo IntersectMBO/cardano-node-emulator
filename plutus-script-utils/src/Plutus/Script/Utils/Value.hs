@@ -40,6 +40,11 @@ import PlutusLedgerApi.V1.Value
 import PlutusLedgerApi.V1.Value qualified as V1 (isZero)
 import PlutusLedgerApi.V3.MintValue (MintValue (UnsafeMintValue))
 import PlutusTx.AssocMap qualified as Map
+import PlutusTx.List
+  ( filter,
+    foldl,
+    map,
+  )
 import PlutusTx.Prelude
   ( Bool,
     Eq ((==)),
@@ -49,10 +54,7 @@ import PlutusTx.Prelude
     MultiplicativeMonoid,
     MultiplicativeSemigroup,
     Semigroup,
-    filter,
-    foldl,
     fst,
-    map,
     mempty,
     (*),
     (+),

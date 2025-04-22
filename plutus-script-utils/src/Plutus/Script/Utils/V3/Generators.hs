@@ -72,11 +72,11 @@ import PlutusLedgerApi.V3
     singleton,
   )
 import PlutusTx.AssocMap qualified as Map
+import PlutusTx.List (elem)
 import PlutusTx.Prelude
   ( Bool (False, True),
     Eq ((==)),
     Integer,
-    elem,
     ($),
     (&&),
     (.),

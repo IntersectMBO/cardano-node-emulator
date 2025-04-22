@@ -21,7 +21,8 @@ import Plutus.Script.Utils.Address (ToAddress (toAddress))
 import Plutus.Script.Utils.Scripts (ToValidatorHash, ValidatorHash (..), toScriptHash, toValidatorHash)
 import PlutusLedgerApi.V3 (Address (Address), Credential (ScriptCredential), OutputDatum, ScriptHash (ScriptHash), TxOut (TxOut), TxOutRef, Value)
 import PlutusLedgerApi.V3.Contexts as Contexts hiding (findTxInByTxOutRef, valuePaidTo)
-import PlutusTx.Prelude (Maybe (Just), find, foldMap, fst, traceError, (.), (<$>), (==))
+import PlutusTx.List (find)
+import PlutusTx.Prelude (Maybe (Just), fst, mconcat, traceError, (.), (<$>), (==))
 
 {-# INLINEABLE findInput #-}
 findInput :: TxOutRef -> [TxInInfo] -> Maybe TxOut
@@ -48,7 +49,7 @@ scriptOutputsAt txInfo = outputsAt txInfo . toScriptHash . toValidatorHash
 -- | Get the total value paid to a public key address by a pending transaction.
 {-# INLINEABLE valuePaidTo #-}
 valuePaidTo :: (ToAddress a) => TxInfo -> a -> Value
-valuePaidTo txInfo = foldMap fst . outputsAt txInfo
+valuePaidTo txInfo = mconcat . (fst <$>) . outputsAt txInfo
 
 -- | Get the validator hash, datum and value of the output that is curently
 -- being validated

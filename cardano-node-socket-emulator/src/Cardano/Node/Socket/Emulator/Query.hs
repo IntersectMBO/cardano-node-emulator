@@ -69,7 +69,7 @@ handleQuery state = \case
 
 queryIfCurrentConway ::
   (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra) =>
-  BlockQuery block result ->
+  BlockQuery block a result ->
   E.EmulatorT IO result
 queryIfCurrentConway = \case
   GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams

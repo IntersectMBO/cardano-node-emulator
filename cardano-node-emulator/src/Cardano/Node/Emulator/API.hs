@@ -148,7 +148,7 @@ emptyEmulatorStateWithInitialDist params initialDist =
    in emptyEmulatorState params
         & esChainState . E.chainNewestFirst %~ ([vtx] :)
         & esChainState . E.index .~ index
-        & esChainState . E.ledgerState %~ E.setUtxo params (fromPlutusIndex index)
+        & esChainState . E.ledgerState %~ E.setUtxo (fromPlutusIndex index)
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 

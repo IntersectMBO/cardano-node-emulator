@@ -64,7 +64,6 @@ import Cardano.Ledger.Plutus.Evaluate (ScriptResult (Fails, Passes))
 import Cardano.Ledger.Shelley.API
   ( ApplyTxError (ApplyTxError),
     Coin (Coin),
-    LedgerEnv (LedgerEnv, ledgerSlotNo),
     LedgerState (lsUTxOState),
     MempoolEnv,
     UTxO (UTxO),
@@ -72,7 +71,9 @@ import Cardano.Ledger.Shelley.API
     unsafeMakeValidated,
   )
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
-import Cardano.Ledger.Shelley.LedgerState (esLState, nesEs, smartUTxOState, utxosUtxo)
+import Cardano.Ledger.Shelley.LedgerState (esLState, nesEs, utxosUtxo)
+import Cardano.Ledger.Shelley.LedgerState qualified as Ledger
+import Cardano.Ledger.Shelley.Rules qualified as Ledger
 import Cardano.Node.Emulator.Internal.Node.Params
   ( EmulatorEra,
     Params (pConfig),
@@ -84,7 +85,6 @@ import Cardano.Slotting.Slot (SlotNo (SlotNo))
 import Control.Lens (makeLenses, over, view, (&), (.~))
 import Control.Monad.Except (MonadError (throwError))
 import Data.Bifunctor (Bifunctor (first), bimap)
-import Data.Default (def)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
@@ -144,32 +144,25 @@ data EmulatedLedgerState = EmulatedLedgerState
 
 makeLenses ''EmulatedLedgerState
 
--- | Increase the slot number by one
-nextSlot :: EmulatedLedgerState -> EmulatedLedgerState
-nextSlot = over ledgerEnv f
-  where
-    f l@LedgerEnv {ledgerSlotNo = oldSlot} = l {ledgerSlotNo = succ oldSlot}
-
 -- | Set the slot number
 updateSlot :: (SlotNo -> SlotNo) -> EmulatedLedgerState -> EmulatedLedgerState
-updateSlot f = over ledgerEnv (\l -> l {ledgerSlotNo = f (ledgerSlotNo l)})
+updateSlot = over (ledgerEnv . Ledger.ledgerSlotNoL)
+
+-- | Increase the slot number by one
+nextSlot :: EmulatedLedgerState -> EmulatedLedgerState
+nextSlot = updateSlot succ
 
 -- | Get the slot number
 getSlot :: (Num a) => EmulatedLedgerState -> a
-getSlot (EmulatedLedgerState LedgerEnv {ledgerSlotNo = SlotNo s} _) = fromIntegral s
+getSlot = fromIntegral . C.unSlotNo . view (ledgerEnv . Ledger.ledgerSlotNoL)
 
 -- | Set the utxo
-setUtxo :: Params -> UTxO EmulatorEra -> EmulatedLedgerState -> EmulatedLedgerState
-setUtxo params utxo els@EmulatedLedgerState {_memPoolState} = els {_memPoolState = newPoolState}
-  where
-    newPoolState =
-      _memPoolState
-        { lsUTxOState = smartUTxOState (emulatorPParams params) utxo (Coin 0) (Coin 0) def (Coin 0)
-        }
+setUtxo :: UTxO EmulatorEra -> EmulatedLedgerState -> EmulatedLedgerState
+setUtxo utxo els = els & (memPoolState . Ledger.utxoL) .~ utxo
 
 -- | Get the utxo
 getUtxo :: EmulatedLedgerState -> UTxO EmulatorEra
-getUtxo = utxosUtxo . lsUTxOState . view memPoolState
+getUtxo = view (memPoolState . Ledger.utxoL)
 
 -- | Initial ledger state for a distribution
 initialState :: Params -> EmulatedLedgerState

@@ -355,7 +355,7 @@ validateMockchain (Mockchain _ utxo params) tx = result
     ledgerState =
       initialState params
         & updateSlot (const 1)
-        & setUtxo params cUtxoIndex
+        & setUtxo cUtxoIndex
     result = case snd $ validateCardanoTx params ledgerState tx of
       FailPhase1 _ err -> Just (Phase1, err)
       FailPhase2 _ err _ -> Just (Phase2, err)

@@ -204,8 +204,7 @@ hasValidationErrors params ls tx =
     Left err -> (Nothing, P.FailPhase1 (CardanoEmulatorEraTx tx) err)
     Right (ls', vtx) -> case getTxExUnitsWithLogs params utxo tx of
       Left (P.Phase1, err) -> (Just ls', P.FailPhase1 (CardanoEmulatorEraTx tx) err)
-      Left (P.Phase2, err) ->
-        (Just ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
+      Left (P.Phase2, err) -> (Just ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
       Right report -> (Just ls', P.Success vtx report)
   where
     utxo = getUtxo ls

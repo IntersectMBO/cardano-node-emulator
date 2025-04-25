@@ -68,6 +68,7 @@ module Ledger.Tx.CardanoAPI.Internal
     toCardanoValue,
     toCardanoLovelace,
     toCardanoFee,
+    toCardanoSlotNo,
     adaToCardanoValue,
     toCardanoValidityRange,
     toCardanoScriptInEra,

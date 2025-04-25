@@ -30,6 +30,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation
     getSlot,
     UTxO (..),
     setUtxo,
+    getUtxo,
 
     -- * Lenses
     ledgerEnv,

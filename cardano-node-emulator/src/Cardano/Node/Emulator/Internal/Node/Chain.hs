@@ -27,7 +27,7 @@ import Control.Monad.State qualified as S
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (traverse_)
 import Data.List ((\\))
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Traversable (for)
 import GHC.Generics (Generic)
 import Ledger
@@ -202,7 +202,7 @@ validateEm txn = do
         Index.FailPhase1 {} -> idx
         Index.FailPhase2 {} -> Index.insertCollateral txn idx
         Index.Success {} -> Index.insert txn idx
-  _ <- S.put ctx {vctxIndex = idx', vctxLedgerState = fromMaybe ls ls'}
+  _ <- S.put ctx {vctxIndex = idx', vctxLedgerState = ls'}
   pure res
 
 -- | Adds a block to ChainState, without validation.

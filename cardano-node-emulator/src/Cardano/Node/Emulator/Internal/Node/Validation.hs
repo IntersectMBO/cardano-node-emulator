@@ -51,7 +51,7 @@ import Cardano.Ledger.Alonzo.Rules
   ( AlonzoUtxoPredFailure (UtxosFailure),
     AlonzoUtxosPredFailure (CollectErrors),
   )
-import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
+import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid), isValid)
 import Cardano.Ledger.Api.Transition (createInitialState)
 import Cardano.Ledger.Api.Tx
   ( TransactionScriptFailure (ValidationFailure),
@@ -68,6 +68,7 @@ import Cardano.Ledger.Shelley.API
     MempoolEnv,
     UTxO (UTxO),
     Validated,
+    extractTx,
     unsafeMakeValidated,
   )
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
@@ -192,16 +193,38 @@ hasValidationErrors ::
   Params ->
   EmulatedLedgerState ->
   C.Tx C.ConwayEra ->
-  (Maybe EmulatedLedgerState, P.ValidationResult)
+  (EmulatedLedgerState, P.ValidationResult)
 hasValidationErrors params ls tx =
+  -- MM: res is computed from 'validateAndApplyTx' which, I'm assuming, returns
+  -- an updated ELS.
   case res of
-    Left err -> (Nothing, P.FailPhase1 (CardanoEmulatorEraTx tx) err)
+    -- MM: Why does any kind of failure leads to a FailPhase1 error?
+    Left err -> (ls, P.FailPhase1 (CardanoEmulatorEraTx tx) err)
+    -- MM: So here, if we have a success, we additionally compute a
+    -- 'RedeemerReport'. Why isnt this report always included? It seems we are
+    -- doing twice the same things.
     Right (ls', vtx) -> case getTxExUnitsWithLogs params utxo tx of
-      Left (P.Phase1, err) -> (Just ls', P.FailPhase1 (CardanoEmulatorEraTx tx) err)
-      Left (P.Phase2, err) -> (Just ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
-      Right report -> (Just ls', P.Success vtx report)
+      -- MM: it seems this cannot occur as it would be caught in the 'Left err'
+      -- case above. Unless there are more errors that can occur in
+      -- 'getTxExUnitsWithLogs' ?
+      Left (P.Phase1, err) -> (ls', P.FailPhase1 (CardanoEmulatorEraTx tx) err)
+      -- MM: Same as above.
+      Left (P.Phase2, err) -> (ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
+      -- MM: It seems to be the only possible case. Overall, how can this
+      -- function return a 'FailPhase2'? But it does happen though.
+      Right _
+        | IsValid False <- isValid $ extractTx $ P.getOnChainTx vtx ->
+            ( ls',
+              P.FailPhase2
+                vtx
+                (P.CardanoLedgerValidationError "Insufficient execution units provided.")
+                (getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
+            )
+      Right report -> (ls', P.Success vtx report)
   where
     utxo = getUtxo ls
+    -- MM: this call to bimap seems unecessary, since we case split on the
+    -- result afterwards and could thus apply the functions there.
     res =
       bimap
         (P.CardanoLedgerValidationError . Text.pack . show)
@@ -278,11 +301,14 @@ validateCardanoTx ::
   Params ->
   EmulatedLedgerState ->
   CardanoTx ->
-  (Maybe EmulatedLedgerState, P.ValidationResult)
+  (EmulatedLedgerState, P.ValidationResult)
 validateCardanoTx params ls ctx@(CardanoEmulatorEraTx tx) =
   if map fst (C.txIns $ C.getTxBodyContent $ C.getTxBody tx) == [genesisTxIn]
-    then (Just ls, P.Success (unsafeMakeValid ctx) Map.empty)
-    else hasValidationErrors params ls tx
+    then -- MM: Shouldn't we udpate the ledger state here
+      (ls, P.Success (unsafeMakeValid ctx) Map.empty)
+    else -- MM: hasValidationErros returns a possible EMS, why? Its name does not
+    -- suggest any state change.
+      hasValidationErrors params ls tx
 
 getTxExUnitsWithLogs ::
   Params -> UTxO EmulatorEra -> C.Tx C.ConwayEra -> Either P.ValidationErrorInPhase P.RedeemerReport

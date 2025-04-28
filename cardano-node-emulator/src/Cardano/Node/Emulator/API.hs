@@ -39,8 +39,8 @@ module Cardano.Node.Emulator.API
     esAddressMap,
     esDatumMap,
     EmulatedLedgerState,
-    ledgerEnv,
-    memPoolState,
+    elsLedgerState,
+    elsLedgerEnv,
     EmulatorError (..),
     EmulatorLogs,
     EmulatorMsg (..),
@@ -75,10 +75,7 @@ import Cardano.Node.Emulator.Internal.API
     processBlock,
   )
 import Cardano.Node.Emulator.Internal.Node
-  ( EmulatedLedgerState,
-    Params (pConfig, pSlotConfig),
-    ledgerEnv,
-    memPoolState,
+  ( Params (pConfig, pSlotConfig),
     posixTimeToEnclosingSlot,
     slotToBeginPOSIXTime,
     slotToEndPOSIXTime,
@@ -92,10 +89,11 @@ import Cardano.Node.Emulator.Internal.Node.Chain qualified as E
     queueTx,
   )
 import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
-import Cardano.Node.Emulator.Internal.Node.Validation qualified as E
-  ( ledgerEnv,
-    memPoolState,
-    setUtxo,
+import Cardano.Node.Emulator.Internal.Node.Validation
+  ( EmulatedLedgerState (elsLedgerEnv, elsLedgerState),
+    elsLedgerEnvL,
+    elsLedgerStateL,
+    elsUtxoL,
     unsafeMakeValid,
   )
 import Cardano.Node.Emulator.LogMessages
@@ -143,12 +141,12 @@ emptyEmulatorState params = EmulatorState (E.emptyChainState params) mempty memp
 emptyEmulatorStateWithInitialDist :: E.Params -> Map CardanoAddress C.Value -> EmulatorState
 emptyEmulatorStateWithInitialDist params initialDist =
   let tx = Index.createGenesisTransaction initialDist
-      vtx = E.unsafeMakeValid tx
+      vtx = unsafeMakeValid tx
       index = Index.insertBlock [vtx] mempty
    in emptyEmulatorState params
         & esChainState . E.chainNewestFirst %~ ([vtx] :)
         & esChainState . E.index .~ index
-        & esChainState . E.ledgerState %~ E.setUtxo (fromPlutusIndex index)
+        & esChainState . E.ledgerState . elsUtxoL .~ fromPlutusIndex index
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 
@@ -242,13 +240,13 @@ lookupDatum h = do
 getLedgerState :: (MonadEmulator m) => m (LedgerState EmulatorEra)
 getLedgerState = do
   es <- get
-  pure $ es ^. esChainState . E.ledgerState . E.memPoolState
+  pure $ es ^. esChainState . E.ledgerState . elsLedgerStateL
 
 -- | Get the internal mempool environment.
 getMemPoolEnv :: (MonadEmulator m) => m (MempoolEnv EmulatorEra)
 getMemPoolEnv = do
   es <- get
-  pure $ es ^. esChainState . E.ledgerState . E.ledgerEnv
+  pure $ es ^. esChainState . E.ledgerState . elsLedgerEnvL
 
 -- | Sign a transaction with the given signatures.
 signTx ::

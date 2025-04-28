@@ -17,6 +17,7 @@
 
 module Cardano.Node.Emulator.Internal.Node.Chain where
 
+import Cardano.Api (SlotNo (SlotNo))
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
 import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
@@ -133,12 +134,11 @@ handleControlChain params = \case
     traverse_ logEvent events
     pure block
   ModifySlot f -> do
-    _ <-
-      modify @ChainState
-        ( over
-            ledgerState
-            (Validation.updateSlot (\(Validation.SlotNo s) -> fromIntegral (f (fromIntegral s))))
-        )
+    modify @ChainState
+      ( over
+          (ledgerState . Validation.elsSlotL)
+          (\(SlotNo s) -> fromIntegral (f (fromIntegral s)))
+      )
     gets (Validation.getSlot . view ledgerState)
 
 logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Eff effs ()
@@ -186,8 +186,7 @@ validateBlock params idx ls txns =
 
       -- Also return an `EmulatorEvent` for each transaction that was
       -- processed
-      nextSlot = Validation.getSlot ls + 1
-      events = (TxnValidation <$> results) ++ [SlotAdd nextSlot]
+      events = (TxnValidation <$> results) ++ [SlotAdd $ Validation.getSlot ls + 1]
    in ValidatedBlock block events idx' ls'
 
 -- | Validate a transaction in the current emulator state.

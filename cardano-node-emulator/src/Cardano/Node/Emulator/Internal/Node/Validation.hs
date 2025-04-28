@@ -1,80 +1,39 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | Transaction validation using 'cardano-ledger-specs'
 module Cardano.Node.Emulator.Internal.Node.Validation
   ( EmulatedLedgerState (..),
-    Coin (..),
-    SlotNo (..),
-    EmulatorEra,
-    CardanoLedgerError,
     initialState,
     hasValidationErrors,
-    createAndValidateTransactionBody,
+    createTransactionBody,
     validateCardanoTx,
     getTxExUnitsWithLogs,
     unsafeMakeValid,
     validateAndApplyTx,
-
-    -- * Modifying the state
-    updateSlot,
     nextSlot,
+    elsLedgerEnvL,
+    elsLedgerStateL,
+    elsUtxoL,
+    elsSlotL,
     getSlot,
-    UTxO (..),
-    setUtxo,
-    getUtxo,
-
-    -- * Lenses
-    ledgerEnv,
-    memPoolState,
-
-    -- * Etc.
-    emulatorGlobals,
+    updateStateParams,
   )
 where
 
-import Cardano.Api.Internal.Error qualified as C
-import Cardano.Api.Shelley qualified as C
-import Cardano.Ledger.Alonzo.Plutus.Evaluate
-  ( collectPlutusScriptsWithContext,
-    evalPlutusScripts,
-  )
-import Cardano.Ledger.Alonzo.Rules
-  ( AlonzoUtxoPredFailure (UtxosFailure),
-    AlonzoUtxosPredFailure (CollectErrors),
-  )
-import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid), isValid)
-import Cardano.Ledger.Api.Transition (createInitialState)
-import Cardano.Ledger.Api.Tx
-  ( TransactionScriptFailure (ValidationFailure),
-    evalTxExUnitsWithLogs,
-  )
-import Cardano.Ledger.BaseTypes (Globals (systemStart), epochInfo)
+import Cardano.Api.Internal.Error qualified as C.Api
+import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Ledger.Alonzo.Plutus.Evaluate qualified as Alonzo
+import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
+import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
 import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
-import Cardano.Ledger.Core qualified as Core
-import Cardano.Ledger.Plutus.Evaluate (ScriptResult (Fails, Passes))
-import Cardano.Ledger.Shelley.API
-  ( ApplyTxError (ApplyTxError),
-    Coin (Coin),
-    LedgerState (lsUTxOState),
-    MempoolEnv,
-    UTxO (UTxO),
-    Validated,
-    extractTx,
-    unsafeMakeValidated,
-  )
-import Cardano.Ledger.Shelley.API qualified as C.Ledger
-import Cardano.Ledger.Shelley.LedgerState (esLState, nesEs, utxosUtxo)
-import Cardano.Ledger.Shelley.LedgerState qualified as Ledger
-import Cardano.Ledger.Shelley.Rules qualified as Ledger
+import Cardano.Ledger.Core qualified as Ledger
+import Cardano.Ledger.Plutus.Evaluate qualified as Ledger
+import Cardano.Ledger.Shelley.API qualified as Shelley
+import Cardano.Ledger.Shelley.LedgerState qualified as Shelley
+import Cardano.Ledger.Shelley.Rules qualified as Shelley
+import Cardano.Ledger.Shelley.Transition qualified as Shelley
 import Cardano.Node.Emulator.Internal.Node.Params
   ( EmulatorEra,
     Params (pConfig),
@@ -82,22 +41,15 @@ import Cardano.Node.Emulator.Internal.Node.Params
     emulatorPParams,
     ledgerProtocolParameters,
   )
-import Cardano.Slotting.Slot (SlotNo (SlotNo))
-import Control.Lens (makeLenses, over, view, (&), (.~))
+import Control.Lens (Lens', makeLensesFor, over, view, (^.))
 import Control.Monad.Except (MonadError (throwError))
-import Data.Bifunctor (Bifunctor (first), bimap)
+import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Ledger.Blockchain (OnChainTx (OnChainTx))
-import Ledger.Index (genesisTxIn, getCollateral)
-import Ledger.Index.Internal qualified as P
-import Ledger.Tx (CardanoTx (CardanoEmulatorEraTx))
-import Ledger.Tx.CardanoAPI qualified as P
-import PlutusLedgerApi.V1 qualified as V1 hiding (TxOut (..))
-import PlutusLedgerApi.V1.Scripts qualified as P
-
-type CardanoLedgerError = Either P.ValidationErrorInPhase P.ToCardanoError
+import Ledger qualified as P.Ledger
+import Ledger.Tx.CardanoAPI qualified as P.Ledger
+import PlutusLedgerApi.V1 qualified as PV1
 
 {- Note [Emulated ledger]
 
@@ -138,115 +90,114 @@ validating machinery.
 
 -- | State of the ledger with configuration, mempool, and the blockchain.
 data EmulatedLedgerState = EmulatedLedgerState
-  { _ledgerEnv :: !(MempoolEnv EmulatorEra),
-    _memPoolState :: !(LedgerState EmulatorEra)
+  { elsLedgerEnv :: !(Shelley.MempoolEnv EmulatorEra),
+    elsLedgerState :: !(Shelley.LedgerState EmulatorEra)
   }
   deriving (Show)
 
-makeLenses ''EmulatedLedgerState
+makeLensesFor
+  [ ("elsLedgerEnv", "elsLedgerEnvL"),
+    ("elsLedgerState", "elsLedgerStateL")
+  ]
+  ''EmulatedLedgerState
 
--- | Set the slot number
-updateSlot :: (SlotNo -> SlotNo) -> EmulatedLedgerState -> EmulatedLedgerState
-updateSlot = over (ledgerEnv . Ledger.ledgerSlotNoL)
+-- | Tampers with the Slot number
+elsSlotL :: Lens' EmulatedLedgerState C.Api.SlotNo
+elsSlotL = elsLedgerEnvL . Shelley.ledgerSlotNoL
 
--- | Increase the slot number by one
+-- | Increases the slot number by one
 nextSlot :: EmulatedLedgerState -> EmulatedLedgerState
-nextSlot = updateSlot succ
+nextSlot = over elsSlotL succ
 
--- | Get the slot number
+-- | Get the slot number as any 'Num'
 getSlot :: (Num a) => EmulatedLedgerState -> a
-getSlot = fromIntegral . C.unSlotNo . view (ledgerEnv . Ledger.ledgerSlotNoL)
+getSlot = fromIntegral . C.Api.unSlotNo . view elsSlotL
 
--- | Set the utxo
-setUtxo :: UTxO EmulatorEra -> EmulatedLedgerState -> EmulatedLedgerState
-setUtxo utxo els = els & (memPoolState . Ledger.utxoL) .~ utxo
-
--- | Get the utxo
-getUtxo :: EmulatedLedgerState -> UTxO EmulatorEra
-getUtxo = view (memPoolState . Ledger.utxoL)
+-- | Tampers with the index
+elsUtxoL :: Lens' EmulatedLedgerState (Shelley.UTxO EmulatorEra)
+elsUtxoL = elsLedgerStateL . Shelley.utxoL
 
 -- | Initial ledger state for a distribution
 initialState :: Params -> EmulatedLedgerState
 initialState params =
   EmulatedLedgerState
-    { _ledgerEnv =
-        C.Ledger.LedgerEnv
-          { C.Ledger.ledgerSlotNo = 0,
-            C.Ledger.ledgerIx = minBound,
-            C.Ledger.ledgerPp = emulatorPParams params,
-            C.Ledger.ledgerAccount = C.Ledger.AccountState (Coin 0) (Coin 0),
-            C.Ledger.ledgerEpochNo = Nothing
+    { elsLedgerEnv =
+        Shelley.LedgerEnv
+          { Shelley.ledgerSlotNo = 0,
+            Shelley.ledgerIx = minBound,
+            Shelley.ledgerPp = emulatorPParams params,
+            Shelley.ledgerAccount = Shelley.AccountState (Shelley.Coin 0) (Shelley.Coin 0),
+            Shelley.ledgerEpochNo = Nothing
           },
-      _memPoolState = esLState (nesEs (createInitialState (pConfig params)))
+      elsLedgerState = Shelley.esLState (Shelley.nesEs (Shelley.createInitialState (pConfig params)))
     }
+
+-- | This updates an 'EmulatedLedgerState' with new params. For now, we only
+-- update the 'Shelley.ledgerPp' part and not the 'elsLedgerState' because they
+-- are only related to the genesis of the state.
+updateStateParams :: Params -> EmulatedLedgerState -> EmulatedLedgerState
+updateStateParams params (EmulatedLedgerState ledgerEnv ledgerState) =
+  EmulatedLedgerState (ledgerEnv {Shelley.ledgerPp = emulatorPParams params}) ledgerState
 
 applyTx ::
   Params ->
   EmulatedLedgerState ->
-  Core.Tx EmulatorEra ->
-  Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
-applyTx params oldState@EmulatedLedgerState {_ledgerEnv, _memPoolState} tx = do
-  (newMempool, vtx) <- C.Ledger.applyTx (emulatorGlobals params) _ledgerEnv _memPoolState tx
-  return (oldState & memPoolState .~ newMempool, vtx)
+  Ledger.Tx EmulatorEra ->
+  Either (Shelley.ApplyTxError EmulatorEra) (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
+applyTx params (EmulatedLedgerState ledgerEnv ledgerState) tx =
+  first (EmulatedLedgerState ledgerEnv) <$> Shelley.applyTx (emulatorGlobals params) ledgerEnv ledgerState tx
 
 hasValidationErrors ::
   Params ->
   EmulatedLedgerState ->
-  C.Tx C.ConwayEra ->
-  (EmulatedLedgerState, P.ValidationResult)
+  C.Api.Tx C.Api.ConwayEra ->
+  (EmulatedLedgerState, P.Ledger.ValidationResult)
 hasValidationErrors params ls tx =
-  -- MM: res is computed from 'validateAndApplyTx' which, I'm assuming, returns
-  -- an updated ELS.
-  case res of
-    -- MM: Why does any kind of failure leads to a FailPhase1 error?
-    Left err -> (ls, P.FailPhase1 (CardanoEmulatorEraTx tx) err)
-    -- MM: So here, if we have a success, we additionally compute a
-    -- 'RedeemerReport'. Why isnt this report always included? It seems we are
-    -- doing twice the same things.
-    Right (ls', vtx) -> case getTxExUnitsWithLogs params utxo tx of
-      -- MM: it seems this cannot occur as it would be caught in the 'Left err'
-      -- case above. Unless there are more errors that can occur in
-      -- 'getTxExUnitsWithLogs' ?
-      Left (P.Phase1, err) -> (ls', P.FailPhase1 (CardanoEmulatorEraTx tx) err)
-      -- MM: Same as above.
-      Left (P.Phase2, err) -> (ls', P.FailPhase2 vtx err $ getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
-      -- MM: It seems to be the only possible case. Overall, how can this
-      -- function return a 'FailPhase2'? But it does happen though.
+  case validateAndApplyTx params ls tx of
+    -- 'validateAndApplyTx' will only consider phase 1 failures as
+    -- errors. Indeed, fail 2 failures will still lead to successes where the
+    -- collaterals will be inserted into the index.
+    Left err -> (ls, P.Ledger.FailPhase1 (P.Ledger.CardanoEmulatorEraTx tx) (P.Ledger.CardanoLedgerValidationError . Text.pack . show $ err))
+    -- We need to catch phase 2 failures, though, which is why we call
+    -- 'getTxExUnitsWithLogs' which is going to throw all phase 2 failures,
+    -- except for those revolving around execution units.
+    Right (ls', P.Ledger.OnChainTx -> vtx) -> case getTxExUnitsWithLogs params (ls ^. elsUtxoL) tx of
+      -- This case is unreachable because Phase 1 failures are already caught by
+      -- 'validateAndApplyTx'
+      Left (P.Ledger.Phase1, err) -> (ls', P.Ledger.FailPhase1 (P.Ledger.CardanoEmulatorEraTx tx) err)
+      -- This case corresponds to all Phase 2 failures except those revolving
+      -- around execution units.
+      Left (P.Ledger.Phase2, err) -> (ls', P.Ledger.FailPhase2 vtx err $ P.Ledger.getCollateral (P.Ledger.toPlutusIndex $ ls ^. elsUtxoL) (P.Ledger.CardanoEmulatorEraTx tx))
+      -- To handle the execution units failures, we inspect the validated
+      -- transaction and check if we get a @IsValid False@.
       Right _
-        | IsValid False <- isValid $ extractTx $ P.getOnChainTx vtx ->
+        | Alonzo.IsValid False <- Alonzo.isValid $ Shelley.extractTx $ P.Ledger.getOnChainTx vtx ->
             ( ls',
-              P.FailPhase2
+              P.Ledger.FailPhase2
                 vtx
-                (P.CardanoLedgerValidationError "Insufficient execution units provided.")
-                (getCollateral (P.toPlutusIndex utxo) (CardanoEmulatorEraTx tx))
+                (P.Ledger.CardanoLedgerValidationError "Insufficient execution units provided.")
+                (P.Ledger.getCollateral (P.Ledger.toPlutusIndex $ ls ^. elsUtxoL) (P.Ledger.CardanoEmulatorEraTx tx))
             )
-      Right report -> (ls', P.Success vtx report)
-  where
-    utxo = getUtxo ls
-    -- MM: this call to bimap seems unecessary, since we case split on the
-    -- result afterwards and could thus apply the functions there.
-    res =
-      bimap
-        (P.CardanoLedgerValidationError . Text.pack . show)
-        (fmap OnChainTx)
-        (validateAndApplyTx params ls tx)
+      Right report -> (ls', P.Ledger.Success vtx report)
 
 validateAndApplyTx ::
   Params ->
   EmulatedLedgerState ->
-  C.Tx C.ConwayEra ->
-  Either (ApplyTxError EmulatorEra) (EmulatedLedgerState, Validated (Core.Tx EmulatorEra))
-validateAndApplyTx params ledgerState (C.ShelleyTx _ tx) = res
-  where
-    memPool = _memPoolState ledgerState
-    res = do
-      vtx <-
-        constructValidated
-          (emulatorGlobals params)
-          (C.Ledger.UtxoEnv (getSlot ledgerState) (emulatorPParams params) (C.Ledger.lsCertState memPool))
-          (lsUTxOState memPool)
-          tx
-      applyTx params ledgerState vtx
+  C.Api.Tx C.Api.ConwayEra ->
+  Either
+    (Shelley.ApplyTxError EmulatorEra)
+    (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
+validateAndApplyTx params ledgerState (C.Api.ShelleyTx _ tx) =
+  constructValidated
+    (emulatorGlobals params)
+    ( Shelley.UtxoEnv
+        (ledgerState ^. elsSlotL)
+        (emulatorPParams params)
+        (Shelley.lsCertState $ ledgerState ^. elsLedgerStateL)
+    )
+    (Shelley.lsUTxOState $ ledgerState ^. elsLedgerStateL)
+    tx
+    >>= applyTx params ledgerState
 
 -- | Construct a 'AlonzoTx' from a 'Core.Tx' by setting the `IsValid`
 -- flag.
@@ -259,75 +210,73 @@ validateAndApplyTx params ledgerState (C.ShelleyTx _ tx) = res
 -- in https://github.com/input-output-hk/cardano-ledger/commit/721adb55b39885847562437a6fe7e998f8e48c03
 constructValidated ::
   forall m.
-  (MonadError (ApplyTxError EmulatorEra) m) =>
-  Globals ->
-  C.Ledger.UtxoEnv EmulatorEra ->
-  C.Ledger.UTxOState EmulatorEra ->
-  Core.Tx EmulatorEra ->
-  m (AlonzoTx EmulatorEra)
-constructValidated globals (C.Ledger.UtxoEnv _ pp _) st tx =
-  case collectPlutusScriptsWithContext ei sysS pp tx utxo of
+  (MonadError (Shelley.ApplyTxError EmulatorEra) m) =>
+  Shelley.Globals ->
+  Shelley.UtxoEnv EmulatorEra ->
+  Shelley.UTxOState EmulatorEra ->
+  Ledger.Tx EmulatorEra ->
+  m (Alonzo.AlonzoTx EmulatorEra)
+constructValidated globals (Shelley.UtxoEnv _ pp _) st tx =
+  case Alonzo.collectPlutusScriptsWithContext ei sysS pp tx utxo of
     Left errs ->
       throwError
-        ( ApplyTxError
+        ( Shelley.ApplyTxError
             ( ConwayUtxowFailure
-                (Core.injectFailure (UtxosFailure (Core.injectFailure $ CollectErrors errs)))
+                (Ledger.injectFailure (Alonzo.UtxosFailure (Ledger.injectFailure $ Alonzo.CollectErrors errs)))
                 :| []
             )
         )
     Right sLst ->
-      let scriptEvalResult = evalPlutusScripts sLst
+      let scriptEvalResult = Alonzo.evalPlutusScripts sLst
           vTx =
-            AlonzoTx
-              (view Core.bodyTxL tx)
-              (view Core.witsTxL tx)
-              (IsValid (lift scriptEvalResult))
-              (view Core.auxDataTxL tx)
+            Alonzo.AlonzoTx
+              (view Ledger.bodyTxL tx)
+              (view Ledger.witsTxL tx)
+              (Alonzo.IsValid (lift scriptEvalResult))
+              (view Ledger.auxDataTxL tx)
        in pure vTx
   where
-    utxo = utxosUtxo st
-    sysS = systemStart globals
-    ei = epochInfo globals
-    lift (Passes _) = True
-    lift (Fails _ _) = False
+    utxo = Shelley.utxosUtxo st
+    sysS = Shelley.systemStart globals
+    ei = Shelley.epochInfo globals
+    lift (Ledger.Passes _) = True
+    lift (Ledger.Fails _ _) = False
 
-unsafeMakeValid :: CardanoTx -> OnChainTx
-unsafeMakeValid (CardanoEmulatorEraTx (C.Tx txBody _)) =
-  let C.ShelleyTxBody _ txBody' _ _ _ _ = txBody
-      vtx :: Core.Tx EmulatorEra = AlonzoTx txBody' mempty (IsValid True) C.Ledger.SNothing
-   in OnChainTx $ unsafeMakeValidated vtx
+unsafeMakeValid :: P.Ledger.CardanoTx -> P.Ledger.OnChainTx
+unsafeMakeValid (P.Ledger.CardanoEmulatorEraTx (C.Api.Tx txBody _)) =
+  let C.Api.ShelleyTxBody _ txBody' _ _ _ _ = txBody
+      vtx :: Ledger.Tx EmulatorEra = Alonzo.AlonzoTx txBody' mempty (Alonzo.IsValid True) Shelley.SNothing
+   in P.Ledger.OnChainTx $ Shelley.unsafeMakeValidated vtx
 
 validateCardanoTx ::
   Params ->
   EmulatedLedgerState ->
-  CardanoTx ->
-  (EmulatedLedgerState, P.ValidationResult)
-validateCardanoTx params ls ctx@(CardanoEmulatorEraTx tx) =
-  if map fst (C.txIns $ C.getTxBodyContent $ C.getTxBody tx) == [genesisTxIn]
-    then -- MM: Shouldn't we udpate the ledger state here
-      (ls, P.Success (unsafeMakeValid ctx) Map.empty)
-    else -- MM: hasValidationErros returns a possible EMS, why? Its name does not
-    -- suggest any state change.
-      hasValidationErrors params ls tx
+  P.Ledger.CardanoTx ->
+  (EmulatedLedgerState, P.Ledger.ValidationResult)
+validateCardanoTx params ls ctx@(P.Ledger.CardanoEmulatorEraTx tx) =
+  if map fst (C.Api.txIns $ C.Api.getTxBodyContent $ C.Api.getTxBody tx) == [P.Ledger.genesisTxIn]
+    then (ls, P.Ledger.Success (unsafeMakeValid ctx) Map.empty)
+    else hasValidationErrors params ls tx
 
 getTxExUnitsWithLogs ::
-  Params -> UTxO EmulatorEra -> C.Tx C.ConwayEra -> Either P.ValidationErrorInPhase P.RedeemerReport
-getTxExUnitsWithLogs params utxo (C.ShelleyTx _ tx) =
+  Params ->
+  Shelley.UTxO EmulatorEra ->
+  C.Api.Tx C.Api.ConwayEra ->
+  Either P.Ledger.ValidationErrorInPhase P.Ledger.RedeemerReport
+getTxExUnitsWithLogs params utxo (C.Api.ShelleyTx _ tx) =
   traverse (either toCardanoLedgerError Right) result
   where
     eg = emulatorGlobals params
-    ss = systemStart eg
-    ei = epochInfo eg
-    result = evalTxExUnitsWithLogs (emulatorPParams params) tx utxo ei ss
-    toCardanoLedgerError (ValidationFailure _ (V1.CekError ce) logs _) =
-      Left (P.Phase2, P.ScriptFailure (P.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
-    toCardanoLedgerError e = Left (P.Phase2, P.CardanoLedgerValidationError $ Text.pack $ show e)
+    result = Alonzo.evalTxExUnitsWithLogs (emulatorPParams params) tx utxo (Shelley.epochInfo eg) (Shelley.systemStart eg)
+    toCardanoLedgerError (Alonzo.ValidationFailure _ (PV1.CekError ce) logs _) =
+      Left (P.Ledger.Phase2, P.Ledger.ScriptFailure (PV1.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
+    toCardanoLedgerError e = Left (P.Ledger.Phase2, P.Ledger.CardanoLedgerValidationError $ Text.pack $ show e)
 
-createAndValidateTransactionBody ::
+createTransactionBody ::
   Params ->
-  P.CardanoBuildTx ->
-  Either CardanoLedgerError (C.TxBody C.ConwayEra)
-createAndValidateTransactionBody params (P.CardanoBuildTx bodyContent) =
-  let bodyContent' = bodyContent {C.txProtocolParams = C.BuildTxWith $ Just $ ledgerProtocolParameters params}
-   in first (Right . P.TxBodyError . C.displayError) $
-        C.createTransactionBody C.shelleyBasedEra bodyContent'
+  P.Ledger.CardanoBuildTx ->
+  Either P.Ledger.ToCardanoError (C.Api.TxBody C.Api.ConwayEra)
+createTransactionBody params (P.Ledger.CardanoBuildTx bodyContent) =
+  let bodyContent' = bodyContent {C.Api.txProtocolParams = C.Api.BuildTxWith $ Just $ ledgerProtocolParameters params}
+   in first (P.Ledger.TxBodyError . C.Api.displayError) $
+        C.Api.createTransactionBody C.Api.shelleyBasedEra bodyContent'

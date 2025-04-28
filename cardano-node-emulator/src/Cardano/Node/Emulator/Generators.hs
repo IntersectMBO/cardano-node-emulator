@@ -66,17 +66,17 @@ import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
+import Cardano.Ledger.Shelley.API (Coin (Coin))
 import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
 import Cardano.Node.Emulator.Internal.Node.Validation
-  ( Coin (Coin),
+  ( elsSlotL,
+    elsUtxoL,
     initialState,
-    setUtxo,
-    updateSlot,
     validateCardanoTx,
   )
-import Control.Lens (view)
+import Control.Lens (view, (.~))
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
@@ -354,8 +354,8 @@ validateMockchain (Mockchain _ utxo params) tx = result
     cUtxoIndex = LC.fromPlutusIndex $ C.UTxO $ Tx.toCtxUTxOTxOut <$> utxo
     ledgerState =
       initialState params
-        & updateSlot (const 1)
-        & setUtxo cUtxoIndex
+        & elsSlotL .~ C.SlotNo 1
+        & elsUtxoL .~ cUtxoIndex
     result = case snd $ validateCardanoTx params ledgerState tx of
       FailPhase1 _ err -> Just (Phase1, err)
       FailPhase2 _ err _ -> Just (Phase2, err)

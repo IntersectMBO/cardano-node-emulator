@@ -19,6 +19,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation
     elsSlotL,
     getSlot,
     updateStateParams,
+    elsConstitutionScriptL,
   )
 where
 
@@ -27,6 +28,7 @@ import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Alonzo.Plutus.Evaluate qualified as Alonzo
 import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
 import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
+import Cardano.Ledger.Conway.Governance qualified as Conway
 import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
 import Cardano.Ledger.Core qualified as Ledger
 import Cardano.Ledger.Plutus.Evaluate qualified as Ledger
@@ -90,7 +92,7 @@ validating machinery.
 
 -- | State of the ledger with configuration, mempool, and the blockchain.
 data EmulatedLedgerState = EmulatedLedgerState
-  { elsLedgerEnv :: !(Shelley.MempoolEnv EmulatorEra),
+  { elsLedgerEnv :: !(Shelley.LedgerEnv EmulatorEra),
     elsLedgerState :: !(Shelley.LedgerState EmulatorEra)
   }
   deriving (Show)
@@ -116,6 +118,15 @@ getSlot = fromIntegral . C.Api.unSlotNo . view elsSlotL
 -- | Tampers with the index
 elsUtxoL :: Lens' EmulatedLedgerState (Shelley.UTxO EmulatorEra)
 elsUtxoL = elsLedgerStateL . Shelley.utxoL
+
+-- | Tampers with the constitution script
+elsConstitutionScriptL :: Lens' EmulatedLedgerState (Shelley.StrictMaybe Shelley.ScriptHash)
+elsConstitutionScriptL =
+  elsLedgerStateL
+    . Shelley.lsUTxOStateL
+    . Shelley.utxosGovStateL
+    . Conway.constitutionGovStateL
+    . Conway.constitutionScriptL
 
 -- | Initial ledger state for a distribution
 initialState :: Params -> EmulatedLedgerState

@@ -104,12 +104,12 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api          ^>=10.14
+    , cardano-api
     , cardano-ledger-core
-    , plutus-core          >=1.0.0
-    , plutus-ledger-api    >=1.0.0
-    , plutus-tx            >=1.0.0
-    , plutus-tx-plugin     >=1.0.0
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-tx
+    , plutus-tx-plugin
 
   ------------------------
   -- Non-IOG dependencies

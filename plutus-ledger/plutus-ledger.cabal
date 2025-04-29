@@ -98,7 +98,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api             ^>=10.14
+    , cardano-api
     , cardano-binary
     , cardano-crypto
     , cardano-ledger-alonzo
@@ -108,10 +108,10 @@ library
     , cardano-ledger-shelley
     , data-default
     , iohk-monitoring
-    , plutus-core             >=1.0.0
-    , plutus-ledger-api       >=1.0.0
-    , plutus-tx               >=1.0.0
-    , plutus-tx-plugin        >=1.0.0
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-tx
+    , plutus-tx-plugin
 
   ------------------------
   -- Non-IOG dependencies
@@ -157,17 +157,17 @@ test-suite plutus-ledger-test
   -- Local components
   --------------------
   build-depends:
-    , plutus-ledger        ^>=1.4.0
-    , plutus-script-utils  ^>=2.0.0
+    , plutus-ledger
+    , plutus-script-utils
 
   --------------------------
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api        ^>=10.14
+    , cardano-api
     , cardano-api:gen
-    , plutus-ledger-api  >=1.0.0
-    , plutus-tx          >=1.0.0
+    , plutus-ledger-api
+    , plutus-tx
 
   ------------------------
   -- Non-IOG dependencies

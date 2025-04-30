@@ -20,6 +20,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation
     getSlot,
     updateStateParams,
     elsConstitutionScriptL,
+    registerStakeCredential,
   )
 where
 
@@ -28,14 +29,17 @@ import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Alonzo.Plutus.Evaluate qualified as Alonzo
 import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
 import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
+import Cardano.Ledger.Coin qualified as Cardano
 import Cardano.Ledger.Conway.Governance qualified as Conway
 import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
 import Cardano.Ledger.Core qualified as Ledger
+import Cardano.Ledger.Credential qualified as Cardano
 import Cardano.Ledger.Plutus.Evaluate qualified as Ledger
 import Cardano.Ledger.Shelley.API qualified as Shelley
 import Cardano.Ledger.Shelley.LedgerState qualified as Shelley
 import Cardano.Ledger.Shelley.Rules qualified as Shelley
 import Cardano.Ledger.Shelley.Transition qualified as Shelley
+import Cardano.Ledger.UMap qualified as UM
 import Cardano.Node.Emulator.Internal.Node.Params
   ( EmulatorEra,
     Params (pConfig),
@@ -102,6 +106,23 @@ makeLensesFor
     ("elsLedgerState", "elsLedgerStateL")
   ]
   ''EmulatedLedgerState
+
+registerStakeCredential :: Cardano.StakeCredential -> Cardano.Coin -> Cardano.Coin -> EmulatedLedgerState -> EmulatedLedgerState
+registerStakeCredential sCred reward deposit =
+  over
+    ( elsLedgerStateL
+        . Shelley.lsCertStateL
+        . Shelley.certDStateL
+        . Shelley.dsUnifiedL
+    )
+    ( UM.insert
+        sCred
+        ( UM.RDPair
+            (UM.compactCoinOrError reward)
+            (UM.compactCoinOrError deposit)
+        )
+        . UM.RewDepUView
+    )
 
 -- | Tampers with the Slot number
 elsSlotL :: Lens' EmulatedLedgerState C.Api.SlotNo

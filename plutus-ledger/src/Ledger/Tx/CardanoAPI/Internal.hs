@@ -77,6 +77,7 @@ module Ledger.Tx.CardanoAPI.Internal
     toCardanoScriptDataHash,
     toCardanoScriptHash,
     toCardanoStakeKeyHash,
+    toCardanoStakeCredential,
     toCardanoScriptInAnyLang,
     toCardanoReferenceScript,
     toCardanoTxId,

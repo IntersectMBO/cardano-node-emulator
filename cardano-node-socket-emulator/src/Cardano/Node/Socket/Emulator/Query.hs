@@ -65,7 +65,7 @@ handleQuery state = \case
       O.TipGenesis -> pure Origin
       (O.Tip _ _ curBlockNo) -> pure $ At curBlockNo
   GetChainPoint -> printError "Unimplemented: GetChainPoint"
-  GetLedgerConfig -> printError "Unimplemented: GetLedgerConfig"
+  DebugLedgerConfig -> printError "Unimplemented: DebugLedgerConfig"
 
 queryIfCurrentConway ::
   (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra) =>

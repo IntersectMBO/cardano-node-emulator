@@ -109,7 +109,6 @@ import Data.Aeson.Types (Parser, parseFail, prependFailure, typeMismatch)
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.Data (Proxy (Proxy))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
@@ -193,7 +192,7 @@ parseSomeCardanoTx (Aeson.Object v) = do
       $ either
         (const $ parseFail "Failed to parse 'tx' field from CardanoTx")
         pure
-      $ C.deserialiseFromTextEnvelope (C.AsTx (C.proxyToAsType Proxy)) envelope
+      $ C.deserialiseFromTextEnvelope envelope
   pure $ CardanoTx tx sbe
 parseSomeCardanoTx invalid =
   prependFailure

@@ -44,7 +44,7 @@ instance FromJSON (C.Tx C.ConwayEra) where
     either
       (const $ parseFail "Failed to parse ConwayEra 'tx' field from CardanoTx")
       pure
-      $ C.deserialiseFromTextEnvelope (C.AsTx C.AsConwayEra) envelope
+      $ C.deserialiseFromTextEnvelope envelope
   parseJSON invalid =
     prependFailure "parsing CardanoTx failed, " (typeMismatch "Object" invalid)
 

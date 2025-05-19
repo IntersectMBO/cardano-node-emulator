@@ -392,7 +392,7 @@ getCardanoTxReferenceInputs :: CardanoTx -> [C.TxIn]
 getCardanoTxReferenceInputs (CardanoTx tx _) = txInsReferenceToTxIns $ C.txInsReference $ C.getTxBodyContent $ C.getTxBody tx
   where
     txInsReferenceToTxIns C.TxInsReferenceNone = []
-    txInsReferenceToTxIns (C.TxInsReference _ txIns') = txIns'
+    txInsReferenceToTxIns (C.TxInsReference _ txIns' _) = txIns'
 
 getCardanoTxOutRefs :: CardanoTx -> [(TxOut, C.TxIn)]
 getCardanoTxOutRefs (CardanoEmulatorEraTx tx) =

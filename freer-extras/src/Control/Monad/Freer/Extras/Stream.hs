@@ -2,9 +2,10 @@
 {-# LANGUAGE TypeOperators #-}
 
 {- Interpreting the 'Yield' effect as a stream -}
-module Control.Monad.Freer.Extras.Stream (
-  runStream,
-) where
+module Control.Monad.Freer.Extras.Stream
+  ( runStream,
+  )
+where
 
 import Control.Monad.Freer
 import Control.Monad.Freer.Coroutine (Status (..), Yield, runC)
@@ -12,13 +13,12 @@ import Streaming (Stream)
 import Streaming.Prelude (Of)
 import Streaming.Prelude qualified as S
 
-{- | Turn the @Yield e ()@ effect into a pull-based stream
-  of @e@ events.
--}
-runStream
-  :: forall e a effs
-   . Eff (Yield e () ': effs) a
-  -> Stream (Of e) (Eff effs) a
+-- | Turn the @Yield e ()@ effect into a pull-based stream
+--  of @e@ events.
+runStream ::
+  forall e a effs.
+  Eff (Yield e () ': effs) a ->
+  Stream (Of e) (Eff effs) a
 runStream action =
   let f :: Eff effs (Status effs e () a) -> Eff effs (Either a (e, Eff effs (Status effs e () a)))
       f a = do

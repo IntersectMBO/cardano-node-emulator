@@ -7,25 +7,26 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ledger.Crypto (
-  module Export,
-  PubKey (..),
-  PrivateKey (..),
-  Signature (..),
-  Passphrase (..),
-  pubKeyHash,
-  signedBy,
-  sign,
-  signTx,
-  generateFromSeed,
-  toPublicKey,
-  xPubToPublicKey,
+module Ledger.Crypto
+  ( module Export,
+    PubKey (..),
+    PrivateKey (..),
+    Signature (..),
+    Passphrase (..),
+    pubKeyHash,
+    signedBy,
+    sign,
+    signTx,
+    generateFromSeed,
+    toPublicKey,
+    xPubToPublicKey,
 
-  -- * Signing and generation with no passphrase
-  sign',
-  signTx',
-  generateFromSeed',
-) where
+    -- * Signing and generation with no passphrase
+    sign',
+    signTx',
+    generateFromSeed',
+  )
+where
 
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise.Class (Serialise)
@@ -67,9 +68,8 @@ makeLift ''Signature
 instance ToJSON Signature where
   toJSON signature =
     JSON.object
-      [
-        ( "getSignature"
-        , JSON.String
+      [ ( "getSignature",
+          JSON.String
             . JSON.encodeByteString
             . PlutusTx.fromBuiltin
             . getSignature
@@ -91,6 +91,7 @@ newtype PubKey = PubKey {getPubKey :: LedgerBytes}
     (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (IsString) via LedgerBytes
   deriving (Show, Pretty) via LedgerBytes
+
 makeLift ''PubKey
 
 instance ToJSONKey PubKey where

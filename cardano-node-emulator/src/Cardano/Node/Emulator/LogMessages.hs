@@ -49,8 +49,8 @@ instance Pretty TxBalanceMsg where
     BalancingUnbalancedTx tx (C.UTxO utxo) ->
       hang 2 $
         vsep
-          [ hang 2 $ vsep ["Balancing an unbalanced transaction:", pretty tx]
-          , hang 2 $ vsep $ "Utxo index:" : (pretty <$> Map.toList utxo)
+          [ hang 2 $ vsep ["Balancing an unbalanced transaction:", pretty tx],
+            hang 2 $ vsep $ "Utxo index:" : (pretty <$> Map.toList utxo)
           ]
     FinishedBalancing tx addr -> hang 2 $ vsep ["Finished balancing (using" <+> pretty (toPlutusAddress addr) <> "):", pretty tx]
     SigningTx tx -> "Signing tx:" <+> pretty (getCardanoTxId tx)

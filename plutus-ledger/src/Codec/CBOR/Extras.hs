@@ -6,9 +6,8 @@ import Codec.Serialise (Serialise, decode, encode)
 import Flat qualified
 import Flat.Decoder qualified as Flat
 
-{- | Newtype to provide 'Serialise' instances for types with a 'Flat' instance that
-just encodes the flat-serialized value as a CBOR bytestring
--}
+-- | Newtype to provide 'Serialise' instances for types with a 'Flat' instance that
+-- just encodes the flat-serialized value as a CBOR bytestring
 newtype SerialiseViaFlat a = SerialiseViaFlat a
 
 instance (Flat.Flat a) => Serialise (SerialiseViaFlat a) where

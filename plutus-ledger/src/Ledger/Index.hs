@@ -6,57 +6,54 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{- | An index of unspent transaction outputs, and some functions for validating
-  transactions using the index.
--}
-module Ledger.Index (
-  -- * Types for transaction validation based on UTXO index
-  UtxoIndex,
-  insert,
-  insertCollateral,
-  insertBlock,
-  initialise,
-  singleton,
-  lookup,
-  lookupUTxO,
-  getCollateral,
-  ValidationError (..),
-  _TxOutRefNotFound,
-  _ScriptFailure,
-  _CardanoLedgerValidationError,
-  ValidationResult (..),
-  _Success,
-  _FailPhase1,
-  _FailPhase2,
-  cardanoTxFromValidationResult,
-  toOnChain,
-  getEvaluationLogs,
-  ValidationSuccess,
-  ValidationErrorInPhase,
-  ValidationPhase (..),
-  RedeemerReport,
-  maxFee,
-  adjustTxOut,
-  minAdaTxOut,
-  minAdaTxOutEstimated,
-  minLovelaceTxOutEstimated,
-  maxMinAdaTxOut,
-  createGenesisTransaction,
-  genesisTxIn,
-  PV1.ExBudget (..),
-  PV1.ExCPU (..),
-  PV1.ExMemory (..),
-  PV1.SatInt,
-) where
-
-import Prelude hiding (lookup)
+-- | An index of unspent transaction outputs, and some functions for validating
+-- transactions using the index.
+module Ledger.Index
+  ( -- * Types for transaction validation based on UTXO index
+    UtxoIndex,
+    insert,
+    insertCollateral,
+    insertBlock,
+    initialise,
+    singleton,
+    lookup,
+    lookupUTxO,
+    getCollateral,
+    ValidationError (..),
+    _TxOutRefNotFound,
+    _ScriptFailure,
+    _CardanoLedgerValidationError,
+    ValidationResult (..),
+    _Success,
+    _FailPhase1,
+    _FailPhase2,
+    cardanoTxFromValidationResult,
+    toOnChain,
+    getEvaluationLogs,
+    ValidationSuccess,
+    ValidationErrorInPhase,
+    ValidationPhase (..),
+    RedeemerReport,
+    maxFee,
+    adjustTxOut,
+    minAdaTxOut,
+    minAdaTxOutEstimated,
+    minLovelaceTxOutEstimated,
+    maxMinAdaTxOut,
+    createGenesisTransaction,
+    genesisTxIn,
+    PV1.ExBudget (..),
+    PV1.ExCPU (..),
+    PV1.ExMemory (..),
+    PV1.SatInt,
+  )
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway qualified as Conway
 import Cardano.Ledger.Core (PParams, getMinCoinTxOut)
-import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Control.Lens (alaf, (&), (.~), (<&>))
 import Data.Foldable (foldl')
@@ -68,25 +65,24 @@ import Ledger.Address (CardanoAddress)
 import Ledger.Blockchain
 import Ledger.Index.Internal
 import Ledger.Orphans ()
-import Ledger.Tx (
-  CardanoTx (..),
-  TxOut (..),
-  getCardanoTxCollateralInputs,
-  getCardanoTxFee,
-  getCardanoTxProducedOutputs,
-  getCardanoTxProducedReturnCollateral,
-  getCardanoTxSpentOutputs,
-  getCardanoTxTotalCollateral,
-  outValue,
-  txOutValue,
- )
+import Ledger.Tx
+  ( CardanoTx (..),
+    TxOut (..),
+    getCardanoTxCollateralInputs,
+    getCardanoTxFee,
+    getCardanoTxProducedOutputs,
+    getCardanoTxProducedReturnCollateral,
+    getCardanoTxSpentOutputs,
+    getCardanoTxTotalCollateral,
+    outValue,
+    txOutValue,
+  )
 import Ledger.Tx.CardanoAPI (fromPlutusTxOut, toCardanoTxOutValue)
 import Ledger.Tx.Internal qualified as Tx
 import Ledger.Value.CardanoAPI (Value, lovelaceToValue)
-import Plutus.Script.Utils.Ada (Ada)
-import Plutus.Script.Utils.Ada qualified as Ada
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusTx.Lattice ((\/))
+import Prelude hiding (lookup)
 
 -- | Create an index of all UTxOs on the chain.
 initialise :: Blockchain -> UtxoIndex
@@ -107,7 +103,7 @@ insert tx (C.UTxO unspent) =
 insertCollateral :: CardanoTx -> UtxoIndex -> UtxoIndex
 insertCollateral tx (C.UTxO unspent) =
   C.UTxO $
-    (unspent `Map.withoutKeys` (Set.fromList $ getCardanoTxCollateralInputs tx))
+    (unspent `Map.withoutKeys` Set.fromList (getCardanoTxCollateralInputs tx))
       `Map.union` (Tx.toCtxUTxOTxOut <$> getCardanoTxProducedReturnCollateral tx)
 
 -- | Update the index for the addition of a block.
@@ -136,10 +132,9 @@ getCollateral idx tx = case getCardanoTxTotalCollateral tx of
     fromMaybe (lovelaceToValue $ getCardanoTxFee tx) $
       alaf Ap foldMap (fmap txOutValue . (`lookup` idx)) (getCardanoTxCollateralInputs tx)
 
-{- | Adjust a single transaction output so it contains at least the minimum amount of Ada
-and return the adjustment (if any) and the updated TxOut.
--}
-adjustTxOut :: PParams (Conway.ConwayEra StandardCrypto) -> TxOut -> ([Coin], Tx.TxOut)
+-- | Adjust a single transaction output so it contains at least the minimum amount of Ada
+-- and return the adjustment (if any) and the updated TxOut.
+adjustTxOut :: PParams Conway.ConwayEra -> TxOut -> ([Coin], Tx.TxOut)
 adjustTxOut params txOut = do
   -- Increasing the ada amount can also increase the size in bytes, so start with a rough estimated amount of ada
   let withMinAdaValue = toCardanoTxOutValue $ txOutValue txOut \/ lovelaceToValue (minAdaTxOut params txOut)
@@ -152,40 +147,36 @@ adjustTxOut params txOut = do
        in ([missingLovelace], txOut & outValue .~ adjustedLovelace)
     else ([], txOut)
 
-{- | Exact computation of the mimimum Ada required for a given TxOut.
-TODO: Should be moved to cardano-api-extended once created
--}
-minAdaTxOut :: PParams (Conway.ConwayEra StandardCrypto) -> TxOut -> Coin
+-- | Exact computation of the mimimum Ada required for a given TxOut.
+-- TODO: Should be moved to cardano-api-extended once created
+minAdaTxOut :: PParams Conway.ConwayEra -> TxOut -> Coin
 minAdaTxOut params txOut =
-  let
-    toLovelace = Coin . C.Ledger.unCoin
-    initialValue = txOutValue txOut
-    firstEstimate = toLovelace . getMinCoinTxOut params $ fromPlutusTxOut txOut -- if the estimate is above the initialValue, we run minAdaAgain, just to be sure that the
-    -- new amount didn't change the TxOut size and requires more ada.
-   in
-    if firstEstimate > C.selectLovelace initialValue
-      then
-        minAdaTxOut params . flip (outValue .~) txOut $
-          toCardanoTxOutValue $
-            lovelaceToValue firstEstimate \/ initialValue
-      else firstEstimate
+  let toLovelace = Coin . C.Ledger.unCoin
+      initialValue = txOutValue txOut
+      firstEstimate = toLovelace . getMinCoinTxOut params $ fromPlutusTxOut txOut -- if the estimate is above the initialValue, we run minAdaAgain, just to be sure that the
+      -- new amount didn't change the TxOut size and requires more ada.
+   in if firstEstimate > C.selectLovelace initialValue
+        then
+          minAdaTxOut params . flip (outValue .~) txOut $
+            toCardanoTxOutValue $
+              lovelaceToValue firstEstimate \/ initialValue
+        else firstEstimate
 
 {-# INLINEABLE minAdaTxOutEstimated #-}
 
-{- | Provide a reasonable estimate of the mimimum of Ada required for a TxOut.
-
-   An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
-     - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
-     - the size of the 'TxOut'.
- In many situations though, we need to determine a plausible value for the minimum of Ada needed for a TxOut
- without knowing much of the 'TxOut'.
- This function provides a value big enough to balance UTxOs without
- a large inlined data (larger than a hash) nor a complex val with a lot of minted values.
- It's superior to the lowest minimum needed for an UTxO, as the lowest value require no datum.
- An estimate of the minimum required Ada for each tx output.
--}
-minAdaTxOutEstimated :: Ada
-minAdaTxOutEstimated = Ada.lovelaceOf minTxOut
+-- | Provide a reasonable estimate of the mimimum of Ada required for a TxOut.
+--
+--  An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
+--    - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
+--    - the size of the 'TxOut'.
+-- In many situations though, we need to determine a plausible value for the minimum of Ada needed for a TxOut
+-- without knowing much of the 'TxOut'.
+-- This function provides a value big enough to balance UTxOs without
+-- a large inlined data (larger than a hash) nor a complex val with a lot of minted values.
+-- It's superior to the lowest minimum needed for an UTxO, as the lowest value require no datum.
+-- An estimate of the minimum required Ada for each tx output.
+minAdaTxOutEstimated :: PV1.Lovelace
+minAdaTxOutEstimated = PV1.Lovelace minTxOut
 
 minLovelaceTxOutEstimated :: Coin
 minLovelaceTxOutEstimated = Coin minTxOut
@@ -206,33 +197,29 @@ dataHashSize = 10
 These values are partly protocol parameters-based, but since this is used in on-chain code
 we want a constant to reduce code size.
 -}
-maxMinAdaTxOut :: Ada
-maxMinAdaTxOut = Ada.lovelaceOf 18_516_834
+maxMinAdaTxOut :: PV1.Lovelace
+maxMinAdaTxOut = PV1.Lovelace 18_516_834
 
-{- | TODO Should be calculated based on the maximum script size permitted on
-the Cardano blockchain.
--}
-maxFee :: Ada
-maxFee = Ada.lovelaceOf 1_000_000
+-- | TODO Should be calculated based on the maximum script size permitted on
+-- the Cardano blockchain.
+maxFee :: PV1.Lovelace
+maxFee = PV1.Lovelace 1_000_000
 
-{- | cardano-ledger validation rules require the presence of inputs and
-we have to provide a stub TxIn for the genesis transaction.
--}
+-- | cardano-ledger validation rules require the presence of inputs and
+-- we have to provide a stub TxIn for the genesis transaction.
 genesisTxIn :: C.TxIn
-genesisTxIn = C.TxIn "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53" (C.TxIx 40214)
+genesisTxIn = C.TxIn "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53" (C.TxIx 40_214)
 
 createGenesisTransaction :: Map.Map CardanoAddress Value -> CardanoTx
 createGenesisTransaction vals =
-  let
-    txBodyContent =
-      Tx.emptyTxBodyContent
-        { C.txIns = [(genesisTxIn, C.BuildTxWith (C.KeyWitness C.KeyWitnessForSpending))]
-        , C.txOuts =
-            Map.toList vals <&> \(changeAddr, v) ->
-              C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.Api.ReferenceScriptNone
-        }
-    txBody =
-      either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $
-        C.createAndValidateTransactionBody C.shelleyBasedEra txBodyContent
-   in
-    CardanoEmulatorEraTx $ C.Tx txBody []
+  let txBodyContent =
+        Tx.emptyTxBodyContent
+          { C.txIns = [(genesisTxIn, C.BuildTxWith (C.KeyWitness C.KeyWitnessForSpending))],
+            C.txOuts =
+              Map.toList vals <&> \(changeAddr, v) ->
+                C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.Api.ReferenceScriptNone
+          }
+      txBody =
+        either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $
+          C.createTransactionBody C.shelleyBasedEra txBodyContent
+   in CardanoEmulatorEraTx $ C.Tx txBody []

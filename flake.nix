@@ -45,7 +45,7 @@
             ## for more information.
           };
         };
-      in {
+      in rec {
         formatter = pkgs.nixfmt-classic;
 
         devShells = let
@@ -108,6 +108,10 @@
         };
 
         checks = { inherit pre-commit; };
+
+        # since this flake is not building the project actually, but just providing a dev shell,
+        # Hydra will just test if the devShell is actually buildable
+        hydraJobs.required = devShells.default;
       });
 
   nixConfig = {

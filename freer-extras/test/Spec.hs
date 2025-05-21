@@ -5,7 +5,6 @@
 module Main (main) where
 
 import Control.Monad.Freer.Extras.PaginationSpec qualified as PaginationSpec
-
 import Test.Tasty
 
 main :: IO ()

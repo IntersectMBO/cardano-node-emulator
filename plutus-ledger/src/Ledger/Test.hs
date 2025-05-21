@@ -7,110 +7,110 @@
 
 module Ledger.Test where
 
-import Cardano.Api qualified as C
-import Ledger qualified
-import Ledger.Typed.Scripts qualified as Scripts
+import Cardano.Api qualified as C.Api
+import Ledger.Address qualified as Ledger
 import Ledger.Value.CardanoAPI (policyId)
-import Plutus.Script.Utils.Typed as PSU
-import Plutus.Script.Utils.V1.Address qualified as PV1
-import Plutus.Script.Utils.V1.Scripts qualified as PV1
-import Plutus.Script.Utils.V2.Address qualified as PV2
-import Plutus.Script.Utils.V2.Scripts qualified as PV2
-import Plutus.Script.Utils.Value (mpsSymbol)
-import PlutusLedgerApi.V1 (Address)
-import PlutusLedgerApi.V1.Value qualified as Value
-import PlutusLedgerApi.V2 qualified as PV2
-import PlutusLedgerApi.V3 qualified as PV3
+import Plutus.Script.Utils.Address (ToCardanoAddress (toCardanoAddress))
+import Plutus.Script.Utils.Scripts
+  ( Language (PlutusV1, PlutusV2, PlutusV3),
+    MintingPolicy,
+    MintingPolicyHash,
+    Validator,
+    ValidatorHash,
+    Versioned (Versioned),
+    toCurrencySymbol,
+    toMintingPolicy,
+    toMintingPolicyHash,
+    toValidator,
+  )
+import Plutus.Script.Utils.V1 (Any, TypedValidator)
+import Plutus.Script.Utils.V1 qualified as V1
+import Plutus.Script.Utils.V2 qualified as V2
+import PlutusLedgerApi.V1 qualified as V1
+import PlutusLedgerApi.V2 qualified as V2
 import PlutusTx qualified
+import PlutusTx.Builtins.Internal qualified as PlutusTx
 import Prelude hiding (not)
 
-someCode
-  :: PlutusTx.CompiledCode (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> ())
-someCode = $$(PlutusTx.compile [||\_ _ _ -> ()||])
+someCode :: PlutusTx.CompiledCode (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit)
+someCode = $$(PlutusTx.compile [||\_ _ _ -> PlutusTx.unitval||])
 
-someValidator :: Scripts.Validator
-someValidator = Ledger.mkValidatorScript someCode
+someValidator :: Validator
+someValidator = toValidator someCode
 
-someTypedValidator :: Scripts.TypedValidator Any
-someTypedValidator = Scripts.unsafeMkTypedValidator (Versioned someValidator PlutusV1)
+someVersionedValidator :: Versioned Validator
+someVersionedValidator = Versioned someValidator PlutusV1
 
-someValidatorHash :: PV1.ValidatorHash
-someValidatorHash = PV1.validatorHash someValidator
+someTypedValidator :: TypedValidator Any
+someTypedValidator = V1.validatorToTypedValidator someValidator
 
-someCardanoAddress :: C.NetworkId -> Ledger.CardanoAddress
-someCardanoAddress = flip PV1.mkValidatorCardanoAddress someValidator
+someValidatorHash :: ValidatorHash
+someValidatorHash = V1.tvValidatorHash someTypedValidator
 
-someAddress :: Address
+someCardanoAddress :: C.Api.NetworkId -> Ledger.CardanoAddress
+someCardanoAddress = flip toCardanoAddress someVersionedValidator
+
+someAddress :: V1.Address
 someAddress = Ledger.scriptValidatorHashAddress someValidatorHash Nothing
 
-someValidatorV2 :: Scripts.Validator
-someValidatorV2 = Ledger.mkValidatorScript someCode
+someValidatorV2 :: Validator
+someValidatorV2 = toValidator someCode
 
-someTypedValidatorV2 :: Scripts.TypedValidator Any
-someTypedValidatorV2 = Scripts.unsafeMkTypedValidator (Versioned someValidator PlutusV2)
+someVersionedValidatorV2 :: Versioned Validator
+someVersionedValidatorV2 = Versioned someValidatorV2 PlutusV2
 
-someValidatorHashV2 :: PV2.ValidatorHash
-someValidatorHashV2 = PV2.validatorHash someValidatorV2
+someTypedValidatorV2 :: TypedValidator Any
+someTypedValidatorV2 = V2.validatorToTypedValidator someValidator
 
-someCardanoAddressV2 :: C.NetworkId -> Ledger.CardanoAddress
-someCardanoAddressV2 = flip PV2.mkValidatorCardanoAddress someValidatorV2
+someValidatorHashV2 :: ValidatorHash
+someValidatorHashV2 = V2.tvValidatorHash someTypedValidatorV2
 
-someAddressV2 :: Address
+someCardanoAddressV2 :: C.Api.NetworkId -> Ledger.CardanoAddress
+someCardanoAddressV2 = flip toCardanoAddress someVersionedValidatorV2
+
+someAddressV2 :: V2.Address
 someAddressV2 = Ledger.scriptValidatorHashAddress someValidatorHashV2 Nothing
 
 {-# INLINEABLE mkPolicy #-}
-mkPolicy :: () -> Ledger.ScriptContext -> Bool
+mkPolicy :: () -> V1.ScriptContext -> Bool
 mkPolicy _ _ = True
 
 {-# INLINEABLE mkPolicyV2 #-}
-mkPolicyV2 :: () -> PV2.ScriptContext -> Bool
+mkPolicyV2 :: () -> V2.ScriptContext -> Bool
 mkPolicyV2 _ _ = True
 
-{-# INLINEABLE mkPolicyV3 #-}
-mkPolicyV3 :: () -> PV3.ScriptContext -> Bool
-mkPolicyV3 _ _ = True
-
-coinMintingPolicy :: Language -> Versioned Ledger.MintingPolicy
+coinMintingPolicy :: Language -> Versioned MintingPolicy
 coinMintingPolicy lang = case lang of
   PlutusV1 -> Versioned coinMintingPolicyV1 lang
   PlutusV2 -> Versioned coinMintingPolicyV2 lang
-  PlutusV3 -> Versioned coinMintingPolicyV3 lang
+  PlutusV3 -> error "Unsupported"
 
-coinMintingPolicyV1 :: Ledger.MintingPolicy
-coinMintingPolicyV1 =
-  Ledger.mkMintingPolicyScript
-    $$(PlutusTx.compile [||PSU.mkUntypedMintingPolicy mkPolicy||])
+coinMintingPolicyV1 :: MintingPolicy
+coinMintingPolicyV1 = toMintingPolicy $$(PlutusTx.compile [||V1.mkUntypedMintingPolicy mkPolicy||])
 
-coinMintingPolicyV2 :: Ledger.MintingPolicy
-coinMintingPolicyV2 =
-  Ledger.mkMintingPolicyScript
-    $$(PlutusTx.compile [||PSU.mkUntypedMintingPolicy mkPolicyV2||])
+coinMintingPolicyV2 :: MintingPolicy
+coinMintingPolicyV2 = toMintingPolicy $$(PlutusTx.compile [||V2.mkUntypedMintingPolicy mkPolicyV2||])
 
-coinMintingPolicyV3 :: Ledger.MintingPolicy
-coinMintingPolicyV3 =
-  Ledger.mkMintingPolicyScript
-    $$(PlutusTx.compile [||PSU.mkUntypedMintingPolicy mkPolicyV3||])
+coinMintingPolicyHash :: Language -> MintingPolicyHash
+coinMintingPolicyHash = toMintingPolicyHash . coinMintingPolicy
 
-coinMintingPolicyHash :: Language -> Ledger.MintingPolicyHash
-coinMintingPolicyHash = Ledger.mintingPolicyHash . coinMintingPolicy
+coinMintingPolicyCurrencySymbol :: Language -> V1.CurrencySymbol
+coinMintingPolicyCurrencySymbol = toCurrencySymbol . coinMintingPolicyHash
 
-coinMintingPolicyCurrencySymbol :: Language -> Value.CurrencySymbol
-coinMintingPolicyCurrencySymbol = mpsSymbol . coinMintingPolicyHash
+someToken :: Language -> V1.Value
+someToken lang = V1.singleton (coinMintingPolicyCurrencySymbol lang) (V1.TokenName "someToken") 1
 
-someToken :: Language -> Value.Value
-someToken lang = Value.singleton (coinMintingPolicyCurrencySymbol lang) "someToken" 1
+asRedeemer :: (PlutusTx.ToData a) => a -> V2.Redeemer
+asRedeemer a = V2.Redeemer $ PlutusTx.dataToBuiltinData $ PlutusTx.toData a
 
-asRedeemer :: (PlutusTx.ToData a) => a -> Ledger.Redeemer
-asRedeemer a = Ledger.Redeemer $ PlutusTx.dataToBuiltinData $ PlutusTx.toData a
+asDatum :: (PlutusTx.ToData a) => a -> V2.Datum
+asDatum a = V2.Datum $ PlutusTx.dataToBuiltinData $ PlutusTx.toData a
 
-asDatum :: (PlutusTx.ToData a) => a -> Ledger.Datum
-asDatum a = Ledger.Datum $ PlutusTx.dataToBuiltinData $ PlutusTx.toData a
-
-coinMintingPolicyId :: Language -> C.PolicyId
+coinMintingPolicyId :: Language -> C.Api.PolicyId
 coinMintingPolicyId = policyId . coinMintingPolicy
 
-testNetworkMagic :: C.NetworkMagic
-testNetworkMagic = C.NetworkMagic 1097911063
+testNetworkMagic :: C.Api.NetworkMagic
+testNetworkMagic = C.Api.NetworkMagic 1097911063
 
-testnet :: C.NetworkId
-testnet = C.Testnet testNetworkMagic
+testnet :: C.Api.NetworkId
+testnet = C.Api.Testnet testNetworkMagic

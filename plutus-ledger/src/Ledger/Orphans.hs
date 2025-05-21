@@ -38,6 +38,7 @@ instance FromHttpApiData PrivateKey where
 
 instance ToHttpApiData LedgerBytes where
   toUrlPiece = JSON.encodeByteString . bytes
+
 instance FromHttpApiData LedgerBytes where
   parseUrlPiece = bimap Text.pack fromBytes . JSON.tryDecode
 
@@ -47,7 +48,9 @@ instance BA.ByteArrayAccess TxId where
   withByteArray (TxId bis) = BA.withByteArray bis
 
 deriving instance Data C.NetworkMagic
+
 deriving instance Data C.NetworkId
+
 deriving instance Generic C.NetworkId
 
 instance Serialise (C.AddressInEra C.ConwayEra) where
@@ -60,14 +63,14 @@ instance Serialise (C.AddressInEra C.ConwayEra) where
       $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsConwayEra) bs
 
 deriving instance Generic C.PolicyId
+
 deriving instance Generic C.Quantity
 
 -- 'POSIXTime' instances
 
-{- | Custom `FromJSON` instance which allows to parse a JSON number to a
-'POSIXTime' value. The parsed JSON value MUST be an 'Integer' or else the
-parsing fails.
--}
+-- | Custom `FromJSON` instance which allows to parse a JSON number to a
+-- 'POSIXTime' value. The parsed JSON value MUST be an 'Integer' or else the
+-- parsing fails.
 instance JSON.FromJSON POSIXTime where
   parseJSON v@(JSON.Number n) =
     either
@@ -77,14 +80,15 @@ instance JSON.FromJSON POSIXTime where
   parseJSON invalid =
     JSON.prependFailure "parsing POSIXTime failed, " (JSON.typeMismatch "Number" invalid)
 
-{- | Custom 'ToJSON' instance which allows to simply convert a 'POSIXTime'
-value to a JSON number.
--}
+-- | Custom 'ToJSON' instance which allows to simply convert a 'POSIXTime'
+-- value to a JSON number.
 instance JSON.ToJSON POSIXTime where
   toJSON (POSIXTime n) = JSON.Number $ scientific n 0
 
 deriving newtype instance Serialise POSIXTime
+
 deriving newtype instance Hashable POSIXTime
 
 deriving anyclass instance JSON.ToJSON ScriptError
+
 deriving anyclass instance JSON.FromJSON ScriptError

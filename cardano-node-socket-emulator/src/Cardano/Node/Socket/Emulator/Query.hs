@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cardano.Node.Socket.Emulator.Query (handleQuery) where
@@ -8,6 +7,19 @@ import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (epochInfo)
+import Cardano.Node.Emulator.API qualified as E
+import Cardano.Node.Emulator.Internal.Node.Params
+  ( Params (..),
+    emulatorEraHistory,
+    emulatorGlobals,
+    emulatorPParams,
+  )
+import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
+import Cardano.Node.Socket.Emulator.Types
+  ( AppState (..),
+    getTip,
+    runChainEffects,
+  )
 import Cardano.Slotting.EpochInfo (epochInfoEpoch)
 import Cardano.Slotting.Slot (WithOrigin (..))
 import Control.Concurrent (MVar, readMVar)
@@ -28,25 +40,11 @@ import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Consensus.Shelley.Ledger.Query (BlockQuery (..))
 import Ouroboros.Network.Block qualified as O
 
-import Cardano.Node.Emulator.API qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (
-  Params (..),
-  emulatorEraHistory,
-  emulatorGlobals,
-  emulatorPParams,
- )
-import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
-import Cardano.Node.Socket.Emulator.Types (
-  AppState (..),
-  getTip,
-  runChainEffects,
- )
-
-handleQuery
-  :: (block ~ CardanoBlock StandardCrypto)
-  => MVar AppState
-  -> Query block result
-  -> IO result
+handleQuery ::
+  (block ~ CardanoBlock StandardCrypto) =>
+  MVar AppState ->
+  Query block result ->
+  IO result
 handleQuery state = \case
   BlockQuery (QueryIfCurrentConway q) -> do
     (_logs, res) <- runChainEffects state $ queryIfCurrentConway q
@@ -59,7 +57,7 @@ handleQuery state = \case
     pure $ Consensus.EraIndex (S (S (S (S (S (S (Z (K ())))))))) -- ConwayEra
   BlockQuery q -> printError $ "Unimplemented BlockQuery received: " ++ show q
   GetSystemStart -> do
-    AppState _ _ Params{pSlotConfig} <- readMVar state
+    AppState _ _ Params {pSlotConfig} <- readMVar state
     pure $ C.SystemStart $ posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
   GetChainBlockNo -> do
     tip <- getTip state
@@ -67,11 +65,12 @@ handleQuery state = \case
       O.TipGenesis -> pure Origin
       (O.Tip _ _ curBlockNo) -> pure $ At curBlockNo
   GetChainPoint -> printError "Unimplemented: GetChainPoint"
+  DebugLedgerConfig -> printError "Unimplemented: DebugLedgerConfig"
 
-queryIfCurrentConway
-  :: (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) (ConwayEra StandardCrypto))
-  => BlockQuery block result
-  -> E.EmulatorT IO result
+queryIfCurrentConway ::
+  (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra) =>
+  BlockQuery block a result ->
+  E.EmulatorT IO result
 queryIfCurrentConway = \case
   GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams
   GetCurrentPParams -> emulatorPParams <$> E.getParams

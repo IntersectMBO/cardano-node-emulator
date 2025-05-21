@@ -12,41 +12,42 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Monad.Freer.Extras.Modify (
-  -- * change the list of effects
-  mapEffs,
+module Control.Monad.Freer.Extras.Modify
+  ( -- * change the list of effects
+    mapEffs,
 
-  -- * under functions
-  UnderN (..),
-  under,
+    -- * under functions
+    UnderN (..),
+    under,
 
-  -- * weaken functions
-  CanWeakenEnd (..),
-  weakenUnder,
-  weakenNUnder,
-  weakenMUnderN,
+    -- * weaken functions
+    CanWeakenEnd (..),
+    weakenUnder,
+    weakenNUnder,
+    weakenMUnderN,
 
-  -- * raise functions
-  raiseEnd,
-  raiseUnder,
-  raiseUnder2,
-  raise2Under,
-  raiseNUnder,
-  raiseMUnderN,
+    -- * raise functions
+    raiseEnd,
+    raiseUnder,
+    raiseUnder2,
+    raise2Under,
+    raiseNUnder,
+    raiseMUnderN,
 
-  -- * zoom functions
-  handleZoomedState,
-  handleZoomedError,
-  handleZoomedWriter,
-  handleZoomedReader,
+    -- * zoom functions
+    handleZoomedState,
+    handleZoomedError,
+    handleZoomedWriter,
+    handleZoomedReader,
 
-  -- * manipulation
-  writeIntoState,
-  stateToMonadState,
-  monadStateToState,
-  errorToMonadError,
-  wrapError,
-) where
+    -- * manipulation
+    writeIntoState,
+    stateToMonadState,
+    monadStateToState,
+    errorToMonadError,
+    wrapError,
+  )
+where
 
 import Control.Lens hiding (under)
 import Control.Monad.Except qualified as MTL
@@ -72,8 +73,10 @@ under f u = case decomp u of
 
 class UnderN as where
   underN :: (Union effs ~> Union effs') -> Union (as :++: effs) ~> Union (as :++: effs')
+
 instance UnderN '[] where
   underN f = f
+
 instance (UnderN as) => UnderN (a ': as) where
   underN f = under (underN @as f)
 
@@ -95,23 +98,25 @@ hence the double cons in the types to prevent overlap with the first instance.
 -}
 class CanWeakenEnd as effs where
   weakenEnd :: Union as ~> Union effs
+
 instance (effs ~ (a ': effs')) => CanWeakenEnd '[a] effs where
   weakenEnd u = inj (extract u)
+
 instance (effs ~ (a ': effs'), CanWeakenEnd (b ': as) effs') => CanWeakenEnd (a ': b ': as) effs where
   weakenEnd = under weakenEnd
 
 weakenUnder :: forall effs a b. Union (a ': effs) ~> Union (a ': b ': effs)
 weakenUnder = under weaken
 
-weakenNUnder
-  :: forall effs' effs a. (Weakens effs') => Union (a ': effs) ~> Union (a ': (effs' :++: effs))
+weakenNUnder ::
+  forall effs' effs a. (Weakens effs') => Union (a ': effs) ~> Union (a ': (effs' :++: effs))
 weakenNUnder = under (weakens @effs' @effs)
 
 -- basically applies `under` n times to `weaken` composed m times, n = length as, m = length effs'
-weakenMUnderN
-  :: forall effs' as effs
-   . (UnderN as, Weakens effs')
-  => Union (as :++: effs) ~> Union (as :++: (effs' :++: effs))
+weakenMUnderN ::
+  forall effs' as effs.
+  (UnderN as, Weakens effs') =>
+  Union (as :++: effs) ~> Union (as :++: (effs' :++: effs))
 weakenMUnderN = underN @as (weakens @effs' @effs)
 
 raiseEnd :: forall effs as. (CanWeakenEnd as effs) => Eff as ~> Eff effs
@@ -126,15 +131,15 @@ raiseUnder2 = mapEffs (under $ under weaken)
 raise2Under :: forall effs a b c. Eff (a ': effs) ~> Eff (a ': b ': c ': effs)
 raise2Under = mapEffs (under $ weaken . weaken)
 
-raiseNUnder
-  :: forall effs' effs a. (Weakens effs') => Eff (a ': effs) ~> Eff (a ': (effs' :++: effs))
+raiseNUnder ::
+  forall effs' effs a. (Weakens effs') => Eff (a ': effs) ~> Eff (a ': (effs' :++: effs))
 raiseNUnder = mapEffs (weakenNUnder @effs' @effs @a)
 
 -- | Raise m effects under the top n effects
-raiseMUnderN
-  :: forall effs' as effs
-   . (UnderN as, Weakens effs')
-  => Eff (as :++: effs) ~> Eff (as :++: (effs' :++: effs))
+raiseMUnderN ::
+  forall effs' as effs.
+  (UnderN as, Weakens effs') =>
+  Eff (as :++: effs) ~> Eff (as :++: (effs' :++: effs))
 raiseMUnderN = mapEffs (weakenMUnderN @effs' @as @effs)
 
 -- | Handle a 'State' effect in terms of a "larger" 'State' effect from which we have a lens.
@@ -159,25 +164,25 @@ handleZoomedReader g = \case
   Ask -> view g <$> ask
 
 -- | Handle a 'Writer' effect in terms of a "larger" 'State' effect from which we have a setter.
-writeIntoState
-  :: (Monoid s1, Member (State s2) effs)
-  => Setter' s2 s1
-  -> (Writer s1 ~> Eff effs)
+writeIntoState ::
+  (Monoid s1, Member (State s2) effs) =>
+  Setter' s2 s1 ->
+  (Writer s1 ~> Eff effs)
 writeIntoState s = \case
   Tell w -> modify (\st -> st & s <>~ w)
 
 -- | Handle a 'State' effect in terms of a monadic effect which has a 'MTL.MonadState' instance.
-stateToMonadState
-  :: (MTL.MonadState s m)
-  => (State s ~> m)
+stateToMonadState ::
+  (MTL.MonadState s m) =>
+  (State s ~> m)
 stateToMonadState = \case
   Get -> MTL.get
   Put v -> MTL.put v
 
-monadStateToState
-  :: (Member (State s) effs)
-  => MTL.State s a
-  -> Eff effs a
+monadStateToState ::
+  (Member (State s) effs) =>
+  MTL.State s a ->
+  Eff effs a
 monadStateToState a = do
   s1 <- get
   let (r, s2) = MTL.runState a s1
@@ -185,17 +190,17 @@ monadStateToState a = do
   return r
 
 -- | Handle an 'Error' effect in terms of a monadic effect which has a 'MTL.MonadError' instance.
-errorToMonadError
-  :: (MTL.MonadError e m)
-  => (Error e ~> m)
+errorToMonadError ::
+  (MTL.MonadError e m) =>
+  (Error e ~> m)
 errorToMonadError = \case
   Error e -> MTL.throwError e
 
 -- | Transform an error type
-wrapError
-  :: forall e f effs
-   . (Member (Error f) effs)
-  => (e -> f)
-  -> Eff (Error e ': effs)
+wrapError ::
+  forall e f effs.
+  (Member (Error f) effs) =>
+  (e -> f) ->
+  Eff (Error e ': effs)
     ~> Eff effs
 wrapError f = flip handleError (throwError @f . f)

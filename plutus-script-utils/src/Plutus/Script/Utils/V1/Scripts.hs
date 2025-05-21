@@ -1,78 +1,67 @@
-{-# OPTIONS_GHC -Wno-missing-import-lists #-}
+module Plutus.Script.Utils.V1.Scripts
+  ( UntypedValidator,
+    UntypedStakeValidator,
+    UntypedMintingPolicy,
+    mkUntypedValidator,
+    mkUntypedStakeValidator,
+    mkUntypedMintingPolicy,
+  )
+where
 
-{- |
-This module contains functions related to the computation of script hashes for
-PlutusV1.
--}
-module Plutus.Script.Utils.V1.Scripts (
-  -- * Script hashes
-  PV1.Validator,
-  PV1.ValidatorHash,
-  PV1.MintingPolicy,
-  PV1.MintingPolicyHash,
-  PV1.StakeValidator,
-  PV1.StakeValidatorHash,
-  PV1.fromCardanoHash,
-  validatorHash,
-  mintingPolicyHash,
-  stakeValidatorHash,
-  scriptHash,
+import PlutusTx (BuiltinData, FromData, fromBuiltinData)
+import PlutusTx.Prelude (BuiltinString, BuiltinUnit, check, trace)
+import PlutusTx.Prelude qualified as PlutusTx
 
-  -- * Script utilities
-  scriptCurrencySymbol,
-  toCardanoApiScript,
-) where
+type UntypedValidator = BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
 
-import Cardano.Api qualified as Script
-import Cardano.Api.Shelley qualified as Script
-import Plutus.Script.Utils.Scripts qualified as PV1
-import PlutusLedgerApi.V1 qualified as PV1
+type UntypedMintingPolicy = BuiltinData -> BuiltinData -> BuiltinUnit
 
--- | Hash a 'PV1.Validator' script.
-validatorHash :: PV1.Validator -> PV1.ValidatorHash
-validatorHash =
-  PV1.ValidatorHash
-    . PV1.getScriptHash
-    . scriptHash
-    . PV1.getValidator
+type UntypedStakeValidator = BuiltinData -> BuiltinData -> BuiltinUnit
 
--- | Hash a 'PV1.MintingPolicy' script.
-mintingPolicyHash :: PV1.MintingPolicy -> PV1.MintingPolicyHash
-mintingPolicyHash =
-  PV1.MintingPolicyHash
-    . PV1.getScriptHash
-    . scriptHash
-    . PV1.getMintingPolicy
+{-# INLINEABLE tracedSafeFrom #-}
+tracedSafeFrom :: (FromData a) => BuiltinString -> BuiltinData -> Maybe a
+tracedSafeFrom label builtinData = do
+  dat <- fromBuiltinData builtinData
+  -- We trace after the decoding is actually successful
+  return $ trace label dat
 
--- | Hash a 'PV1.StakeValidator' script.
-stakeValidatorHash :: PV1.StakeValidator -> PV1.StakeValidatorHash
-stakeValidatorHash =
-  PV1.StakeValidatorHash
-    . PV1.getScriptHash
-    . scriptHash
-    . PV1.getStakeValidator
+-- | Converts a typed to an untyped validator
+{-# INLINEABLE mkUntypedValidator #-}
+mkUntypedValidator ::
+  (FromData datum, FromData redeemer, FromData scriptContext) =>
+  (datum -> redeemer -> scriptContext -> Bool) ->
+  UntypedValidator
+mkUntypedValidator f d r sc =
+  check $
+    PlutusTx.fromMaybe
+      False
+      ( do
+          dat <- tracedSafeFrom "Datum decoded successfully" d
+          red <- tracedSafeFrom "Redeemer decoded successfully" r
+          ctx <- tracedSafeFrom "Script context decoded successfully" sc
+          return $ f dat red ctx
+      )
 
--- | Hash a 'Script'
-scriptHash :: PV1.Script -> PV1.ScriptHash
-scriptHash =
-  PV1.fromCardanoHash
-    . Script.hashScript
-    . toCardanoApiScript
+-- | Converts a typed to an untyped stake validator
+{-# INLINEABLE mkUntypedStakeValidator #-}
+mkUntypedStakeValidator ::
+  (FromData redeemer, FromData scriptContext) =>
+  (redeemer -> scriptContext -> Bool) ->
+  UntypedStakeValidator
+mkUntypedStakeValidator f r sc =
+  check $
+    PlutusTx.fromMaybe
+      False
+      ( do
+          red <- tracedSafeFrom "Redeemer decoded successfully" r
+          ctx <- tracedSafeFrom "Script context decoded successfully" sc
+          return $ f red ctx
+      )
 
-{- | Convert a 'Script' to a 'cardano-api' script.
-
-For why we depend on `cardano-api`,
-see note [Hash computation of datums, redeemers and scripts]
--}
-toCardanoApiScript :: PV1.Script -> Script.Script Script.PlutusScriptV1
-toCardanoApiScript =
-  Script.PlutusScript Script.PlutusScriptV1
-    . Script.PlutusScriptSerialised
-    . PV1.unScript
-
-{-# INLINEABLE scriptCurrencySymbol #-}
-
--- | The 'CurrencySymbol' of a 'MintingPolicy'.
-scriptCurrencySymbol :: PV1.MintingPolicy -> PV1.CurrencySymbol
-scriptCurrencySymbol scrpt =
-  let (PV1.MintingPolicyHash hsh) = mintingPolicyHash scrpt in PV1.CurrencySymbol hsh
+-- | Converts a typed to an untyped minting policy
+{-# INLINEABLE mkUntypedMintingPolicy #-}
+mkUntypedMintingPolicy ::
+  (FromData redeemer, FromData scriptContext) =>
+  (redeemer -> scriptContext -> Bool) ->
+  UntypedMintingPolicy
+mkUntypedMintingPolicy = mkUntypedStakeValidator

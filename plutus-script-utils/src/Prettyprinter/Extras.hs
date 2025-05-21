@@ -1,14 +1,13 @@
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Copied from plutus-ledger-api because not exported
-module Prettyprinter.Extras (
-  PrettyShow (..),
-  Pretty (..),
-  PrettyFoldable (..),
-  Tagged (Tagged),
-) where
+module Prettyprinter.Extras
+  ( PrettyShow (..),
+    Pretty (..),
+    PrettyFoldable (..),
+    Tagged (Tagged),
+  )
+where
 
 import Data.Foldable (Foldable (toList))
 import Data.Proxy (Proxy (Proxy))
@@ -23,9 +22,8 @@ newtype PrettyShow a = PrettyShow {unPrettyShow :: a}
 instance (Show a) => Pretty (PrettyShow a) where
   pretty = viaShow . unPrettyShow
 
-{- | Newtype wrapper for deriving 'Pretty' for a 'Foldable' container by
-  calling 'toList'.
--}
+-- | Newtype wrapper for deriving 'Pretty' for a 'Foldable' container by
+--  calling 'toList'.
 newtype PrettyFoldable f a = PrettyFoldable {unPrettyFoldable :: f a}
 
 instance (Foldable f, Pretty a) => Pretty (PrettyFoldable f a) where

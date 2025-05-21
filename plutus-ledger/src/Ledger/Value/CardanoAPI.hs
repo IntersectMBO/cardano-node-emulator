@@ -1,39 +1,40 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ledger.Value.CardanoAPI (
-  C.Value,
-  Coin (Coin),
-  C.AssetId (..),
-  C.PolicyId,
-  C.AssetName,
-  C.selectAsset,
-  C.valueToList,
-  C.valueFromList,
-  C.selectLovelace,
-  C.filterValue,
-  C.negateValue,
-  lovelaceToValue,
-  lovelaceValueOf,
-  adaValueOf,
-  isZero,
-  isAdaOnlyValue,
-  noAdaValue,
-  adaOnlyValue,
-  adaToCardanoValue,
-  singleton,
-  assetIdValue,
-  scale,
-  split,
-  policyId,
-  toCardanoValue,
-  fromCardanoValue,
-  toCardanoAssetId,
-  fromCardanoAssetId,
-  combine,
-  valueGeq,
-  valueLeq,
-) where
+module Ledger.Value.CardanoAPI
+  ( C.Value,
+    Coin (Coin),
+    C.AssetId (..),
+    C.PolicyId,
+    C.AssetName,
+    C.selectAsset,
+    C.valueToList,
+    C.valueFromList,
+    C.selectLovelace,
+    C.filterValue,
+    C.negateValue,
+    lovelaceToValue,
+    lovelaceValueOf,
+    adaValueOf,
+    isZero,
+    isAdaOnlyValue,
+    noAdaValue,
+    adaOnlyValue,
+    adaToCardanoValue,
+    singleton,
+    assetIdValue,
+    scale,
+    split,
+    policyId,
+    toCardanoValue,
+    fromCardanoValue,
+    toCardanoAssetId,
+    fromCardanoAssetId,
+    combine,
+    valueGeq,
+    valueLeq,
+  )
+where
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.Coin (Coin (Coin))
@@ -42,14 +43,15 @@ import Data.List (partition)
 import Data.Maybe (isJust)
 import Data.Monoid (All (All, getAll))
 import Data.Ratio (denominator, numerator)
-import Ledger.Scripts (MintingPolicy (..), Versioned (..), withCardanoApiScript)
-import Ledger.Tx.CardanoAPI.Internal (
-  adaToCardanoValue,
-  fromCardanoAssetId,
-  fromCardanoValue,
-  toCardanoAssetId,
-  toCardanoValue,
- )
+import GHC.Exts
+import Ledger.Scripts (MintingPolicy (..), Versioned (..), toCardanoScriptHash)
+import Ledger.Tx.CardanoAPI.Internal
+  ( adaToCardanoValue,
+    fromCardanoAssetId,
+    fromCardanoValue,
+    toCardanoAssetId,
+    toCardanoValue,
+  )
 import PlutusTx.Lattice (JoinSemiLattice (..))
 
 lovelaceToValue :: Coin -> C.Value
@@ -68,7 +70,7 @@ adaValueOf r =
     l = r * 1_000_000
 
 isZero :: C.Value -> Bool
-isZero = all (\(_, q) -> q == 0) . C.valueToList
+isZero = all (\(_, q) -> q == 0) . toList
 
 isAdaOnlyValue :: C.Value -> Bool
 isAdaOnlyValue = isJust . C.valueToLovelace
@@ -83,19 +85,19 @@ singleton :: C.PolicyId -> C.AssetName -> Integer -> C.Value
 singleton pid an = assetIdValue (C.AssetId pid an)
 
 assetIdValue :: C.AssetId -> Integer -> C.Value
-assetIdValue aid n = C.valueFromList [(aid, C.Quantity n)]
+assetIdValue aid n = fromList [(aid, C.Quantity n)]
 
 scale :: Integer -> C.Value -> C.Value
-scale i = C.valueFromList . fmap (fmap (* C.Quantity i)) . C.valueToList
+scale i = fromList . fmap (fmap (* C.Quantity i)) . toList
 
 split :: C.Value -> (C.Value, C.Value)
-split = bimap (C.negateValue . C.valueFromList) C.valueFromList . partition ((< 0) . snd) . C.valueToList
+split = bimap (C.negateValue . fromList) fromList . partition ((< 0) . snd) . toList
 
 policyId :: Versioned MintingPolicy -> C.PolicyId
-policyId = withCardanoApiScript C.scriptPolicyId . fmap getMintingPolicy
+policyId = C.PolicyId . toCardanoScriptHash
 
 combine :: (Monoid m) => (C.AssetId -> C.Quantity -> C.Quantity -> m) -> C.Value -> C.Value -> m
-combine f v1 v2 = merge (C.valueToList v1) (C.valueToList v2)
+combine f v1 v2 = merge (toList v1) (toList v2)
   where
     -- Merge assuming the lists are ascending (thanks to Map.toList)
     merge [] [] = mempty
@@ -113,4 +115,4 @@ valueLeq :: C.Value -> C.Value -> Bool
 valueLeq lv rv = getAll $ combine (\_ l r -> All (l <= r)) lv rv
 
 instance JoinSemiLattice C.Value where
-  (\/) = combine (\a ql qr -> C.valueFromList [(a, ql `max` qr)])
+  (\/) = combine (\a ql qr -> fromList [(a, ql `max` qr)])

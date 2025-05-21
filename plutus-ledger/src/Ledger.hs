@@ -1,10 +1,11 @@
-module Ledger (
-  module Export,
-  DCert,
-  NetworkId,
-  Credential,
-  StakingCredential,
-) where
+module Ledger
+  ( module Export,
+    DCert,
+    NetworkId,
+    Credential,
+    StakingCredential,
+  )
+where
 
 import Cardano.Api (NetworkId)
 import Ledger.Address as Export

@@ -3,15 +3,13 @@
 
 module Ledger.Builtins.Orphans where
 
-import PlutusTx.Prelude qualified as PlutusTx
-
-import Data.Aeson.Extras qualified as JSON
-
 import Codec.Serialise (Serialise (decode, encode))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
+import Data.Aeson.Extras qualified as JSON
 import PlutusCore.Data
 import PlutusTx qualified
+import PlutusTx.Prelude qualified as PlutusTx
 
 instance ToJSON PlutusTx.BuiltinByteString where
   toJSON = JSON.String . JSON.encodeByteString . PlutusTx.fromBuiltin
@@ -30,4 +28,5 @@ instance Serialise PlutusTx.BuiltinData where
   decode = PlutusTx.dataToBuiltinData <$> decode
 
 deriving via (JSON.JSONViaSerialise Data) instance ToJSON Data
+
 deriving via (JSON.JSONViaSerialise Data) instance FromJSON Data

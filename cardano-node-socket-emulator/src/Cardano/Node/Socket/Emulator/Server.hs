@@ -12,7 +12,6 @@
 module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.BM.Data.Trace (Trace)
 import Cardano.Node.Emulator.API qualified as E
 import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
@@ -206,8 +205,8 @@ pruneChain k original = do
         then {- When the counter reaches zero, there are K blocks in the
                 original channel and we start to remove the oldest stored
                 block by reading it. -}
-        do
-          liftIO $ atomically (readTChan original) >> go 0 localChannel
+          do
+            liftIO $ atomically (readTChan original) >> go 0 localChannel
         else do
           go (k' - 1) localChannel
 

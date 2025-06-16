@@ -91,11 +91,9 @@ where
 
 import Cardano.Api (TxBodyContent (txValidityUpperBound))
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (..))
 import Cardano.Ledger.Alonzo.TxWits (txwitsVKey)
 import Cardano.Ledger.Coin (Coin)
-import Cardano.Ledger.Shelley.TxCert qualified as C.Api
 import Codec.Serialise (Serialise)
 import Control.Lens
   ( Getter,
@@ -309,7 +307,7 @@ toPlutusOutputDatum (Just (_, DatumInline d)) = V2.Tx.OutputDatum d
 toPlutusOutputDatum (Just (dh, _)) = V2.Tx.OutputDatumHash dh
 
 fromDecoratedIndex ::
-  C.Api.NetworkId -> Map TxOutRef DecoratedTxOut -> Either ToCardanoError UtxoIndex
+  C.NetworkId -> Map TxOutRef DecoratedTxOut -> Either ToCardanoError UtxoIndex
 fromDecoratedIndex networkId m = C.UTxO . Map.fromList <$> traverse toCardanoUtxo (Map.toList m)
   where
     toCardanoUtxo (outRef, txOut) = do
@@ -327,7 +325,7 @@ instance Pretty DecoratedTxOut where
 
 instance Pretty CardanoTx where
   pretty tx =
-    let renderScriptWitnesses (CardanoEmulatorEraTx (C.Api.Tx (C.Api.ShelleyTxBody _ _ scripts _ _ _) _)) =
+    let renderScriptWitnesses (CardanoEmulatorEraTx (C.Tx (C.ShelleyTxBody _ _ scripts _ _ _) _)) =
           [hang 2 (vsep ("attached scripts:" : fmap viaShow scripts)) | not (null scripts)]
         lines' =
           [ hang 2 (vsep ("inputs:" : fmap (("-" <+>) . pretty) (getCardanoTxInputs tx))),
@@ -412,7 +410,7 @@ getCardanoTxSpentOutputs = Set.fromList . getCardanoTxInputs
 getCardanoTxReturnCollateral :: CardanoTx -> Maybe TxOut
 getCardanoTxReturnCollateral = getTxBodyContentReturnCollateral . getTxBodyContent
 
-getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.Api.ConwayEra -> Maybe TxOut
+getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.ConwayEra -> Maybe TxOut
 getTxBodyContentReturnCollateral C.TxBodyContent {..} =
   case txReturnCollateral of
     C.TxReturnCollateralNone -> Nothing
@@ -444,10 +442,10 @@ getCardanoTxValidityRange (CardanoTx tx _) =
 getCardanoTxData :: CardanoTx -> Map V1.DatumHash V1.Datum
 getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
 
-getTxBodyContentCerts :: C.TxBodyContent ctx era -> [C.Api.TxCert (C.Api.ShelleyLedgerEra era)]
+getTxBodyContentCerts :: C.TxBodyContent ctx era -> [C.Certificate era]
 getTxBodyContentCerts C.TxBodyContent {..} = case txCertificates of
   C.TxCertificatesNone -> mempty
-  C.TxCertificates _ certs -> C.Api.toShelleyCertificate . fst <$> OMap.toAscList certs
+  C.TxCertificates _ certs -> fst <$> OMap.toAscList certs
 
 -- TODO: add txMetaData
 
@@ -478,24 +476,24 @@ getCardanoTxRedeemers (CardanoEmulatorEraTx (C.Tx txBody _)) = snd $ CardanoAPI.
 
 getCardanoTxExtraKeyWitnesses :: CardanoTx -> [C.Hash C.PaymentKey]
 getCardanoTxExtraKeyWitnesses (CardanoEmulatorEraTx tx) = case C.txExtraKeyWits $ C.getTxBodyContent $ C.getTxBody tx of
-  C.Api.TxExtraKeyWitnessesNone -> mempty
-  C.Api.TxExtraKeyWitnesses _ txwits -> txwits
+  C.TxExtraKeyWitnessesNone -> mempty
+  C.TxExtraKeyWitnesses _ txwits -> txwits
 
-addCardanoTxWitness :: C.Api.ShelleyWitnessSigningKey -> CardanoTx -> CardanoTx
+addCardanoTxWitness :: C.ShelleyWitnessSigningKey -> CardanoTx -> CardanoTx
 addCardanoTxWitness witness (CardanoEmulatorEraTx ctx) = CardanoEmulatorEraTx (addWitness ctx)
   where
-    addWitness (C.Api.ShelleyTx shelleyBasedEra (AlonzoTx body wits isValid aux)) =
-      C.Api.ShelleyTx shelleyBasedEra (AlonzoTx body wits' isValid aux)
+    addWitness (C.ShelleyTx shelleyBasedEra (AlonzoTx body wits isValid aux)) =
+      C.ShelleyTx shelleyBasedEra (AlonzoTx body wits' isValid aux)
       where
         wits' = wits <> mempty {txwitsVKey = newWits}
         newWits = case fromShelleyWitnessSigningKey body of
-          C.Api.ShelleyKeyWitness _ wit -> Set.singleton wit
+          C.ShelleyKeyWitness _ wit -> Set.singleton wit
           _ -> Set.empty
 
     fromShelleyWitnessSigningKey txBody =
-      C.Api.makeShelleyKeyWitness
+      C.makeShelleyKeyWitness
         C.shelleyBasedEra
-        (C.Api.ShelleyTxBody C.Api.ShelleyBasedEraConway txBody notUsed notUsed notUsed notUsed)
+        (C.ShelleyTxBody C.ShelleyBasedEraConway txBody notUsed notUsed notUsed notUsed)
         witness
       where
         notUsed = undefined -- hack so we can reuse code from cardano-api

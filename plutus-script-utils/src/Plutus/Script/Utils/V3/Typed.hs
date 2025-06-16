@@ -33,7 +33,7 @@ module Plutus.Script.Utils.V3.Typed
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Codec.Serialise (Serialise)
 import Control.Monad (unless)
 import Control.Monad.Except
@@ -269,20 +269,21 @@ data
     spendingRed
     spendingTxInfo
     votingRed
-    votingTxInfo = ( FromData certifyingRed,
-                     FromData certifyingTxInfo,
-                     FromData mintingRed,
-                     FromData mintingTxInfo,
-                     FromData proposingRed,
-                     FromData proposingTxInfo,
-                     FromData rewardingRed,
-                     FromData rewardingTxInfo,
-                     FromData spendingDat,
-                     FromData spendingRed,
-                     FromData spendingTxInfo,
-                     FromData votingRed,
-                     FromData votingTxInfo
-                   ) =>
+    votingTxInfo
+  = ( FromData certifyingRed,
+      FromData certifyingTxInfo,
+      FromData mintingRed,
+      FromData mintingTxInfo,
+      FromData proposingRed,
+      FromData proposingTxInfo,
+      FromData rewardingRed,
+      FromData rewardingTxInfo,
+      FromData spendingDat,
+      FromData spendingRed,
+      FromData spendingTxInfo,
+      FromData votingRed,
+      FromData votingTxInfo
+    ) =>
   TypedMultiPurposeScript
   { certifyingPurpose :: Maybe (CertifyingPurposeType' certifyingRed certifyingTxInfo),
     mintingPurpose :: Maybe (MintingPurposeType' mintingRed mintingTxInfo),
@@ -463,7 +464,8 @@ checkDatum _ (Datum d) =
 type IsDataDatum a = (FromData (SpendingDatumType a), ToData (SpendingDatumType a))
 
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
-data TypedScriptTxOut a = (IsDataDatum a) =>
+data TypedScriptTxOut a
+  = (IsDataDatum a) =>
   TypedScriptTxOut
   { tyTxOutTxOut :: TxOut,
     tyTxOutData :: SpendingDatumType a

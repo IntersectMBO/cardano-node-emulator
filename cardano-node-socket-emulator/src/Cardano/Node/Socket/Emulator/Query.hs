@@ -4,7 +4,6 @@
 module Cardano.Node.Socket.Emulator.Query (handleQuery) where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (epochInfo)
 import Cardano.Node.Emulator.API qualified as E

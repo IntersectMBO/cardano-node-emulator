@@ -33,7 +33,6 @@ module Ledger.Tx.CardanoAPI
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (..))
 import Cardano.Ledger.BaseTypes (mkTxIxPartial)
 import Cardano.Ledger.Conway qualified as Conway

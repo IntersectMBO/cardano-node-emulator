@@ -25,7 +25,7 @@ module Plutus.Script.Utils.Scripts
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
 import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)

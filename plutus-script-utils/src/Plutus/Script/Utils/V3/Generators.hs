@@ -317,6 +317,12 @@ trueSpendingMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
         $ falseTypedMultiPurposeScript
         `withSpendingPurpose` trueSpendingPurpose @() @() @()
 
+-- | The multi-purpose script that returns @True@ in all purposes
+trueMPScript :: MultiPurposeScript a
+trueMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+  where
+    script = mkMultiPurposeScript trueTypedMultiPurposeScript
+
 falseMPScript :: MultiPurposeScript a
 falseMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
   where

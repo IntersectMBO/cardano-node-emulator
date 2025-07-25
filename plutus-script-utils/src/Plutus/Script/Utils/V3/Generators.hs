@@ -28,6 +28,7 @@ module Plutus.Script.Utils.V3.Generators
     trueMintingMPScript,
     trueSpendingMPScript,
     falseMPScript,
+    trueMPScript,
     multiPurposeScriptValue,
   )
 where

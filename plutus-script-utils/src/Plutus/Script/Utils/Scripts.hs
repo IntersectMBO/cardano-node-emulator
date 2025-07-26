@@ -208,6 +208,9 @@ instance ToValidatorHash PV1.ScriptHash where
 instance ToValidatorHash (Versioned Validator) where
   toValidatorHash = toValidatorHash . toScriptHash . fmap toScript
 
+instance ToValidatorHash (Versioned Script) where
+  toValidatorHash = toValidatorHash . toScriptHash
+
 instance ToScriptHash ValidatorHash where
   toScriptHash = coerce
 
@@ -268,6 +271,9 @@ instance ToMintingPolicyHash PV1.ScriptHash where
 
 instance ToMintingPolicyHash (Versioned MintingPolicy) where
   toMintingPolicyHash = toMintingPolicyHash . toScriptHash . fmap toScript
+
+instance ToMintingPolicyHash (Versioned Script) where
+  toMintingPolicyHash = toMintingPolicyHash . toScriptHash
 
 instance ToMintingPolicyHash PV1.CurrencySymbol where
   toMintingPolicyHash = coerce
@@ -338,6 +344,9 @@ instance ToStakeValidatorHash PV1.ScriptHash where
 
 instance ToStakeValidatorHash (Versioned StakeValidator) where
   toStakeValidatorHash = toStakeValidatorHash . toScriptHash . fmap toScript
+
+instance ToStakeValidatorHash (Versioned Script) where
+  toStakeValidatorHash = toStakeValidatorHash . toScriptHash
 
 instance ToScriptHash StakeValidatorHash where
   toScriptHash = coerce

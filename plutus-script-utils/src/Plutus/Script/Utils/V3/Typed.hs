@@ -41,6 +41,7 @@ import Control.Monad.Except
     throwError,
   )
 import Data.Coerce (coerce)
+import Data.Kind (Type)
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Address
@@ -296,7 +297,7 @@ data
 -- * Compiled multi-purpose scripts
 
 -- | A 'MultiPurposeScript' is a 'Script' with a phantom connection type
-newtype MultiPurposeScript a = MultiPurposeScript {getMultiPurposeScript :: Script}
+newtype MultiPurposeScript (a :: Type) = MultiPurposeScript {getMultiPurposeScript :: Script}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Serialise)
   deriving (PP.Pretty) via (PP.PrettyShow (MultiPurposeScript a))

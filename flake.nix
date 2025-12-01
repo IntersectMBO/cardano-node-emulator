@@ -60,6 +60,7 @@
             pkgs.lmdb
             hpkgs.ghc
             hpkgs.cabal-install
+            hpkgs.cabal-plan
           ];
 
           ## Folders in which to find ".so" files

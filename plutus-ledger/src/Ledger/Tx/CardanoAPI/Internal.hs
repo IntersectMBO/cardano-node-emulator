@@ -92,8 +92,6 @@ module Ledger.Tx.CardanoAPI.Internal
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Internal.Error qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.BM.Data.Tracer (ToObject)
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
@@ -550,7 +548,7 @@ toCardanoPolicyId (P.MintingPolicyHash bs) =
       (deserialiseFromRawBytes C.AsPolicyId (PlutusTx.fromBuiltin bs))
 
 fromCardanoAssetName :: C.AssetName -> Value.TokenName
-fromCardanoAssetName (C.AssetName bs) = Value.TokenName $ PlutusTx.toBuiltin bs
+fromCardanoAssetName (C.UnsafeAssetName bs) = Value.TokenName $ PlutusTx.toBuiltin bs
 
 toCardanoAssetName :: Value.TokenName -> Either ToCardanoError C.AssetName
 toCardanoAssetName (Value.TokenName bs) =

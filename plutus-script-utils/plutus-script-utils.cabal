@@ -120,7 +120,6 @@ library
     , bytestring
     , data-default
     , mtl
-    , optics-core
     , prettyprinter
     , serialise
     , tagged

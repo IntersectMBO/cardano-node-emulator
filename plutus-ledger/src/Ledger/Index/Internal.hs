@@ -16,7 +16,6 @@
 module Ledger.Index.Internal where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Binary qualified as CBOR
 import Cardano.Ledger.Alonzo.Scripts (AsIx, ExUnits, PlutusPurpose)
 import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))

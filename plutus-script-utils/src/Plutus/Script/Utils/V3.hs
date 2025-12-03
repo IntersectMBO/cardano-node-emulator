@@ -7,7 +7,7 @@ module Plutus.Script.Utils.V3
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Plutus.Script.Utils.Address as X
 import Plutus.Script.Utils.Data as X
 import Plutus.Script.Utils.Scripts as X

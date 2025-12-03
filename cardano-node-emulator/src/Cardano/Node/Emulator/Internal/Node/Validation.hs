@@ -24,8 +24,7 @@ module Cardano.Node.Emulator.Internal.Node.Validation
   )
 where
 
-import Cardano.Api.Internal.Error qualified as C.Api
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Cardano.Ledger.Alonzo.Plutus.Evaluate qualified as Alonzo
 import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
 import Cardano.Ledger.Alonzo.Tx qualified as Alonzo

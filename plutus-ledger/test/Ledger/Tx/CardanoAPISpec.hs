@@ -14,11 +14,8 @@ import Cardano.Api
     StakeAddressReference (NoStakeAddress, StakeAddressByValue),
     StakeCredential,
     makeShelleyAddress,
-    shelleyAddressInEra,
   )
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley (StakeCredential (StakeCredentialByKey), shelleyBasedEra)
-import Cardano.Api.Shelley qualified as C
 import GHC.Exts (fromList)
 import Hedgehog (Gen, Property, forAll, property, tripping, (===))
 import Hedgehog qualified
@@ -93,7 +90,7 @@ addressRoundTripSpec :: Property
 addressRoundTripSpec = property $ do
   networkId <- forAll genNetworkId
   shelleyAddr <-
-    shelleyAddressInEra shelleyBasedEra
+    C.shelleyAddressInEra C.shelleyBasedEra
       <$> forAll
         ( makeShelleyAddress networkId
             <$> genPaymentCredential
@@ -121,7 +118,7 @@ genStakeAddressReference =
 genStakeCredential :: Gen StakeCredential
 genStakeCredential = do
   vKey <- Gen.genVerificationKey AsStakeKey
-  return . StakeCredentialByKey $ verificationKeyHash vKey
+  return . C.StakeCredentialByKey $ verificationKeyHash vKey
 
 -- Copied from Gen.Cardano.Api.Typed, because it's not exported.
 genNetworkId :: Gen NetworkId

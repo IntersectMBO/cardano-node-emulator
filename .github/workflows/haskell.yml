@@ -24,7 +24,6 @@ jobs:
         ghc: ["9.6.6"] # Same version as in Nix shell (see nix/project.nix)
         cabal: ["3.14.1.0"]
         sys:
-          - { os: windows-latest, shell: 'C:/msys64/usr/bin/bash.exe -e {0}' }
           - { os: ubuntu-latest,  shell: bash }
 
     defaults:
@@ -131,7 +130,6 @@ jobs:
       run: cabal build all --enable-tests
 
     - name: Run tests
-      if: ${{ matrix.sys.os != 'windows-latest' }} # Some tests don't pass on Windows
       env:
         TMPDIR: ${{ runner.temp }}
         TMP: ${{ runner.temp }}

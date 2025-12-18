@@ -21,6 +21,10 @@ module Cardano.Node.Emulator.Internal.Node.Validation
     updateStateParams,
     elsConstitutionScriptL,
     registerStakeCredential,
+    setReward,
+    setDeposit,
+    getDeposit,
+    getReward,
   )
 where
 
@@ -121,6 +125,66 @@ registerStakeCredential sCred reward deposit =
             (UM.compactCoinOrError deposit)
         )
         . UM.RewDepUView
+    )
+
+-- | Sets the rewards for an existing stake credential, overriding the old one,
+-- and doing nothing if no such stake credential is found.
+setReward :: Cardano.StakeCredential -> Cardano.Coin -> EmulatedLedgerState -> EmulatedLedgerState
+setReward sCred reward =
+  over
+    ( elsLedgerStateL
+        . Shelley.lsCertStateL
+        . Shelley.certDStateL
+        . Shelley.dsUnifiedL
+    )
+    ( \umap@(UM.RewDepUView -> uview) ->
+        maybe
+          umap
+          (\rdPair -> UM.insert sCred (rdPair {UM.rdReward = UM.compactCoinOrError reward}) uview)
+          (UM.lookup sCred uview)
+    )
+
+-- | Gets the deposit for a stake credential
+getDeposit :: Cardano.StakeCredential -> EmulatedLedgerState -> Maybe Cardano.Coin
+getDeposit sCred =
+  (UM.rdDepositCoin <$>)
+    . UM.lookup sCred
+    . UM.RewDepUView
+    . view
+      ( elsLedgerStateL
+          . Shelley.lsCertStateL
+          . Shelley.certDStateL
+          . Shelley.dsUnifiedL
+      )
+
+-- | Gets the deposit for a stake credential
+getReward :: Cardano.StakeCredential -> EmulatedLedgerState -> Maybe Cardano.Coin
+getReward sCred =
+  (UM.rdRewardCoin <$>)
+    . UM.lookup sCred
+    . UM.RewDepUView
+    . view
+      ( elsLedgerStateL
+          . Shelley.lsCertStateL
+          . Shelley.certDStateL
+          . Shelley.dsUnifiedL
+      )
+
+-- | Sets the deposit for an existing stake credential, overriding the old one,
+-- and doing nothing if no such stake credential is found.
+setDeposit :: Cardano.StakeCredential -> Cardano.Coin -> EmulatedLedgerState -> EmulatedLedgerState
+setDeposit sCred deposit =
+  over
+    ( elsLedgerStateL
+        . Shelley.lsCertStateL
+        . Shelley.certDStateL
+        . Shelley.dsUnifiedL
+    )
+    ( \umap@(UM.RewDepUView -> uview) ->
+        maybe
+          umap
+          (\rdPair -> UM.insert sCred (rdPair {UM.rdDeposit = UM.compactCoinOrError deposit}) uview)
+          (UM.lookup sCred uview)
     )
 
 -- | Tampers with the Slot number
@@ -308,6 +372,6 @@ createTransactionBody ::
   P.Ledger.CardanoBuildTx ->
   Either P.Ledger.ToCardanoError (C.Api.TxBody C.Api.ConwayEra)
 createTransactionBody params (P.Ledger.CardanoBuildTx bodyContent) =
-  let bodyContent' = bodyContent {C.Api.txProtocolParams = C.Api.BuildTxWith $ Just $ ledgerProtocolParameters params}
-   in first (P.Ledger.TxBodyError . C.Api.displayError) $
-        C.Api.createTransactionBody C.Api.shelleyBasedEra bodyContent'
+  first (P.Ledger.TxBodyError . C.Api.displayError) $
+    C.Api.createTransactionBody C.Api.shelleyBasedEra $
+      bodyContent {C.Api.txProtocolParams = C.Api.BuildTxWith $ Just $ ledgerProtocolParameters params}

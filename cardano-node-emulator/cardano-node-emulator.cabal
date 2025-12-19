@@ -53,13 +53,13 @@ library
   --------------------
   build-depends:
     , freer-extras
-    , plutus-ledger
+    , plutus-ledger  ==1.4.1.0
 
   --------------------------
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api
+    , cardano-api             ^>=10.18
     , cardano-api:gen
     , cardano-crypto
     , cardano-ledger-alonzo

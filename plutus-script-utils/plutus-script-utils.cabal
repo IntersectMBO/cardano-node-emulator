@@ -94,7 +94,7 @@ library
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api
+    , cardano-api          ^>=10.18
     , cardano-ledger-core
     , plutus-core
     , plutus-ledger-api

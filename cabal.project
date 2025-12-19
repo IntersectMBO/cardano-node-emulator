@@ -12,9 +12,9 @@ repository cardano-haskell-packages
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
 index-state:
-  , hackage.haskell.org 2025-04-16T16:04:13Z
-  , cardano-haskell-packages 2025-05-16T15:25:35Z
-      
+  , hackage.haskell.org 2025-11-05T09:40:54Z
+  , cardano-haskell-packages 2025-11-20T19:29:50Z
+
 packages: plutus-ledger
           plutus-script-utils
           cardano-node-emulator
@@ -22,7 +22,7 @@ packages: plutus-ledger
           freer-extras
 
 constraints:
-  cardano-api == 10.16.1.0
+  cardano-api == 10.18.0.0
           
 -- We never, ever, want this.
 write-ghc-environment-files: never

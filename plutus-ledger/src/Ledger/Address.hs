@@ -35,7 +35,6 @@ module Ledger.Address
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise (Serialise)

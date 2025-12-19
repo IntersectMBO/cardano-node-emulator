@@ -20,8 +20,6 @@ where
 
 import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
-import Cardano.Binary qualified as C
 import Cardano.Ledger.Alonzo.Genesis ()
 import Codec.Serialise (Serialise, decode, encode)
 import Control.Lens qualified as L

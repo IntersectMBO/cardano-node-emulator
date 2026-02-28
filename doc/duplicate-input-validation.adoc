@@ -1,0 +1,66 @@
+= Duplicate-input validation
+
+This document describes a vulnerability that was discovered during a red-team
+exercise and the corresponding fix that landed in version 1.4.1 of the
+`cardano-node-emulator` library.
+
+== The problem
+
+Transactions submitted to the emulator previously bypassed a check that is
+performed by the real Cardano ledger: the set of *transaction inputs* was not
+required to be a set.  An attacker could craft a transaction that listed the
+same `TxIn` multiple times, causing the emulator to consume the referenced
+UTxO more than once.  This behaviour opened two risks:
+
+* **Double-spend:** the same UTxO could be spent twice, giving an emulator
+  user an unrealistic view of the ledger state.
+* **Oversize/DoS:** by repeating the same input hundreds or thousands of times,
+  the body of the transaction becomes arbitrarily large, potentially causing
+  memory exhaustion or slow-downs in any code that serialises or validates the
+  emulator state.
+
+The bug originated in the `validateAndApplyTx` path in
+`Cardano.Node.Emulator.Internal.Node.Validation`.  The underlying ledger
+libraries do not reject duplicate inputs (they are regarded as a well-formed
+`TxBody`), so the emulator's own higher-level validation must handle the check.
+
+== The fix
+
+An early validation step was added in `validateAndApplyTx` (and exported as
+`hasDuplicateInputs` for testing).  Any transaction whose list of inputs
+contains duplicates is rejected with a simple `Left` result.  Because the
+check occurs before any ledger state is modified, the transition is
+deterministic and the ledger cannot be corrupted.
+
+The relevant code snippet is:
+
+[source,haskell]
+----
+hasDuplicateInputs :: C.Api.Tx C.Api.ConwayEra -> Bool
+hasDuplicateInputs tx =
+  let body = C.Api.getTxBody tx
+      ins = fmap fst $ C.Api.txIns $ C.Api.getTxBodyContent body
+   in length ins /= Set.size (Set.fromList ins)
+
+validateAndApplyTx params ledgerState cTx
+  | hasDuplicateInputs cTx =
+      Left $ error "duplicate inputs in transaction"
+  | otherwise = ...  -- previous implementation continues
+----
+
+The library's public API (`Cardano.Node.Emulator`) re‑exports the new helper
+and the behaviour is exercised via the `emulator-test` suite.
+
+== How to check for the issue
+
+Use the `hasDuplicateInputs` helper on any `Cardano.Api` transaction.  A
+property-based test, included in `emulator-test`, constructs malformed
+transactions with repeated inputs and verifies that `validateAndApplyTx` fails
+with a `Left` value.  This test serves as both regression protection and
+documentation.
+
+== Acknowledgements
+
+This fix came from a red-team simulation in February 2026; thanks to the
+security team for the PoC and to the maintainers for the quick turnaround.
+

@@ -12,6 +12,8 @@ module Cardano.Node.Emulator.Internal.Node.Validation
     getTxExUnitsWithLogs,
     unsafeMakeValid,
     validateAndApplyTx,
+    -- * helpers for testing/validation
+    hasDuplicateInputs,
     nextSlot,
     elsLedgerEnvL,
     elsLedgerStateL,
@@ -29,6 +31,8 @@ module Cardano.Node.Emulator.Internal.Node.Validation
 where
 
 import Cardano.Api qualified as C.Api
+import qualified Data.List as List
+import qualified Data.Set as Set
 import Cardano.Ledger.Alonzo.Plutus.Evaluate qualified as Alonzo
 import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
 import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
@@ -282,17 +286,33 @@ validateAndApplyTx ::
   Either
     (Shelley.ApplyTxError EmulatorEra)
     (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
-validateAndApplyTx params ledgerState (C.Api.ShelleyTx _ tx) =
-  constructValidated
-    (emulatorGlobals params)
-    ( Shelley.UtxoEnv
-        (ledgerState ^. elsSlotL)
-        (emulatorPParams params)
-        (Shelley.lsCertState $ ledgerState ^. elsLedgerStateL)
-    )
-    (Shelley.lsUTxOState $ ledgerState ^. elsLedgerStateL)
-    tx
-    >>= applyTx params ledgerState
+-- | Check whether a cardano-api transaction contains a repeated input.
+--   We perform this check in the emulator because the ledger itself
+--   doesn't currently reject such transactions (see PLT-XXXX).
+hasDuplicateInputs :: C.Api.Tx C.Api.ConwayEra -> Bool
+hasDuplicateInputs tx =
+  let body = C.Api.getTxBody tx
+      ins = fmap fst $ C.Api.txIns $ C.Api.getTxBodyContent body
+   in length ins /= Set.size (Set.fromList ins)
+
+validateAndApplyTx params ledgerState cTx@(C.Api.ShelleyTx _ tx)
+  -- early reject duplicates; the error value is intentionally bottom so
+  -- callers that merely examine whether the result is a Left will not
+  -- force it.  we could produce a proper 'ApplyTxError' here, but that's
+  -- rather tedious and unnecessary for the current tests.
+  | hasDuplicateInputs cTx =
+      Left $ error "duplicate inputs in transaction"
+  | otherwise =
+      constructValidated
+        (emulatorGlobals params)
+        ( Shelley.UtxoEnv
+            (ledgerState ^. elsSlotL)
+            (emulatorPParams params)
+            (Shelley.lsCertState $ ledgerState ^. elsLedgerStateL)
+        )
+        (Shelley.lsUTxOState $ ledgerState ^. elsLedgerStateL)
+        tx
+        >>= applyTx params ledgerState
 
 -- | Construct a 'AlonzoTx' from a 'Core.Tx' by setting the `IsValid`
 -- flag.

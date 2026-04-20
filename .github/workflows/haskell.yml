@@ -72,7 +72,7 @@ jobs:
       with:
         use-sodium-vrf: true # default is true
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Cabal update
       run: cabal update

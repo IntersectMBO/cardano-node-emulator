@@ -1,0 +1,12 @@
+./cardano-node-emulator/src/Cardano/Node/Emulator.hs
+./cardano-node-emulator/src/Cardano/Node/Emulator/Generators.hs
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs
+./plutus-ledger/src/Ledger/Orphans.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V1.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V2/Generators.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V2/Typed.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V3/Generators.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V3.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V2.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V1/Generators.hs
+./plutus-script-utils/src/Plutus/Script/Utils/V1/Typed.hs

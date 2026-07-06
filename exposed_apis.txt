@@ -1,0 +1,187 @@
+./cardano-node-emulator/src/Cardano/Node/Emulator.hs:    module Cardano.Node.Emulator.API,
+./cardano-node-emulator/src/Cardano/Node/Emulator.hs:import Cardano.Node.Emulator.API
+./cardano-node-emulator/src/Cardano/Node/Emulator/Internal/API.hs:module Cardano.Node.Emulator.Internal.API
+./cardano-node-emulator/src/Cardano/Node/Emulator/Internal/Node/Validation.hs:import Cardano.Ledger.Shelley.API qualified as Shelley
+./cardano-node-emulator/src/Cardano/Node/Emulator/Internal/Node/Validation.hs:import Ledger.Tx.CardanoAPI qualified as P.Ledger
+./cardano-node-emulator/src/Cardano/Node/Emulator/Internal/Node/Params.hs:import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
+./cardano-node-emulator/src/Cardano/Node/Emulator/Internal/Node/Params.hs:import Cardano.Ledger.Shelley.API qualified as C.Ledger
+./cardano-node-emulator/src/Cardano/Node/Emulator/Generators.hs:import Cardano.Ledger.Shelley.API (Coin (Coin))
+./cardano-node-emulator/src/Cardano/Node/Emulator/Generators.hs:import Ledger.Tx.CardanoAPI qualified as LC
+./cardano-node-emulator/src/Cardano/Node/Emulator/Generators.hs:import Ledger.Value.CardanoAPI qualified as Value
+./cardano-node-emulator/src/Cardano/Node/Emulator/API.hs:module Cardano.Node.Emulator.API
+./cardano-node-emulator/src/Cardano/Node/Emulator/API.hs:import Cardano.Ledger.Shelley.API
+./cardano-node-emulator/src/Cardano/Node/Emulator/API.hs:import Cardano.Node.Emulator.Internal.API
+./cardano-node-emulator/src/Cardano/Node/Emulator/API.hs:import Ledger.Tx.CardanoAPI
+./cardano-node-emulator/src/Cardano/Node/Emulator/LogMessages.hs:import Ledger.Tx.CardanoAPI (CardanoBuildTx)
+./cardano-node-socket-emulator/app/Main.hs:import Cardano.Node.Socket.Emulator qualified as NodeServer
+./cardano-node-socket-emulator/app/Main.hs:main = NodeServer.main NodeServer.prettyTrace def
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:import Cardano.Node.Socket.Emulator.Server qualified as Server
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:    CNSEServerLogMsg (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:    NodeServerConfig (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:import Ledger.Value.CardanoAPI qualified as CardanoAPI
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:main :: Trace IO CNSEServerLogMsg -> NodeServerConfig -> IO ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:main trace nodeServerConfig = core trace nodeServerConfig id
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:core :: Trace IO CNSEServerLogMsg -> NodeServerConfig -> Params.ShelleyConfigUpdater -> IO ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:  nodeServerConfig@NodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:              map (,CardanoAPI.adaValueOf 1_000_000_000) (getAddress <$> nscInitialTxWallets)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:      params <- liftIO $ Params.fromNodeServerConfig updateShelley nodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:      serverHandler <-
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:          Server.runServerNode
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:      void $ liftIO $ forkIO $ slotCoordinator (pSlotConfig params) serverHandler
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:      logInfo StartingCNSEServer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator.hs:prettyTrace :: Trace IO CNSEServerLogMsg
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:import Cardano.Node.Emulator.API
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:data NodeServerConfig = NodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:defaultNodeServerConfig :: NodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:defaultNodeServerConfig =
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:  NodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:instance Default NodeServerConfig where
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:  def = defaultNodeServerConfig
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:data CNSEServerLogMsg
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:  | StartingCNSEServer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:instance Pretty CNSEServerLogMsg where
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Types.hs:    StartingCNSEServer -> "Starting Cardano Node Emulator"
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Query.hs:import Cardano.Node.Emulator.API qualified as E
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Query.hs:import Ledger.Tx.CardanoAPI (fromPlutusIndex)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Cardano.Node.Emulator.API qualified as E
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Cardano.Node.Emulator.Internal.API qualified as E
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Ouroboros.Network.Protocol.ChainSync.Server
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ( ChainSyncServer (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ServerStIdle (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ServerStIntersect (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ServerStNext (..),
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Ouroboros.Network.Protocol.ChainSync.Server qualified as ChainSync
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  { ccCommand :: TQueue ServerCommand,
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ccResponse :: TQueue ServerResponse
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:data ServerHandler = ServerHandler
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    -- The client will send a `ServerCommand` and the server will
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    -- respond with a `ServerResponse`.
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:-- | The commands that control the server. This API is not part of the client
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:--     returned ServerHandler
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:data ServerCommand
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:instance Show ServerCommand where
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:data ServerResponse
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:processBlock :: (MonadIO m) => ServerHandler -> m Block
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:processBlock ServerHandler {shCommandChannel} = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:modifySlot :: (MonadIO m) => (Slot -> Slot) -> ServerHandler -> m Slot
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:modifySlot f ServerHandler {shCommandChannel} = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:addTx :: (MonadIO m) => ServerHandler -> C.Tx C.ConwayEra -> m ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:addTx ServerHandler {shCommandChannel} tx = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:runServerNode ::
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m ServerHandler
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:runServerNode trace shSocketPath k initialState = liftIO $ do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  pure $ ServerHandler {shSocketPath, shCommandChannel}
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStIdle block (Point block) Tip m ())
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ServerStIdle
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:        (ServerStNext block (Point block) Tip m ())
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:        (m (ServerStNext block (Point block) Tip m ()))
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStIntersect block (Point block) Tip m ())
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:        (ChainSyncServer $ cloneChainFrom 0 >>= idleState)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:        (ChainSyncServer $ cloneChainFrom (pointOffset point') >>= idleState)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:{- This is a wrapper around the creation of a `ServerStNext` -}
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStNext block (Point block) Tip m ())
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:      (ChainSyncServer (idleState channel'))
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:chainSyncServer ::
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ChainSyncServer block (Point block) Tip m ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:chainSyncServer =
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ChainSyncServer (cloneChainFrom 0 >>= idleState)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ChainSyncServer block (Point block) Tip ChainSyncMonad a ->
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ChainSyncServer block (Point block) Tip IO a)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ChainSyncServer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:        runChainSyncServer =
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:            runChainSyncServer machine >>= hoistStIdle
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ServerStIdle block (Point block) Tip ChainSyncMonad a ->
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStIdle block (Point block) Tip IO a)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:hoistStIdle (ServerStIdle nextState' findIntersect' done) = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    ServerStIdle
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ServerStIntersect block (Point block) Tip ChainSyncMonad a ->
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStIntersect block (Point block) Tip IO a)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  ServerStNext block (Point block) Tip ChainSyncMonad a ->
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  m (ServerStNext block (Point block) Tip IO a)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  withServerNode
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    nullNetworkServerTracers
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:          ChainSync.chainSyncServerPeer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:                (hoistChainSync chainSyncServer)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:          TxSubmission.localTxSubmissionServerPeer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:            (pure $ txSubmissionServer mvChainState)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:          Query.localStateQueryServerPeer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:            (stateQueryServer mvChainState)
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:txSubmissionServer ::
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  TxSubmission.LocalTxSubmissionServer (Shelley.GenTx block) (ApplyTxErr block) IO ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:txSubmissionServer state =
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  TxSubmission.LocalTxSubmissionServer
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:    { TxSubmission.recvMsgSubmitTx = fmap (,txSubmissionServer state) . submitTx state,
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:stateQueryServer ::
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:  StateQuery.LocalStateQueryServer block (Point block) (Query block) IO ()
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:stateQueryServer state = Query.LocalStateQueryServer {Query.runLocalStateQueryServer = pure idle}
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:      Query.ServerStIdle
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Server.hs:      Query.ServerStAcquired
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Params.hs:fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO Params
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Params.hs:fromNodeServerConfig updateShelley NodeServerConfig {nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Mock.hs:import Cardano.Node.Socket.Emulator.Server qualified as Server
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Mock.hs:  Server.ServerHandler ->
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Mock.hs:slotCoordinator sc serverHandler = do
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Mock.hs:    void $ Server.modifySlot (const slot) serverHandler
+./cardano-node-socket-emulator/src/Cardano/Node/Socket/Emulator/Mock.hs:    void $ Server.processBlock serverHandler
+./plutus-ledger/src/Ledger.hs:import Ledger.Value.CardanoAPI as Export hiding (singleton)
+./plutus-ledger/src/Ledger/Index/Internal.hs:import Cardano.Ledger.Shelley.API (Validated, extractTx)
+./plutus-ledger/src/Ledger/Index/Internal.hs:import Ledger.Tx.CardanoAPI.Internal (CardanoTx, EmulatorEra, pattern CardanoEmulatorEraTx)
+./plutus-ledger/src/Ledger/Tx.hs:import Ledger.Tx.CardanoAPI
+./plutus-ledger/src/Ledger/Tx.hs:import Ledger.Tx.CardanoAPI qualified as CardanoAPI
+./plutus-ledger/src/Ledger/Tx.hs:    (CardanoAPI.fromCardanoReferenceScript rs)
+./plutus-ledger/src/Ledger/Tx.hs:          DatumInBody $ V2.Datum $ CardanoAPI.fromCardanoScriptData d
+./plutus-ledger/src/Ledger/Tx.hs:          DatumInline $ V2.Datum $ CardanoAPI.fromCardanoScriptData d
+./plutus-ledger/src/Ledger/Tx.hs:            <$> CardanoAPI.toCardanoAddressInEra networkId (p ^. decoratedTxOutAddress)
+./plutus-ledger/src/Ledger/Tx.hs:            <*> pure (CardanoAPI.toCardanoTxOutValue (p ^. decoratedTxOutValue))
+./plutus-ledger/src/Ledger/Tx.hs:            <*> pure (CardanoAPI.toCardanoReferenceScript (p ^. decoratedTxOutReferenceScript))
+./plutus-ledger/src/Ledger/Tx.hs:toTxOutDatum = CardanoAPI.toCardanoTxOutDatum . toPlutusOutputDatum
+./plutus-ledger/src/Ledger/Tx.hs:    (CardanoAPI.fromCardanoValue $ p ^. decoratedTxOutValue)
+./plutus-ledger/src/Ledger/Tx.hs:      txIn <- CardanoAPI.toCardanoTxIn outRef
+./plutus-ledger/src/Ledger/Tx.hs:instance Pretty CardanoAPI.CardanoBuildTx where
+./plutus-ledger/src/Ledger/Tx.hs:  pretty txBodyContent = case C.makeSignedTransaction [] <$> CardanoAPI.createTransactionBody txBodyContent of
+./plutus-ledger/src/Ledger/Tx.hs:getTxBodyContentCollateralInputs C.TxBodyContent {..} = CardanoAPI.fromCardanoTxInsCollateral txInsCollateral
+./plutus-ledger/src/Ledger/Tx.hs:  CardanoAPI.fromCardanoTotalCollateral $ C.txTotalCollateral $ C.getTxBodyContent $ C.getTxBody tx
+./plutus-ledger/src/Ledger/Tx.hs:getCardanoTxFee (CardanoTx tx _) = CardanoAPI.fromCardanoFee $ C.txFee $ C.getTxBodyContent $ C.getTxBody tx
+./plutus-ledger/src/Ledger/Tx.hs:   in CardanoAPI.fromCardanoValidityRange (C.txValidityLowerBound bodyContent) (C.txValidityUpperBound bodyContent)
+./plutus-ledger/src/Ledger/Tx.hs:getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
+./plutus-ledger/src/Ledger/Tx.hs:getCardanoTxRedeemers (CardanoEmulatorEraTx (C.Tx txBody _)) = snd $ CardanoAPI.scriptDataFromCardanoTxBody txBody
+./plutus-ledger/src/Ledger/Tx.hs:decoratedTxOutPlutusValue = CardanoAPI.fromCardanoValue . view decoratedTxOutValue
+./plutus-ledger/src/Ledger/Index.hs:import Cardano.Ledger.Shelley.API qualified as C.Ledger
+./plutus-ledger/src/Ledger/Index.hs:import Ledger.Tx.CardanoAPI (fromPlutusTxOut, toCardanoTxOutValue)
+./plutus-ledger/src/Ledger/Index.hs:import Ledger.Value.CardanoAPI (Value, lovelaceToValue)
+./plutus-ledger/src/Ledger/Tx/CardanoAPI/Internal.hs:module Ledger.Tx.CardanoAPI.Internal
+./plutus-ledger/src/Ledger/Tx/CardanoAPI/Internal.hs:-- | Extract plutus scripts from a Cardano API tx body.
+./plutus-ledger/src/Ledger/Tx/CardanoAPI.hs:module Ledger.Tx.CardanoAPI
+./plutus-ledger/src/Ledger/Tx/CardanoAPI.hs:  ( module Ledger.Tx.CardanoAPI.Internal,
+./plutus-ledger/src/Ledger/Tx/CardanoAPI.hs:import Cardano.Ledger.Shelley.API qualified as C.Ledger
+./plutus-ledger/src/Ledger/Tx/CardanoAPI.hs:import Ledger.Tx.CardanoAPI.Internal
+./plutus-ledger/src/Ledger/CardanoWallet.hs:import Ledger.Tx.CardanoAPI.Internal qualified as Tx
+./plutus-ledger/src/Ledger/CardanoWallet.hs:import Servant.API (FromHttpApiData, ToHttpApiData)
+./plutus-ledger/src/Ledger/CardanoWallet.hs:-- | Wrapper for config files and APIs
+./plutus-ledger/src/Ledger/Test.hs:import Ledger.Value.CardanoAPI (policyId)
+./plutus-ledger/src/Ledger/Value/Orphans.hs:without a big rewrite of the API?
+./plutus-ledger/src/Ledger/Value/CardanoAPI.hs:module Ledger.Value.CardanoAPI
+./plutus-ledger/src/Ledger/Value/CardanoAPI.hs:import Ledger.Tx.CardanoAPI.Internal
+./plutus-ledger/src/Ledger/Value/CardanoAPI.hs:    else error "Ledger.Value.CardanoAPI: value is not a whole number of lovelace"
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:module Ledger.Tx.CardanoAPISpec (tests) where
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:import Ledger.Tx.CardanoAPI
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:import Ledger.Value.CardanoAPI (combine, valueGeq)
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:    "CardanoAPI"
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:        "Ledger.Tx.CardanoAPI"
+./plutus-ledger/test/Ledger/Tx/CardanoAPISpec.hs:        "Ledger.Value.CardanoAPI"
+./plutus-ledger/test/Spec.hs:import Ledger.Tx.CardanoAPI (CardanoBuildTx (CardanoBuildTx), CardanoTx (CardanoTx))
+./plutus-ledger/test/Spec.hs:import Ledger.Tx.CardanoAPI qualified as CardanoAPI
+./plutus-ledger/test/Spec.hs:import Ledger.Tx.CardanoAPISpec qualified
+./plutus-ledger/test/Spec.hs:      Ledger.Tx.CardanoAPISpec.tests
+./plutus-ledger/test/Spec.hs:  let toPlutus = map CardanoAPI.fromCardanoTxIn
+./freer-extras/src/Control/Monad/Freer/Extras/Log.hs:    -- ** Handlers
+./plutus-script-utils/src/Plutus/Script/Utils/Data.hs:    toCardanoAPIData,
+./plutus-script-utils/src/Plutus/Script/Utils/Data.hs:    . toCardanoAPIData
+./plutus-script-utils/src/Plutus/Script/Utils/Data.hs:toCardanoAPIData :: Builtins.BuiltinData -> C.Api.HashableScriptData
+./plutus-script-utils/src/Plutus/Script/Utils/Data.hs:toCardanoAPIData =

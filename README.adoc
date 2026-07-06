@@ -26,7 +26,33 @@ Run `nix develop` to enter the development shell and you will be presented with 
 
 **Please see link:CONTRIBUTING{outfilesuffix}[CONTRIBUTING] for comprehensive documentation on how to contribute to the project, including development and submitting changes*
 
+== Running tests
+
+The emulator includes several test suites; the `plutus-ledger` package already
+contains property and unit tests, and the `cardano-node-emulator` library has an
+`emulator-test` suite added in 1.4.1 which exercises the transaction
+validation logic.
+
+You can run the tests in one of two ways:
+
+* **Nix shell** (preferred):
+
+```sh
+nix develop          # drops you into a shell with GHC/Cabal available
+cabal test emulator-test
+```
+
+* **Standalone Cabal**: install `cabal-install` on your system (`sudo apt
+  install cabal-install` on Ubuntu, or `ghcup` on other platforms) and then
+run the same `cabal` commands above from the project root.
+
+The `emulator-test` verifies that transactions containing duplicate inputs are
+rejected; see the documentation link below for details of this red‑team fix.
+
 == Documentation
+
+* link:doc/duplicate-input-validation.adoc[Duplicate-input validation bug and fix]
+
 
 === User documentation
 

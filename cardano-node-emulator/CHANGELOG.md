@@ -13,6 +13,11 @@
 - The default utxo provider for balancing now selects bigger inputs first when adding new inputs, to reduce the number of inputs.
   This was in particular a problem for collateral inputs, of which there can only be 3.
 
+- **Security**: emulator now rejects transactions containing duplicate inputs.
+  This closes a red‑team finding (double-spend/DoS) by performing an early
+  validation step before applying the transaction to the ledger.
+  Added corresponding unit tests in `ValidationSpec.hs`.
+
 <a id='changelog-1.1.0'></a>
 # 1.1.0 — 2023-01-12
 

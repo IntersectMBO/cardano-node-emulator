@@ -72,7 +72,7 @@ jobs:
       with:
         use-sodium-vrf: true # default is true
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Cabal update
       run: cabal update
@@ -96,7 +96,7 @@ jobs:
     # We use the hash of `dependencies.txt` as part of the cache key because that will be stable
     # until the `index-state` values in the `cabal.project` file changes.
     - name: Restore cached dependencies
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: cache
       with:
         path: |
@@ -117,7 +117,7 @@ jobs:
     # Always store the cabal cache.
     # This can fail (benign failure) if there is already a hash at that key.
     - name: Cache Cabal store
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           ${{ steps.setup-haskell.outputs.cabal-store }}

@@ -1,8 +1,6 @@
-= Contributing
-:toc: left
-:reproducible:
+# Contributing
 
-== Setting up and working with our development tools
+## Setting up and working with our development tools
 
 This project relies on Nix to provision the complete toolchain needed to build all repository artifacts.
 
@@ -10,98 +8,93 @@ Thanks to Nix we ensure that everyone has consistent versions of the tools that 
 
 Please use Nix since problems due to mismatched versions of tools are particularly annoying to fix!
 
-If you _really_ cannot use Nix and still want to contribute, then xref:develop-without-nix[skip to the relevant section].
+If you _really_ cannot use Nix and still want to contribute, then [skip to the relevant section](#how-to-develop-without-nix).
 
-=== Installing and setting up Nix
+### Installing and setting up Nix
 
 This repository uses Nix to provide the development and build environment.
 
-For instructions on how to install and configure Nix (including how to enable access to our binary caches), refer to link:https://github.com/input-output-hk/iogx/blob/main/doc/nix-setup-guide.md[this document].
+For instructions on how to install and configure Nix (including how to enable access to our binary caches), refer to [this document](https://github.com/input-output-hk/iogx/blob/main/doc/nix-setup-guide.md).
 
 If you already have Nix installed and configured, you may enter the development shell by running `nix develop`.
 
-=== Note on pre-commit hooks
+### Note on pre-commit hooks
 
 If you are committing code outside `nix develop`, you will get this error:
 
-----
+```
 pre-commit not found. Did you forget to activate your virtualenv?
-----
+```
 
 In that case, you may either pass the flag `--no-verify` to `git commit`, or `pip install pre-commit`.
 
 The `pre-commit` checks will be run by CI anyway, so any formatting errors will be caught when submitting your PR.
 
-=== What to do once inside the `nix develop` shell
+### What to do once inside the `nix develop` shell
 
 Your prompt will change to `[something]` and you will be presented with a menu of available commands.
 
 Please read that menu carefully.
 
-=== How to build the code during development
+### How to build the code during development
 
 The `nix develop` environment has the correct GHC with all the external Haskell dependencies of the project.
 From here you can build the project packages directly with `cabal`.
 
-NOTE: You may need to run `cabal update` so that `cabal` knows about the index state xref:update-index-state[we have pinned].
+> **Note:** You may need to run `cabal update` so that `cabal` knows about the index state [we have pinned](#updating-dependencies).
 
 Run `cabal build all` from the root to build all modules.
 
-See the link:./cabal.project[cabal project file] for a list of other packages that you can build with `cabal`.
+See the [cabal project file](./cabal.project) for a list of other packages that you can build with `cabal`.
 
-=== How to setup `haskell-language-server`
+### How to setup `haskell-language-server`
 
 The `nix develop` environment has a `haskell-language-server-wrapper` binary for the right version of GHC.
 
-IMPORTANT: this binary is called `haskell-language-server-wrapper`, rather than `haskell-language-server`, which is what some of the editor integrations expect.
+> **Important:** this binary is called `haskell-language-server-wrapper`, rather than `haskell-language-server`, which is what some of the editor integrations expect.
 
 We don't have a `hie.yaml`, the implicit cradle support in HLS seems to work fine these days.
 
-[[build-with-nix]]
-=== How to build the project's artifacts with Nix
+### How to build the project's artifacts with Nix
 
-Haskell components are provisioned by Nix through link:https://github.com/input-output-hk/iogx[IOGX] via link:https://github.com/input-output-hk/haskell.nix[Haskell.nix]
+Haskell components are provisioned by Nix through [IOGX](https://github.com/input-output-hk/iogx) via [Haskell.nix](https://github.com/input-output-hk/haskell.nix)
 
 Once inside the `nix develop` shell, you can run the `list-flake-outputs` script to list all buildable Nix derivations.
 
-[[develop-without-nix]]
-=== How to develop without Nix
+### How to develop without Nix
 
 You can build some of the Haskell packages without Nix, but this is not recommended and we don't guarantee that these prerequisites are sufficient.
 
 If you use Nix, these tools are provided for you via `nix develop`, and you do *not* need to install them yourself.
 
-* If you want to build our Haskell packages with https://www.haskell.org/cabal/[`cabal`], then install it.
+* If you want to build our Haskell packages with [`cabal`](https://www.haskell.org/cabal/), then install it.
 
-[WARNING]
-====
-You can also use `cabal` outside the `nix develop` environment to build the project.
-_However_ there are two caveats:
+> **Warning:**
+> You can also use `cabal` outside the `nix develop` environment to build the project.
+> _However_ there are two caveats:
+>
+> * You may get different versions of packages.
+>   * This *shouldn't* happen, but we can't guarantee it.
+> * We are not currently enabling the Nix integration for these tools, so
+>   they will use your system GHC and libraries, rather than that ones that
+>   will be used by Nix.
+>   * We sometimes patch the GHC that we use in Nix, so
+>     this can at least potentially cause problems or cause you to be missing
+>     bug workarounds.
 
-* You may get different versions of packages.
-** This *shouldn't* happen, but we can't guarantee it.
-* We are not currently enabling the Nix integration for these tools, so
-they will use your system GHC and libraries, rather than that ones that
-will be used by Nix.
-** We sometimes patch the GHC that we use in Nix, so
-this can at least potentially cause problems or cause you to be missing
-bug workarounds.
-====
-
-=== How to add a new Haskell package
+### How to add a new Haskell package
 
 You need to do a few things when adding a new package, in the following order:
 
 - Add the cabal file for the new package.
-- Add the package to link:cabal.project[`cabal.project`].
-- Check that you can build the package with nix as well (see xref:build-with-nix[How to build with Nix]) or wait for CI to check this for you.
+- Add the package to [`cabal.project`](cabal.project).
+- Check that you can build the package with nix as well (see [How to build with Nix](#how-to-build-the-projects-artifacts-with-nix)) or wait for CI to check this for you.
 
-[[update-haskell-deps]]
-=== How to update our Haskell dependencies
+### How to update our Haskell dependencies
 
 Our Haskell packages come from two package repositories:
 - Hackage
-- https://github.com/input-output-hk/cardano-haskell-packages[CHaP] (which is essentially another Hackage)
+- [CHaP](https://github.com/input-output-hk/cardano-haskell-packages) (which is essentially another Hackage)
 
 The "index state" of each repository is pinned to a particular time in `cabal.project`.
 This tells Cabal to treat the repository "as if" it was the specified time, ensuring reproducibility.
@@ -112,47 +105,42 @@ That typically just means that we need to fix the breakage (and add a lower-boun
 Note that `cabal` itself keeps track of what index states it knows about, so when you bump the pinned index state you may need call `cabal update` in order for `cabal` to be happy.
 
 The Nix code which builds our packages also cares about the index state.
-This is represented by some pinned inputs in our flake (see xref:update-nix-pins[here] for more details)
+This is represented by some pinned inputs in our flake (see [here](#how-to-update-our-pinned-nix-dependencies) for more details)
 You can update these by running:
 - `nix flake update hackage` for Hackage
 - `nix flake update CHaP` for CHaP
 
 After updating these, you should also consider updating `haskell.nix` with `nix flake lock --update-input haskell-nix` (although that is not mandatory).
 
-==== Use of `source-repository-package`s
+#### Use of `source-repository-package`s
 
 We *can* use Cabal's `source-repository-package` mechanism to pull in un-released package versions.
 However, we should try and avoid this.
 In particular, we should not release our packages while we depend on a `source-repository-package`.
 
-If we are stuck in a situation where we need a long-running fork of a package, we should release it to CHaP instead (see the https://github.com/input-output-hk/cardano-haskell-packages[CHaP README] for more).
+If we are stuck in a situation where we need a long-running fork of a package, we should release it to CHaP instead (see the [CHaP README](https://github.com/input-output-hk/cardano-haskell-packages) for more).
 
 If you do add a `source-repository-package`, you need to update the `sha256` mapping in `nix/project.nix`.
 For the moment you have to do this by hand, using the following command to get the sha: `nix-prefetch-git --quiet <repo-url> <rev> | jq .sha256`, or by just getting it wrong and trying to build it, in which case Nix will give you the right value.
 
-[[update-nix-pins]]
-=== How to update our pinned Nix dependencies
+### How to update our pinned Nix dependencies
 
 We pin versions of some git repositories that are used by Nix, for example `nixpkgs`.
 
-For documentation see https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake.html#flake-inputs[the Nix flake inputs documentation]
-and https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake-lock.html[the Nix flake lock command].
+For documentation see [the Nix flake inputs documentation](https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake.html#flake-inputs)
+and [the Nix flake lock command](https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake-lock.html).
 
 Specifically, you will probably want to say `nix flake lock --update-input <input-name>`.
 
 Do *not* use `nix flake update`, as that will update all the inputs, which we typically don't want to do.
 
-[WARNING]
-====
-Do *not* delete the `flake.lock` and regenerate it by running `nix build` or `nix develop`.
-You will get the latest revision for *all* your flake inputs (similar to what `nix flake update` does) which, again, we typically don't want to do.
-====
+> **Warning:**
+> Do *not* delete the `flake.lock` and regenerate it by running `nix build` or `nix develop`.
+> You will get the latest revision for *all* your flake inputs (similar to what `nix flake update` does) which, again, we typically don't want to do.
 
-[[update-ghc]]
-=== How to upgrade GHC
+### How to upgrade GHC
 
-Refer to the `mkHaskellProject
-<https://github.com/input-output-hk/iogx/blob/main/doc/api.md#mkhaskellproject>` function in IOGX to learn how to use a different compiler.
+Refer to the [`mkHaskellProject`](https://github.com/input-output-hk/iogx/blob/main/doc/api.md#mkhaskellproject) function in IOGX to learn how to use a different compiler.
 
 Afterwards, you need to restart your Nix shell.
 
@@ -162,88 +150,80 @@ Finally, you can submit a PR and CI system will also rebuild GHC.
 
 Once it's done, it will cache the compiled packages, so that they can be reused when users open a Nix shell.
 
-=== How to build the code with profiling
+### How to build the code with profiling
 
 TODO: Currently not available, coming soon
 
-[WARNING]
-====
-The shell with profiling dependencies is not currently cached, so this will result in you rebuilding all of our dependencies with profiling on your machine.
-This will take a *long* time.
-====
+> **Warning:**
+> The shell with profiling dependencies is not currently cached, so this will result in you rebuilding all of our dependencies with profiling on your machine.
+> This will take a *long* time.
 
 Once you have a shell with profiling libraries for our dependencies, add `profiling: true` to `cabal.project.local`, which will tell cabal that you want profiling (in particular, that will cause it to build *our* libraries with profiling).
 
 Alternatively, you can pass the `--enable-profiling` option to `cabal` on an ad-hoc basis, but adding the option to `cabal.project.local` will make it apply to everything, which is probably what you want when you're doing profiling work.
 
 At this point you need to configure which cost centres you want GHC to insert.
-The https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html[GHC user guide] explains this very well.
+The [GHC user guide](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html) explains this very well.
 A typical way of doing this is to add `-fprof-auto` to either the `ghc-options` in the `.cabal` file for the project, or in an `OPTIONS_GHC` pragma in the module you care about.
 
-[WARNING]
-====
-Do *not* set the `-prof` option yourself!
-This will enable profiling libraries unconditionally, which interferes with what `cabal` wants.
-Setting `profiling: true` already sorts this out properly.
-====
+> **Warning:**
+> Do *not* set the `-prof` option yourself!
+> This will enable profiling libraries unconditionally, which interferes with what `cabal` wants.
+> Setting `profiling: true` already sorts this out properly.
 
 Then you can use the RTS `-p` option to dump a profile e.g. `cabal run plc ... -- +RTS -p`.
 
 There are various tools for visualizing the resulting profile, e.g. https://hackage.haskell.org/package/ghc-prof-flamegraph.
 
-[[update-index-state]]
-=== Updating dependencies
+### Updating dependencies
 
 Dependencies are managed through Nix via the IOGX flake. To update
 IOGX means to update `hackage.nix` and `CHaP`.
-==== ... from Hackage
+
+#### ... from Hackage
 
 Updating package dependencies from Hackage should work like normal in a
 Haskell project. The most important thing to note is that we pin the
-``index-state`` of the Hackage package index in ``cabal.project``. This
-means that cabal will always see Hackage “as if” it was that time, ensuring
+`index-state` of the Hackage package index in `cabal.project`. This
+means that cabal will always see Hackage "as if" it was that time, ensuring
 reproducibility. But it also means that if you need a package version that
-was released *after* that time, you need to bump the ``index-state`` (and
-to run ``cabal update`` locally). Please also note that index-state is a
+was released *after* that time, you need to bump the `index-state` (and
+to run `cabal update` locally). Please also note that index-state is a
 property of your working environment (the cabal project) not of the
 packages. This means that downstream consumers have no idea of your
-``index-state`` setting and you need to make sure your packages work
-correctly also without ``index-state``.
+`index-state` setting and you need to make sure your packages work
+correctly also without `index-state`.
 
 Because of how we use Nix to manage our Haskell build, whenever you do this
 you will also need to pull in the Nix equivalent of the newer
-``index-state``. Refer to `this link
-<https://github.com/input-output-hk/iogx#312-inputs>`in IOGX's documentation
-to learn how to update ``hackage.nix``.
+`index-state`. Refer to [this link](https://github.com/input-output-hk/iogx#312-inputs) in IOGX's documentation
+to learn how to update `hackage.nix`.
 
-You can do this by running ``nix flake lock --update-input hackage``.
+You can do this by running `nix flake lock --update-input hackage`.
 
-==== ... from the Cardano package repository
+#### ... from the Cardano package repository
 
-Many Cardano packages are not on Hackage and are instead in the `Cardano
-package repository
-<https://github.com/input-output-hk/cardano-haskell-packages>`, see the
+Many Cardano packages are not on Hackage and are instead in the [Cardano package repository](https://github.com/input-output-hk/cardano-haskell-packages), see the
 README for (lots) more information.
 
 Getting new packages from there works much like getting them from Hackage.
-The differences are that it can have an independent ``index-state``.
-Refer to `this link
-<https://github.com/input-output-hk/iogx#312-inputs>`in IOGX's documentation
-to learn how to update ``CHaP``.
+The differences are that it can have an independent `index-state`.
+Refer to [this link](https://github.com/input-output-hk/iogx#312-inputs) in IOGX's documentation
+to learn how to update `CHaP`.
 
-You can do this by running ``nix flake lock --update-input CHaP``.
+You can do this by running `nix flake lock --update-input CHaP`.
 
-===== Using unreleased versions of dependencies
+##### Using unreleased versions of dependencies
 
 Sometimes we need to use an unreleased version of one of our dependencies,
 either to fix an issue in a package that is not under our control, or to
 experiment with a pre-release version of one of our own packages.
 
-You can use a ``source-repository-package`` stanza to pull in the
+You can use a `source-repository-package` stanza to pull in the
 unreleased version.
 
 Please note that consumers of our packages will not pull these unreleased
-versions when compiling our packages so consider using ``source-repository-package``
+versions when compiling our packages so consider using `source-repository-package`
 only as a temporary solution.
 
 For packages that we do not control, we can end up in a situation where we
@@ -251,20 +231,19 @@ have a fork that looks like it will be long-lived or permanent (e.g. the
 maintainer is unresponsive, or the change has been merged but not
 released).
 
-In that case, release a patched version to the `Cardano package repository
-<https://github.com/input-output-hk/cardano-haskell-packages>`, which
-allows us to remove the ``source-repository-package`` stanza.
+In that case, release a patched version to the [Cardano package repository](https://github.com/input-output-hk/cardano-haskell-packages), which
+allows us to remove the `source-repository-package` stanza.
 
-=== How to work with a local copy of source dependencies
+### How to work with a local copy of source dependencies
 
 Sometimes you may want to make a change that spans both `cardano-node-emulator` *and* some of its dependencies.
 The obvious workflow is to make changes in the dependency's repository, update the pin in `cardano-node-emulator` to point to the new commit, test, repeat.
 But this is very tedious and it's much nicer to work with a local checkout where cabal can incrementally rebuild the whole thing.
-https://github.com/input-output-hk/plutus-apps/blob/main/CONTRIBUTING.adoc#how-to-work-with-a-local-copy-of-source-dependencies[Plutus-apps repository] has a nice example of such workflow.
+[Plutus-apps repository](https://github.com/input-output-hk/plutus-apps/blob/main/CONTRIBUTING.adoc#how-to-work-with-a-local-copy-of-source-dependencies) has a nice example of such workflow.
 
-== Working conventions
+## Working conventions
 
-=== Code is communication
+### Code is communication
 
 We are a relatively large team working on sometimes quite abstruse problems.
 As such, it's important that future people who work on the project know how things work, and just as importantly, why.
@@ -277,10 +256,10 @@ Write it down!
 Code review is a good lens for this: if you have to explain something to a reviewer, then it is probably not clear in the code and should have a note.
 
 This applies both to the code itself (structure, naming, etc.) and also to comments.
-How to write useful comments is a large topic which we don't attempt to cover here, but link:http://antirez.com/news/124[Antirez] is good.
+How to write useful comments is a large topic which we don't attempt to cover here, but [Antirez](http://antirez.com/news/124) is good.
 If in doubt: write more!
 
-==== "Notes"
+#### "Notes"
 
 One special kind of comment is worth drawing attention to.
 We adopt a convention (stolen from GHC) of writing fairly substantial notes in our code with a particular structure.
@@ -294,7 +273,7 @@ The structure is:
 
 For example:
 
-----
+```
 {- Note [How to write a note]
 A note should look a bit like this.
 
@@ -305,34 +284,35 @@ A ----> B >> C
 
 And of course, you should see Note [Another note].
 -}
-----
+```
 
 Notes are a great place to put substantial discussion that you need to refer to from multiple places.
 For example, if you used an encoding trick to fit more data into an output format,
 you could write a Note describing the trick (and justifying its usage!), and then refer to it from the encoder and the decoder.
 
-=== Architecture decision records (ADR)
+### Architecture decision records (ADR)
 
 If a new feature or code refactor requires you to make an "architecturally significant" decision, then you should
 probably write an ADR.
 
-See link:https://plutus-apps.readthedocs.io/en/latest/adr/index.html[the readthedocs page] for more details.
+See [the readthedocs page](https://plutus-apps.readthedocs.io/en/latest/adr/index.html) for more details.
 
-=== Code formatting
+### Code formatting
 
 We use `ormolu` for Haskell code formatting, `nixfmt-classic` for nix files and `cabal-fmt` for cabal files.
-They are run automatically as pre-commit hooks, but CI will run them again and expect that to be a no-op, so if you somehow don’t apply them your PR will not go green.
+They are run automatically as pre-commit hooks, but CI will run them again and expect that to be a no-op, so if you somehow don't apply them your PR will not go green.
 
 To run `fourmolu` or `cabal-fmt` manually over your tree, type `pre-commit run fourmolu` or `pre-commit run cabal-fmt` respectively.
 They are provided by the `nix develop` environment.
-=== Compiler warnings
+
+### Compiler warnings
 
 The CI builds Haskell code with `-Werror`, so will fail if there are any compiler warnings.
 So fix your own warnings!
 
 If the warnings are stupid, we can turn them off, e.g. sometimes it makes sense to add `-Wno-orphans` to a file where we know it's safe.
 
-=== Commit messages
+### Commit messages
 
 Please make informative commit messages!
 It makes it much easier to work out why things are the way they are when you're debugging things later.
@@ -344,15 +324,15 @@ It is even better to include this information in the code itself, but sometimes 
 Also, include any relevant meta-information, such as ticket numbers.
 If a commit completely addresses a ticket, you can put that in the headline if you want, but it's fine to just put it in the body.
 
-There is plenty to say on this topic, but broadly the guidelines in link:https://chris.beams.io/posts/git-commit/[this post] are good.
+There is plenty to say on this topic, but broadly the guidelines in [this post](https://chris.beams.io/posts/git-commit/) are good.
 
-=== Commit signing
+### Commit signing
 
 Set it up if you can, it's relatively easy to do.
 
-== Making and reviewing changes
+## Making and reviewing changes
 
-=== Opening a pull request
+### Opening a pull request
 
 A pull request is a change to the codebase, but it is also an artifact which goes through a change acceptance process.
 There are a bunch of things which we can do to make this process smooth which may have nothing to do with the code itself.
@@ -362,12 +342,12 @@ Code review is great (see below), but it can slow you down if you don't take the
 
 The amount of time it's worth spending doing this is probably much more than you think.
 
-==== What branch to target
+#### What branch to target
 
 There are two protected branches, `main` and `next-node`.
 PRs should generally target the `main` branch, unless the change is only applicable to `next-node`.
 
-==== What changes to include, and pull request sizes
+#### What changes to include, and pull request sizes
 
 When developing a non-trivial new feature, usually the best way to get the code reviewed is to break the implementation down to a chain of small diffs, each representing a meaningful, logical and reviewable step.
 Unfortunately GitHub doesn't have good support for this.
@@ -400,7 +380,7 @@ Or maybe it's a piece of performance improvement work, and you don't know whethe
 Whichever option you choose, please keep each of your PR to a single topic.
 Do not mix business logic with such things as reformatting and refactoring in a single PR.
 
-==== Pull request descriptions
+#### Pull request descriptions
 
 A pull request is communication, so as usual, put yourself in the position of the reader: what does your audience (the reviewer) need to know to do their job?
 This information is easy for you to access, but hard for them to figure out, so write it down!
@@ -410,14 +390,14 @@ It's okay to repeat information from such places, or simply to point to it.
 For one-commit PRs, Github will automatically populate the PR description with the commit message, so if you've written a good commit message you're done!
 Sometimes there is "change-related" information that doesn't belong in a commit message but is useful ("Kris I think this will fix the issue you had yesterday").
 
-==== Misc PR tips
+#### Misc PR tips
 
 * Review the diff of your own PR at the last minute before hitting "create".
 It's amazing how many obvious things you spot here, and it stops the reviewer having to point them all out.
 * It's fine to make WIP PRs if you just want to show your code to someone else or have the CI check it.
 Use the Github "draft" feature for this.
 
-=== Rebasing and force pushing
+### Rebasing and force pushing
 
 Force pushing to `main` or `next-node` is never allowed.
 There is no exception to this rule.
@@ -444,7 +424,7 @@ Rebasing and force pushing can be used to your advantage, for example:
 
 It is advisable to always prefer `git push --force-with-lease` instead of `git push --force` to ensure that no work gets accidentally deleted.
 
-=== Code review
+### Code review
 
 All pull-requests should be approved by at least one other person.
 We don't enforce this, though: a PR fixing a typo is fine to self-merge, beyond that use your judgement.
@@ -453,7 +433,7 @@ As an author, code review is an opportunity for you to get feedback from clear e
 As a reviewer, code review is an opportunity for you to help your colleagues and learn about what they are doing.
 Make the best use of it you can!
 
-==== For the author
+#### For the author
 
 * Pick the right reviewer(s).
 If you don't know who to pick, ask!
@@ -463,7 +443,7 @@ Their time is as valuable as yours, and it's typically more efficient for you to
 
 Read this blog post for more good tips: https://mtlynch.io/code-review-love/
 
-==== For the reviewer
+#### For the reviewer
 
 * Respond to review requests as quickly as you can.
 If you can't review it all, say what you can and come back to it.
@@ -479,9 +459,9 @@ Read these blog posts for more good tips:
 - https://mtlynch.io/human-code-reviews-1/
 - https://mtlynch.io/human-code-reviews-2/
 
-=== Merging PRs
+### Merging PRs
 
-==== Merge method and commit history
+#### Merge method and commit history
 
 This repo allows two merge methods: squash and merge, and rebase and merge.
 Use the one you deem appropriate.
@@ -493,10 +473,10 @@ If you use this method, your PR must have a clean commit history: every commit s
 You don't want to have commits like "fix a typo", "this may work" or "wip, done for the day" in `main` with a linear history.
 And if some of these commits are non-buildable, it can create problems for "git bisect".
 
-==== Beware divergence of `main` and PR branch
+#### Beware divergence of `main` and PR branch
 
 Merging a PR can break `main`, if the PR branch has diverged from `main`, even if CI on the PR is green.
-This happens because the PRs conflict in a way that isn’t obvious to git, e.g. one adds a usage of a function and the other removes that function.
+This happens because the PRs conflict in a way that isn't obvious to git, e.g. one adds a usage of a function and the other removes that function.
 The problems with a broken `main` include inconveniencing other developers, and causing problems for "git bisect".
 There are ways to guarantee `main` never breaks, such as GitHub's [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
 
@@ -510,17 +490,17 @@ And whenever you notice a broken `main`, please fix it ASAP.
 
 The same holds for `next-node` if your PR targets `next-node`.
 
-=== Changelog
+### Changelog
 
-Each cabal package has its own changelog. We use https://github.com/nedbat/scriv[`scriv`] — a changelog management tool — to avoid conflicts.
+Each cabal package has its own changelog. We use [`scriv`](https://github.com/nedbat/scriv) — a changelog management tool — to avoid conflicts.
 
-==== When to write a changelog entry
+#### When to write a changelog entry
 
 The broad heuristic is to put yourself in the position of the consumer of the piece of software in question and ask if you would want to know about this change. If the answer is yes, then write a quick changelog entry.
 
 It's important to reflect the changes that affect the API and break backwards compatibility.
 
-==== How to write a changelog entry
+#### How to write a changelog entry
 
 The basic idea is that you write a changelog "fragment" in the `changelog.d` directory.
 When we do a release, these will be collected into the main `CHANGELOG.md`.
@@ -529,10 +509,9 @@ Usually we don't edit `CHANGELOG.md` directly.
 You can make a changelog fragment using `scriv create` in the package directory, but you can also just create the fragment directly with an editor.
 A fragment is a markdown file beginning with a header giving the category of change.
 
+## Supporting systems
 
-== Supporting systems
-
-=== Continuous integration
+### Continuous integration
 
 We have a few sources of CI checks at the moment:
 
@@ -544,10 +523,10 @@ We have a few sources of CI checks at the moment:
 The CI will report statuses on your PRs with links to the logs in case of failure.
 Pull requests cannot be merged without at least the Hydra CI check being green.
 
-NOTE: This isn't strictly true: repository admins (notably @koslambrou) can force-merge PRs without the checks being green
-If you really need this, ask.
+> **Note:** This isn't strictly true: repository admins (notably @koslambrou) can force-merge PRs without the checks being green
+> If you really need this, ask.
 
-==== Hydra
+#### Hydra
 
 Hydra is the "standard" CI builder for Nix-based projects.
 It builds everything in the project, including all the tests, documentation, etc.
@@ -561,7 +540,7 @@ These will be automatically retried, but if you're in a hurry @koslambrou has pe
 Nondeterministic failures are very annoying.
 @koslambrou also has permissions to restart failed builds.
 
-==== ReadTheDocs
+#### ReadTheDocs
 
 The documentation site is built on ReadTheDocs.
 It will build a preview for each PR which is linked from the PR status.
@@ -572,15 +551,15 @@ If you get a segfault, run `GC_DONT_GC=1 nix develop` instead.
 
 Then you can run `serve-docs` to host a local instance at http://0.0.0.0:8002 (Haddock is at http://0.0.0.0:8002/haddock).
 
-==== Github Actions
+#### Github Actions
 
 These perform some of the same checks as Hydra, but Github Actions is often more available, so they return faster and act as a "smoke check".
 
-==== Buildkite
+#### Buildkite
 
 Buildkite currently only performs the continuous deployment steps.
 
-== Project roles and responsibilities
+## Project roles and responsibilities
 
 - The regular contributors to the Haskell code, all of whom can review and merge PRs are:
     - @koslambrou

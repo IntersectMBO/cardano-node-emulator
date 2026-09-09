@@ -302,7 +302,7 @@ See [the readthedocs page](https://plutus-apps.readthedocs.io/en/latest/adr/inde
 We use `ormolu` for Haskell code formatting, `nixfmt-classic` for nix files and `cabal-fmt` for cabal files.
 They are run automatically as pre-commit hooks, but CI will run them again and expect that to be a no-op, so if you somehow don't apply them your PR will not go green.
 
-To run `fourmolu` or `cabal-fmt` manually over your tree, type `pre-commit run fourmolu` or `pre-commit run cabal-fmt` respectively.
+To run `ormolu` or `hpack` manually over your tree, type `pre-commit run ormolu` or `pre-commit run hpack` respectively.
 They are provided by the `nix develop` environment.
 
 ### Compiler warnings

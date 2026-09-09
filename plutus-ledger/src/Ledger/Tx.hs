@@ -353,8 +353,8 @@ instance Pretty CardanoTx where
                    )
                ]
             ++ [ hang 2 (vsep ("required signatures:" : (viaShow <$> wits)))
-                 | let wits = getCardanoTxExtraKeyWitnesses tx,
-                   not (null wits)
+               | let wits = getCardanoTxExtraKeyWitnesses tx,
+                 not (null wits)
                ]
             ++ renderScriptWitnesses tx
      in nest 2 $ vsep ["Tx" <+> pretty (getCardanoTxId tx) <> colon, vsep lines']

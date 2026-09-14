@@ -33,7 +33,7 @@ module Plutus.Script.Utils.V1.Typed
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Control.Monad (unless)
 import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson (FromJSON, ToJSON)
@@ -274,7 +274,8 @@ checkDatum _ (Datum d) =
 type IsDataDatum a = (FromData (DatumType a), ToData (DatumType a))
 
 -- | A 'TxOut' tagged by a phantom type: the connection type of the output.
-data TypedScriptTxOut a = (IsDataDatum a) =>
+data TypedScriptTxOut a
+  = (IsDataDatum a) =>
   TypedScriptTxOut
   { tyTxOutTxOut :: TxOut,
     tyTxOutData :: DatumType a

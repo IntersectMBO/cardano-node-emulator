@@ -10,8 +10,6 @@ module Plutus.Script.Utils.Value
     adaOnlyValue,
     isAdaOnlyValue,
     currencyValueOf,
-    adaL,
-    flattenValueI,
     divide,
     isZero,
     ToValue (..),
@@ -23,7 +21,6 @@ where
 
 import Codec.Serialise.Class (Serialise)
 import Data.Fixed (Fixed (MkFixed), Micro)
-import Optics.Core (Iso', Lens', iso, lens, over, (^.))
 import PlutusLedgerApi.V1.Value
   ( AssetClass,
     CurrencySymbol,
@@ -32,19 +29,12 @@ import PlutusLedgerApi.V1.Value
     adaSymbol,
     adaToken,
     assetClass,
-    assetClassValue,
-    flattenValue,
     lovelaceValueOf,
     singleton,
   )
 import PlutusLedgerApi.V1.Value qualified as V1 (isZero)
 import PlutusLedgerApi.V3.MintValue (MintValue (UnsafeMintValue))
 import PlutusTx.AssocMap qualified as Map
-import PlutusTx.List
-  ( filter,
-    foldl,
-    map,
-  )
 import PlutusTx.Prelude
   ( Bool,
     Eq ((==)),
@@ -54,13 +44,11 @@ import PlutusTx.Prelude
     MultiplicativeMonoid,
     MultiplicativeSemigroup,
     Semigroup,
-    fst,
     mempty,
     (*),
     (+),
     (-),
     (.),
-    (/=),
     (<>),
   )
 import PlutusTx.Prelude qualified as P
@@ -109,29 +97,6 @@ instance ToValue Lovelace where
 divide :: Lovelace -> Lovelace -> Lovelace
 divide (Lovelace a) (Lovelace b) = Lovelace (P.divide a b)
 
-{-# INLINEABLE flattenValueI #-}
-
--- | Isomorphism between values and lists of pairs AssetClass and Integers
-flattenValueI :: Iso' Value [(AssetClass, Integer)]
-flattenValueI =
-  iso
-    (map (\(cSymbol, tName, amount) -> (assetClass cSymbol tName, amount)) . flattenValue)
-    (foldl (\v (ac, amount) -> v <> assetClassValue ac amount) mempty)
-
-{-# INLINEABLE adaL #-}
-
--- | Focus the Lovelace part in a value.
-adaL :: Lens' Value Lovelace
-adaL =
-  lens
-    lovelaceValueOf
-    ( \value (Lovelace amount) ->
-        over
-          flattenValueI
-          (((adaAssetClass, amount) :) . filter ((/= adaAssetClass) . fst))
-          value
-    )
-
 {-# INLINEABLE adaAssetClass #-}
 
 -- | Lovelace asset class
@@ -160,7 +125,7 @@ noAdaValue v = v - adaOnlyValue v
 
 -- | Value without any non-ada tokens
 adaOnlyValue :: Value -> Value
-adaOnlyValue = toValue . (^. adaL)
+adaOnlyValue = toValue . lovelaceValueOf
 
 {-# INLINEABLE isAdaOnlyValue #-}
 

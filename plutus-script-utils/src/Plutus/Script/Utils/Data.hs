@@ -8,7 +8,7 @@ module Plutus.Script.Utils.Data
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V2 qualified as PV2
 import PlutusTx.Builtins qualified as Builtins

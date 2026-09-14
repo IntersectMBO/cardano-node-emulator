@@ -50,7 +50,6 @@ module Ledger.Index
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C.Api
 import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway qualified as Conway
 import Cardano.Ledger.Core (PParams, getMinCoinTxOut)
@@ -208,7 +207,7 @@ maxFee = PV1.Lovelace 1_000_000
 -- | cardano-ledger validation rules require the presence of inputs and
 -- we have to provide a stub TxIn for the genesis transaction.
 genesisTxIn :: C.TxIn
-genesisTxIn = C.TxIn "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53" (C.TxIx 40_214)
+genesisTxIn = C.TxIn (C.TxId "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53") (C.TxIx 40_214)
 
 createGenesisTransaction :: Map.Map CardanoAddress Value -> CardanoTx
 createGenesisTransaction vals =
@@ -217,7 +216,7 @@ createGenesisTransaction vals =
           { C.txIns = [(genesisTxIn, C.BuildTxWith (C.KeyWitness C.KeyWitnessForSpending))],
             C.txOuts =
               Map.toList vals <&> \(changeAddr, v) ->
-                C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.Api.ReferenceScriptNone
+                C.TxOut changeAddr (toCardanoTxOutValue v) C.TxOutDatumNone C.ReferenceScriptNone
           }
       txBody =
         either (error . ("createGenesisTransaction: Can't create TxBody: " <>) . show) id $

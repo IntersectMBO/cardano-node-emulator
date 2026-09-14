@@ -1,18 +1,10 @@
-cabal-version:   3.8
-name:            plutus-ledger
-version:         1.4.0.0
-license:         Apache-2.0
+cabal-version: 3.8
+name:          plutus-ledger
+version:       1.4.1.0
+license:       Apache-2.0
 license-files:
   LICENSE
   NOTICE
-
-maintainer:      michael.peyton-jones@iohk.io
-author:          Michael Peyton Jones, Jann Mueller
-synopsis:        Wallet API
-description:     Plutus ledger library
-category:        Language
-build-type:      Simple
-extra-doc-files: README.md
 
 common lang
   default-language:   Haskell2010
@@ -92,7 +84,7 @@ library
   --------------------
   -- Local components
   --------------------
-  build-depends:    plutus-script-utils ^>=2.0.0
+  build-depends:    plutus-script-utils ^>=2.0.1
 
   --------------------------
   -- Other IOG dependencies

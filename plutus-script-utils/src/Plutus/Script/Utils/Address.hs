@@ -7,7 +7,7 @@ module Plutus.Script.Utils.Address
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import PlutusLedgerApi.V1 qualified as Api
 
 class ToCredential a where

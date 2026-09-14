@@ -2,7 +2,7 @@
 
 module Cardano.Node.Socket.Emulator.Params where
 
-import Cardano.Api.Internal.Genesis (ShelleyGenesis)
+import Cardano.Api (ShelleyGenesis)
 import Cardano.Node.Emulator.Internal.Node.Params
 import Cardano.Node.Socket.Emulator.Types
 import Data.Aeson (FromJSON, eitherDecode)

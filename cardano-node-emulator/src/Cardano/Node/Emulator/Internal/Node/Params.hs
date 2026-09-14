@@ -41,7 +41,6 @@ module Cardano.Node.Emulator.Internal.Node.Params
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.Genesis qualified as C
 import Cardano.Ledger.Alonzo.PParams qualified as C
 import Cardano.Ledger.Api.PParams qualified as C
@@ -154,7 +153,7 @@ increaseTransactionLimits' size steps mem =
       ExUnits (steps * executionSteps) (mem * executionMemory)
 
 emulatorProtocolMajorVersion :: Version
-emulatorProtocolMajorVersion = natVersion @9
+emulatorProtocolMajorVersion = natVersion @10
 
 defaultConfig :: TransitionConfig
 defaultConfig =

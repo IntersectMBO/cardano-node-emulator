@@ -33,7 +33,7 @@ module Plutus.Script.Utils.V3.Typed
   )
 where
 
-import Cardano.Api.Shelley qualified as C.Api
+import Cardano.Api qualified as C.Api
 import Codec.Serialise (Serialise)
 import Control.Monad (unless)
 import Control.Monad.Except
@@ -41,6 +41,7 @@ import Control.Monad.Except
     throwError,
   )
 import Data.Coerce (coerce)
+import Data.Kind (Type)
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Address
@@ -269,20 +270,21 @@ data
     spendingRed
     spendingTxInfo
     votingRed
-    votingTxInfo = ( FromData certifyingRed,
-                     FromData certifyingTxInfo,
-                     FromData mintingRed,
-                     FromData mintingTxInfo,
-                     FromData proposingRed,
-                     FromData proposingTxInfo,
-                     FromData rewardingRed,
-                     FromData rewardingTxInfo,
-                     FromData spendingDat,
-                     FromData spendingRed,
-                     FromData spendingTxInfo,
-                     FromData votingRed,
-                     FromData votingTxInfo
-                   ) =>
+    votingTxInfo
+  = ( FromData certifyingRed,
+      FromData certifyingTxInfo,
+      FromData mintingRed,
+      FromData mintingTxInfo,
+      FromData proposingRed,
+      FromData proposingTxInfo,
+      FromData rewardingRed,
+      FromData rewardingTxInfo,
+      FromData spendingDat,
+      FromData spendingRed,
+      FromData spendingTxInfo,
+      FromData votingRed,
+      FromData votingTxInfo
+    ) =>
   TypedMultiPurposeScript
   { certifyingPurpose :: Maybe (CertifyingPurposeType' certifyingRed certifyingTxInfo),
     mintingPurpose :: Maybe (MintingPurposeType' mintingRed mintingTxInfo),
@@ -295,7 +297,7 @@ data
 -- * Compiled multi-purpose scripts
 
 -- | A 'MultiPurposeScript' is a 'Script' with a phantom connection type
-newtype MultiPurposeScript a = MultiPurposeScript {getMultiPurposeScript :: Script}
+newtype MultiPurposeScript (a :: Type) = MultiPurposeScript {getMultiPurposeScript :: Script}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Serialise)
   deriving (PP.Pretty) via (PP.PrettyShow (MultiPurposeScript a))
@@ -463,7 +465,8 @@ checkDatum _ (Datum d) =
 type IsDataDatum a = (FromData (SpendingDatumType a), ToData (SpendingDatumType a))
 
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
-data TypedScriptTxOut a = (IsDataDatum a) =>
+data TypedScriptTxOut a
+  = (IsDataDatum a) =>
   TypedScriptTxOut
   { tyTxOutTxOut :: TxOut,
     tyTxOutData :: SpendingDatumType a

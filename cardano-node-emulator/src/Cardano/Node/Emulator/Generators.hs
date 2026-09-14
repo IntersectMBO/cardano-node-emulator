@@ -63,7 +63,6 @@ module Cardano.Node.Emulator.Generators
 where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
 import Cardano.Ledger.Shelley.API (Coin (Coin))
@@ -91,7 +90,6 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.String (fromString)
 import GHC.Exts (fromList)
 import GHC.Stack (HasCallStack)
 import Hedgehog (Gen, MonadGen, MonadTest, Range)
@@ -407,13 +405,7 @@ genSizedByteString s =
 
 -- Copied from Gen.Cardano.Api.Typed, because it's not exported.
 genPolicyId :: Gen C.PolicyId
-genPolicyId =
-  Gen.frequency
-    -- mostly from a small number of choices, so we get plenty of repetition
-    [ (9, Gen.element [fromString (x : replicate 55 '0') | x <- ['a' .. 'c']]),
-      -- and some from the full range of the type
-      (1, C.PolicyId <$> Gen.genScriptHash)
-    ]
+genPolicyId = Gen.frequency [(1, C.PolicyId <$> Gen.genScriptHash)]
 
 -- Copied from Gen.Cardano.Api.Typed, because it's not exported.
 genAssetId :: Gen C.AssetId

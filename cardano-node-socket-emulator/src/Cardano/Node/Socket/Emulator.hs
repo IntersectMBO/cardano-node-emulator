@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cardano.Node.Socket.Emulator
   ( main,
@@ -9,8 +10,7 @@ module Cardano.Node.Socket.Emulator
   )
 where
 
-import Cardano.Api (NetworkId, NetworkMagic (NetworkMagic), toNetworkMagic)
-import Cardano.Api.Internal.Genesis (ShelleyGenesis (sgNetworkMagic, sgSlotLength))
+import Cardano.Api (NetworkId, NetworkMagic (NetworkMagic), ShelleyGenesis (sgNetworkMagic, sgSlotLength), toNetworkMagic)
 import Cardano.BM.Trace (Trace, stdoutTrace)
 import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
 import Cardano.Node.Emulator.Internal.Node.Params (keptBlocks, pSlotConfig)
@@ -53,7 +53,7 @@ core
       let getAddress n = knownAddresses !! (fromIntegral n - 1)
           dist =
             Map.fromList $
-              zip (getAddress <$> nscInitialTxWallets) (repeat (CardanoAPI.adaValueOf 1_000_000_000))
+              map (,CardanoAPI.adaValueOf 1_000_000_000) (getAddress <$> nscInitialTxWallets)
       params <- liftIO $ Params.fromNodeServerConfig updateShelley nodeServerConfig
       initialState <- initialChainState params dist
       let appState = AppState initialState mempty params

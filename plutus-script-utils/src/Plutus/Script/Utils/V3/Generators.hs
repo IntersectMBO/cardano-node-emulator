@@ -28,6 +28,7 @@ module Plutus.Script.Utils.V3.Generators
     trueMintingMPScript,
     trueSpendingMPScript,
     falseMPScript,
+    trueMPScript,
     multiPurposeScriptValue,
   )
 where
@@ -316,6 +317,12 @@ trueSpendingMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
       mkMultiPurposeScript
         $ falseTypedMultiPurposeScript
         `withSpendingPurpose` trueSpendingPurpose @() @() @()
+
+-- | The multi-purpose script that returns @True@ in all purposes
+trueMPScript :: MultiPurposeScript a
+trueMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+  where
+    script = mkMultiPurposeScript trueTypedMultiPurposeScript
 
 falseMPScript :: MultiPurposeScript a
 falseMPScript = MultiPurposeScript $ toScript $$(compile [||script||])

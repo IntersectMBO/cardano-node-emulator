@@ -11,7 +11,6 @@
 module Ledger.Tx.Orphans where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Shelley qualified as C
 import Codec.Serialise.Class (Serialise (..))
 import Data.Aeson
   ( FromJSON (parseJSON),
@@ -73,9 +72,6 @@ instance Pretty (C.TxOutDatum C.CtxUTxO era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
   pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
-
-instance Pretty C.TxId where
-  pretty (C.TxId h) = fromString (init $ tail $ show h)
 
 instance Serialise C.TxId where
   encode = encode . C.serialiseToRawBytes

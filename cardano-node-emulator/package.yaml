@@ -1,0 +1,81 @@
+spec-version: 0.36.0
+name: cardano-node-emulator
+version: 1.4.1.0
+language: Haskell2010
+default-extensions:
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - ExplicitForAll
+  - FlexibleContexts
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - NamedFieldPuns
+  - ScopedTypeVariables
+  - StandaloneDeriving
+ghc-options:
+  - -Wall
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wunused-packages
+  - -Wincomplete-uni-patterns
+  - -Wnoncanonical-monad-instances
+  - -Wredundant-constraints
+  - -Wmissing-import-lists
+  - -fobject-code
+  - -fno-ignore-interface-pragmas
+  - -fno-omit-interface-pragmas
+  - -fplugin-opt
+  - PlutusTx.Plugin:target-version=1.1.0
+  - -fplugin-opt
+  - PlutusTx.Plugin:defer-errors
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Cardano.Node.Emulator
+    - Cardano.Node.Emulator.API
+    - Cardano.Node.Emulator.Generators
+    - Cardano.Node.Emulator.Internal.API
+    - Cardano.Node.Emulator.Internal.Node
+    - Cardano.Node.Emulator.Internal.Node.Chain
+    - Cardano.Node.Emulator.Internal.Node.Params
+    - Cardano.Node.Emulator.Internal.Node.TimeSlot
+    - Cardano.Node.Emulator.Internal.Node.Validation
+    - Cardano.Node.Emulator.LogMessages
+  dependencies:
+    - aeson >=2
+    - base >=4.9 && <5
+    - bytestring
+    - cardano-api
+    - cardano-api:gen
+    - cardano-crypto
+    - cardano-ledger-alonzo
+    - cardano-ledger-api
+    - cardano-ledger-binary
+    - cardano-ledger-conway
+    - cardano-ledger-core
+    - cardano-ledger-shelley
+    - cardano-slotting
+    - containers
+    - data-default
+    - freer-extras
+    - hedgehog
+    - lens
+    - mtl
+    - ouroboros-consensus
+    - plutus-ledger
+    - plutus-ledger-api
+    - plutus-tx
+    - prettyprinter >=1.1.0.1
+    - sop-core
+    - sop-extras
+    - strict-sop-core
+    - text
+    - time
+  when:
+    - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+      buildable: false

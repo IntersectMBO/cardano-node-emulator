@@ -1,64 +1,44 @@
-cabal-version: 3.8
+cabal-version: 3.0
+
+-- This file has been generated from package.yaml by hpack version 0.38.3.
+--
+-- see: https://github.com/sol/hpack
+
 name:          cardano-node-socket-emulator
 version:       1.4.1.0
-
-common lang
-  default-language:   Haskell2010
-  default-extensions:
-    DeriveFoldable
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    ExplicitForAll
-    FlexibleContexts
-    GeneralizedNewtypeDeriving
-    ImportQualifiedPost
-    LambdaCase
-    NamedFieldPuns
-    ScopedTypeVariables
-    StandaloneDeriving
-
-  ghc-options:
-    -Wall -Widentities -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
-    -Wredundant-constraints -fplugin-opt
-    PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
-    PlutusTx.Plugin:defer-errors
-
-  -- The limitation of plutus-tx-plugin
-  if (impl(ghc <9.6) || impl(ghc >=9.7))
-    buildable: False
+build-type:    Simple
 
 library
-  import:          lang
-  hs-source-dirs:  src
   exposed-modules:
-    Cardano.Node.Socket.Emulator
-    Cardano.Node.Socket.Emulator.Mock
-    Cardano.Node.Socket.Emulator.Params
-    Cardano.Node.Socket.Emulator.Query
-    Cardano.Node.Socket.Emulator.Server
-    Cardano.Node.Socket.Emulator.Types
-    Plutus.Monitoring.Util
-
-  -- The limitation of plutus-tx-plugin
-  if (impl(ghc <9.6) || impl(ghc >=9.7))
-    buildable: False
-
-  --------------------
-  -- Local components
-  --------------------
+      Cardano.Node.Socket.Emulator
+      Cardano.Node.Socket.Emulator.Mock
+      Cardano.Node.Socket.Emulator.Params
+      Cardano.Node.Socket.Emulator.Query
+      Cardano.Node.Socket.Emulator.Server
+      Cardano.Node.Socket.Emulator.Types
+      Plutus.Monitoring.Util
+  hs-source-dirs:
+      src
+  default-extensions:
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveLift
+      DeriveTraversable
+      ExplicitForAll
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      NamedFieldPuns
+      ScopedTypeVariables
+      StandaloneDeriving
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
   build-depends:
-    , cardano-node-emulator
-    , freer-extras
-    , plutus-ledger
-    , plutus-script-utils
-
-  --------------------------
-  -- Other IOG dependencies
-  --------------------------
-  build-depends:
+      aeson >=2
+    , async
+    , base >=4.9 && <5
+    , bytestring
     , cardano-api
     , cardano-ledger-api
     , cardano-ledger-byron
@@ -67,58 +47,64 @@ library
     , cardano-ledger-shelley
     , cardano-ledger-shelley-test
     , cardano-ledger-shelley:testlib
+    , cardano-node-emulator
     , cardano-protocol-tpraos
     , cardano-protocol-tpraos:testlib
     , cardano-slotting
-    , cryptonite
-    , exceptions
-    , io-classes
-    , iohk-monitoring
-    , memory
-    , network-mux
-    , ouroboros-consensus
-    , ouroboros-consensus-cardano
-    , ouroboros-consensus-diffusion
-    , ouroboros-consensus-protocol
-    , ouroboros-network
-    , ouroboros-network-api
-    , ouroboros-network-framework
-    , ouroboros-network-protocols
-    , serialise
-    , strict-sop-core
-    , typed-protocols
-    , typed-protocols-cborg
-    , typed-protocols-stateful
-
-  ------------------------
-  -- Non-IOG dependencies
-  ------------------------
-  build-depends:
-    , aeson          >=2
-    , async
-    , base           >=4.9 && <5
-    , bytestring
     , containers
     , contra-tracer
+    , cryptonite
     , data-default
-    , freer-simple
+    , exceptions
+    , freer-extras
+    , io-classes
     , lens
-    , mtl
+    , memory
+    , network-mux
+    , ouroboros-consensus:{cardano,diffusion,protocol}
+    , ouroboros-network:{api,framework,protocols}
+    , plutus-ledger
+    , plutus-script-utils
     , prettyprinter
+    , serialise
     , sop-core
     , stm
+    , strict-sop-core
     , text
     , time
     , time-units
+    , trace-dispatcher
+    , typed-protocols
+    , typed-protocols-stateful
+  default-language: Haskell2010
+  if !((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))
+    buildable: False
 
 executable cardano-node-socket-emulator
-  import:           lang
-  main-is:          Main.hs
-  hs-source-dirs:   app
-  default-language: Haskell2010
-  build-depends:    cardano-node-socket-emulator
-  build-depends:    iohk-monitoring
+  main-is: Main.hs
+  hs-source-dirs:
+      app
+  default-extensions:
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveLift
+      DeriveTraversable
+      ExplicitForAll
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      NamedFieldPuns
+      ScopedTypeVariables
+      StandaloneDeriving
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
   build-depends:
-    , base           >=4.9 && <5
+      base >=4.9 && <5
+    , cardano-node-socket-emulator
     , data-default
     , prettyprinter
+    , trace-dispatcher
+  default-language: Haskell2010
+  if !((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))
+    buildable: False

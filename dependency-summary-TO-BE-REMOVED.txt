@@ -1,0 +1,15 @@
+Dependency update summary
+
+What changed:
+- Bumped the Hackage/Cardano index-state in cabal.project.
+- Removed the stale tracer-transformers pin (0.1.0.4) that conflicted with newer contra-tracer.
+- Replaced iohk-monitoring with trace-dispatcher in package dependencies.
+- Removed typed-protocols-cborg and kept typed-protocols-stateful as the modern replacement.
+
+Why:
+- tracer-transformers 0.1.0.4 only works with old contra-tracer bounds and blocks newer ouroboros-consensus/cardano-api resolution.
+- iohk-monitoring pulls in contra-tracer constraints that conflict with the newer dependency set.
+- typed-protocols-cborg no longer builds against typed-protocols 1.x; typed-protocols-stateful is the current codec path.
+
+Notes:
+- The code still contains old iohk-monitoring / typed-protocols-cborg imports in a few places; this file only records the dependency-side cleanup.

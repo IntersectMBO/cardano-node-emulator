@@ -1,64 +1,46 @@
-cabal-version: 3.8
+cabal-version: 3.0
+
+-- This file has been generated from package.yaml by hpack version 0.38.3.
+--
+-- see: https://github.com/sol/hpack
+
 name:          cardano-node-emulator
 version:       1.4.1.0
-
-common lang
-  default-language:   Haskell2010
-  default-extensions:
-    DeriveFoldable
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    ExplicitForAll
-    FlexibleContexts
-    GeneralizedNewtypeDeriving
-    ImportQualifiedPost
-    LambdaCase
-    NamedFieldPuns
-    ScopedTypeVariables
-    StandaloneDeriving
-
-  -- See Plutus Tx readme for why we need the following flags:
-  -- -fobject-code -fno-ignore-interface-pragmas and -fno-omit-interface-pragmas
-  ghc-options:
-    -Wall -Widentities -Wincomplete-record-updates -Wunused-packages
-    -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
-    -Wredundant-constraints -Wmissing-import-lists -fobject-code
-    -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
-    -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt
-    PlutusTx.Plugin:defer-errors
-
-  -- The limitation of plutus-tx-plugin
-  if (impl(ghc <9.6) || impl(ghc >=9.7))
-    buildable: False
+build-type:    Simple
 
 library
-  import:          lang
-  hs-source-dirs:  src
   exposed-modules:
-    Cardano.Node.Emulator
-    Cardano.Node.Emulator.API
-    Cardano.Node.Emulator.Generators
-    Cardano.Node.Emulator.Internal.API
-    Cardano.Node.Emulator.Internal.Node
-    Cardano.Node.Emulator.Internal.Node.Chain
-    Cardano.Node.Emulator.Internal.Node.Params
-    Cardano.Node.Emulator.Internal.Node.TimeSlot
-    Cardano.Node.Emulator.Internal.Node.Validation
-    Cardano.Node.Emulator.LogMessages
-
-  --------------------
-  -- Local components
-  --------------------
+      Cardano.Node.Emulator
+      Cardano.Node.Emulator.API
+      Cardano.Node.Emulator.Generators
+      Cardano.Node.Emulator.Internal.API
+      Cardano.Node.Emulator.Internal.Node
+      Cardano.Node.Emulator.Internal.Node.Chain
+      Cardano.Node.Emulator.Internal.Node.Params
+      Cardano.Node.Emulator.Internal.Node.TimeSlot
+      Cardano.Node.Emulator.Internal.Node.Validation
+      Cardano.Node.Emulator.LogMessages
+  hs-source-dirs:
+      src
+  default-extensions:
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveLift
+      DeriveTraversable
+      ExplicitForAll
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      NamedFieldPuns
+      ScopedTypeVariables
+      StandaloneDeriving
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wunused-packages -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -Wmissing-import-lists -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
   build-depends:
-    , freer-extras
-    , plutus-ledger
-
-  --------------------------
-  -- Other IOG dependencies
-  --------------------------
-  build-depends:
+      aeson >=2
+    , base >=4.9 && <5
+    , bytestring
     , cardano-api
     , cardano-api:gen
     , cardano-crypto
@@ -69,26 +51,22 @@ library
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-slotting
-    , ouroboros-consensus
-    , plutus-ledger-api
-    , plutus-tx
-    , sop-extras
-    , strict-sop-core
-
-  ------------------------
-  -- Non-IOG dependencies
-  ------------------------
-  build-depends:
-    , aeson          >=2
-    , base           >=4.9     && <5
-    , bytestring
     , containers
     , data-default
-    , freer-simple
+    , freer-extras
     , hedgehog
     , lens
     , mtl
-    , prettyprinter  >=1.1.0.1
+    , ouroboros-consensus
+    , plutus-ledger
+    , plutus-ledger-api
+    , plutus-tx
+    , prettyprinter >=1.1.0.1
     , sop-core
+    , sop-extras
+    , strict-sop-core
     , text
     , time
+  default-language: Haskell2010
+  if !((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))
+    buildable: False

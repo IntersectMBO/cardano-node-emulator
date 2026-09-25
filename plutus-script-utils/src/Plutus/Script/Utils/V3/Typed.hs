@@ -18,6 +18,10 @@ module Plutus.Script.Utils.V3.Typed
     IsDataDatum,
     TypedMultiPurposeScript (..),
     mkMultiPurposeScript,
+    ScriptContextResolvedScriptInfo (..),
+    fromBuiltinDataEither,
+    deserializeContext,
+    traceRunning,
     CertifyingPurposeType',
     MintingPurposeType',
     ProposingPurposeType',
@@ -213,7 +217,7 @@ instance MultiPurposeScriptTypes Any where
     there instead of TxInfo itself.
 
   - The purposes all take additional parameters based on what can be retrieved
-    from the @scriptContextScriptInfo@ of the script context (which has to be
+    from the @rsiScriptInfo@ of the script context (which has to be
     deserialized). For instance, a minting purpose will receive its own currency
     symbol as a parameter.
 
@@ -386,9 +390,9 @@ generalise = coerce
 
 -- | Custom script context to retrieve the script info
 data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
-  { scriptContextTxInfo :: BuiltinData,
-    scriptContextRedeemer :: BuiltinData,
-    scriptContextScriptInfo :: ScriptInfo
+  { rsiTxInfo :: BuiltinData,
+    rsiRedeemer :: BuiltinData,
+    rsiScriptInfo :: ScriptInfo
   }
 
 unstableMakeIsData ''ScriptContextResolvedScriptInfo
@@ -399,46 +403,49 @@ mkMultiPurposeScript ::
 mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
   either traceError check $ do
     ScriptContextResolvedScriptInfo {..} <- fromBuiltinDataEither "script info" dat
-    case scriptContextScriptInfo of
+    case rsiScriptInfo of
       CertifyingScript i cert | Just cPurpose <- certifyingPurpose -> do
-        (red, txInfo) <- deserializeContext "certifying" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "certifying" rsiRedeemer rsiTxInfo
         return $ traceRunning "Certifying" $ cPurpose i cert red txInfo
       CertifyingScript {} -> traceError "Unsupported purpose: Certifying"
       MintingScript cur | Just mPurpose <- mintingPurpose -> do
-        (red, txInfo) <- deserializeContext "minting" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "minting" rsiRedeemer rsiTxInfo
         return $ traceRunning "Minting" $ mPurpose cur red txInfo
       MintingScript {} -> traceError "Unsupported purpose: Minting"
       ProposingScript i prop | Just pPurpose <- proposingPurpose -> do
-        (red, txInfo) <- deserializeContext "proposing" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "proposing" rsiRedeemer rsiTxInfo
         return $ traceRunning "Proposing" $ pPurpose i prop red txInfo
       ProposingScript {} -> traceError "Unsupported purpose: Proposing"
       RewardingScript cred | Just rPurpose <- rewardingPurpose -> do
-        (red, txInfo) <- deserializeContext "rewarding" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "rewarding" rsiRedeemer rsiTxInfo
         return $ traceRunning "Rewarding" $ rPurpose cred red txInfo
       RewardingScript {} -> traceError "Unsupported purpose: Rewarding"
       SpendingScript oRef mDat | Just sPurpose <- spendingPurpose -> do
-        (red, txInfo) <- deserializeContext "spending" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "spending" rsiRedeemer rsiTxInfo
         mResolvedDat <- case mDat of
           Nothing -> return Nothing
           Just (Datum bDat) -> Just <$> fromBuiltinDataEither "datum" bDat
         return $ traceRunning "Spending" $ sPurpose oRef mResolvedDat red txInfo
       SpendingScript {} -> traceError "Unsupported purpose: Spending"
       VotingScript voter | Just vPurpose <- votingPurpose -> do
-        (red, txInfo) <- deserializeContext "voting" scriptContextRedeemer scriptContextTxInfo
+        (red, txInfo) <- deserializeContext "voting" rsiRedeemer rsiTxInfo
         return $ traceRunning "Voting" $ vPurpose voter red txInfo
       VotingScript {} -> traceError "Unsupported purpose: Voting"
-  where
-    fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
-    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " PlutusTx.<> name) Right . fromBuiltinData
 
-    traceRunning :: BuiltinString -> Bool -> Bool
-    traceRunning name = trace ("Running the validator with the " PlutusTx.<> name PlutusTx.<> " script purpose")
+{-# INLINEABLE fromBuiltinDataEither #-}
+fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
+fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " PlutusTx.<> name) Right . fromBuiltinData
 
-    deserializeContext :: (FromData a, FromData b) => BuiltinString -> BuiltinData -> BuiltinData -> Either BuiltinString (a, b)
-    deserializeContext name redData txInfoData = do
-      red <- fromBuiltinDataEither (name PlutusTx.<> " redeemer") redData
-      txInfo <- fromBuiltinDataEither (name PlutusTx.<> " tx info") txInfoData
-      return (red, txInfo)
+{-# INLINEABLE traceRunning #-}
+traceRunning :: BuiltinString -> Bool -> Bool
+traceRunning name = trace ("Running the validator with the " PlutusTx.<> name PlutusTx.<> " script purpose")
+
+{-# INLINEABLE deserializeContext #-}
+deserializeContext :: (FromData a, FromData b) => BuiltinString -> BuiltinData -> BuiltinData -> Either BuiltinString (a, b)
+deserializeContext name redData txInfoData = do
+  red <- fromBuiltinDataEither (name PlutusTx.<> " redeemer") redData
+  txInfo <- fromBuiltinDataEither (name PlutusTx.<> " tx info") txInfoData
+  return (red, txInfo)
 
 -- * Checks around typed multi-purpose scripts
 

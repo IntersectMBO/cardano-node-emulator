@@ -83,6 +83,7 @@ library
     Plutus.Script.Utils.V3.Contexts
     Plutus.Script.Utils.V3.Generators
     Plutus.Script.Utils.V3.Typed
+    Plutus.Script.Utils.V3.TypedTH
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 
@@ -106,12 +107,66 @@ library
   ------------------------
   build-depends:
     , aeson
-    , base           >=4.9 && <5
+    , base              >=4.9 && <5
     , bytestring
     , data-default
     , mtl
     , prettyprinter
     , serialise
     , tagged
+    , template-haskell
 
   ghc-options:      -fprint-potential-instances
+
+executable plutus-script-utils-th-bench
+  import:           lang
+  hs-source-dirs:   th-bench
+  main-is:          Main.hs
+  default-language: Haskell2010
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
+  build-depends:
+    , base                 >=4.9 && <5
+    , plutus-ledger-api
+    , plutus-script-utils
+    , plutus-tx
+    , plutus-tx-plugin
+
+executable plutus-script-utils-th-bench-asdata
+  import:           lang
+  hs-source-dirs:   th-bench
+  main-is:          AsDataMain.hs
+  default-language: Haskell2010
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
+  build-depends:
+    , base               >=4.9 && <5
+    , plutus-ledger-api
+    , plutus-tx
+    , plutus-tx-plugin
+
+executable plutus-script-utils-th-bench-asdata-budget
+  import:           lang
+  hs-source-dirs:   th-bench
+  main-is:          AsDataBudgetMain.hs
+  default-language: Haskell2010
+
+  -- The limitation of plutus-tx-plugin
+  if (impl(ghc <9.6) || impl(ghc >=9.7))
+    buildable: False
+
+  build-depends:
+    , base                                         >=4.9 && <5
+    , mtl
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-ledger-api:plutus-ledger-api-testlib
+    , plutus-tx
+    , plutus-tx-plugin
+    , transformers

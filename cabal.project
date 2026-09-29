@@ -12,8 +12,8 @@ repository cardano-haskell-packages
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
 index-state:
-  , hackage.haskell.org 2026-09-04T06:57:08Z
-  , cardano-haskell-packages 2026-09-04T06:57:08Z
+  , hackage.haskell.org 2026-09-29T09:27:39Z
+  , cardano-haskell-packages 2026-09-24T00:08:56Z
 
 packages: plutus-ledger
           plutus-script-utils
@@ -31,6 +31,13 @@ constraints:
 -- instead of waiting for an upstream bump.
 allow-newer:
   , quickcheck-state-machine:random
+  -- The cardano stack (cardano-api, cardano-ledger-*, ouroboros-consensus)
+  -- still caps `plutus-ledger-api <1.66`, but Plutus V4's on-chain ledger API
+  -- only ships from plutus-ledger-api 1.67+. The V1-V3 encodings that the
+  -- cardano stack actually consumes are unchanged across these releases (only
+  -- the new V4 API was added), so relax the upper bound instead of waiting for
+  -- an upstream cardano-api bump.
+  , *:plutus-ledger-api
 
 -- We never, ever, want this.
 write-ghc-environment-files: never

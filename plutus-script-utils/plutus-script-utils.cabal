@@ -30,6 +30,10 @@ library
       Plutus.Script.Utils.V3.Contexts
       Plutus.Script.Utils.V3.Generators
       Plutus.Script.Utils.V3.Typed
+      Plutus.Script.Utils.V4
+      Plutus.Script.Utils.V4.Contexts
+      Plutus.Script.Utils.V4.Generators
+      Plutus.Script.Utils.V4.Typed
       Plutus.Script.Utils.Value
       Prettyprinter.Extras
   hs-source-dirs:

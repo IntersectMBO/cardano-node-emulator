@@ -6,6 +6,7 @@ license-file:
   - LICENSE
   - NOTICE
 language: Haskell2010
+
 default-extensions:
   - ConstraintKinds
   - DataKinds
@@ -18,9 +19,10 @@ default-extensions:
   - DerivingStrategies
   - DerivingVia
   - EmptyDataDeriving
+  - ExistentialQuantification
+  - ExplicitForAll
   - FlexibleContexts
   - FlexibleInstances
-  - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - LambdaCase
@@ -29,7 +31,6 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedStrings
-  - PolyKinds
   - RankNTypes
   - RecordWildCards
   - ScopedTypeVariables
@@ -40,50 +41,31 @@ default-extensions:
   - TypeFamilies
   - TypeOperators
   - ViewPatterns
+
 ghc-options:
-  - -Wall
-  - -Wcompat
-  - -Wincomplete-record-updates
-  - -Wincomplete-uni-patterns
-  - -Wnoncanonical-monad-instances
-  - -Wno-unused-packages
-  - -Wredundant-constraints
-  - -Widentities
-  - -Wmissing-import-lists
-  - -Wno-missed-extra-shared-lib
-  - -fobject-code
-  - -fno-ignore-interface-pragmas
-  - -fignore-hpc-changes
-  - -fno-omit-interface-pragmas
-  - -fplugin-opt
-  - PlutusTx.Plugin:target-version=1.1.0
-  - -fplugin-opt
-  - PlutusTx.Plugin:defer-errors
-  - -fplugin-opt
-  - PlutusTx.Plugin:conservative-optimisation
+  -Wall
+  -Wcompat
+  -Wnoncanonical-monad-instances
+  -Wno-unused-packages
+  -Wno-missed-extra-shared-lib
+  -Wincomplete-uni-patterns
+  -Wincomplete-record-updates
+  -Wredundant-constraints
+  -Widentities
+  -fobject-code
+  -fignore-hpc-changes
+  -fno-ignore-interface-pragmas
+  -fno-omit-interface-pragmas
+  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+  -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+  -fplugin-opt PlutusTx.Plugin:defer-errors
+
+when:
+  - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+    buildable: false
 
 library:
   source-dirs: src
-  exposed-modules:
-    - Plutus.Script.Utils.Address
-    - Plutus.Script.Utils.Data
-    - Plutus.Script.Utils.Scripts
-    - Plutus.Script.Utils.V1
-    - Plutus.Script.Utils.V1.Contexts
-    - Plutus.Script.Utils.V1.Generators
-    - Plutus.Script.Utils.V1.Scripts
-    - Plutus.Script.Utils.V1.Typed
-    - Plutus.Script.Utils.V2
-    - Plutus.Script.Utils.V2.Contexts
-    - Plutus.Script.Utils.V2.Generators
-    - Plutus.Script.Utils.V2.Scripts
-    - Plutus.Script.Utils.V2.Typed
-    - Plutus.Script.Utils.V3
-    - Plutus.Script.Utils.V3.Contexts
-    - Plutus.Script.Utils.V3.Generators
-    - Plutus.Script.Utils.V3.Typed
-    - Plutus.Script.Utils.Value
-    - Prettyprinter.Extras
   dependencies:
     - aeson
     - base >=4.9 && <5
@@ -99,6 +81,3 @@ library:
     - prettyprinter
     - serialise
     - tagged
-  when:
-    - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
-      buildable: false

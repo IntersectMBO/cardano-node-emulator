@@ -13,6 +13,7 @@ build-type:    Simple
 
 library
   exposed-modules:
+      Codec.CBOR.Extras
       Data.Aeson.Extras
       Data.Time.Units.Extra
       Ledger
@@ -43,24 +44,44 @@ library
       Ledger.Typed.Scripts.Orphans
       Ledger.Value.CardanoAPI
       Ledger.Value.Orphans
-  other-modules:
-      Codec.CBOR.Extras
   hs-source-dirs:
       src
   default-extensions:
+      ConstraintKinds
+      DataKinds
+      DeriveAnyClass
       DeriveFoldable
       DeriveFunctor
       DeriveGeneric
       DeriveLift
       DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      EmptyDataDeriving
       ExplicitForAll
       FlexibleContexts
+      FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedStrings
+      PolyKinds
+      RankNTypes
+      RecordWildCards
       ScopedTypeVariables
       StandaloneDeriving
-  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+      TemplateHaskell
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      ViewPatterns
+  ghc-options: -Wall -Wcompat -Wnoncanonical-monad-instances -Wno-unused-packages -Wno-missed-extra-shared-lib -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fignore-hpc-changes -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:conservative-optimisation -fplugin-opt PlutusTx.Plugin:defer-errors
   build-depends:
       aeson
     , base >=4.9 && <5
@@ -80,8 +101,8 @@ library
     , flat
     , hashable
     , http-api-data
-    , lens
     , memory
+    , optics-core
     , ordered-containers
     , plutus-core
     , plutus-ledger-api
@@ -107,19 +128,41 @@ test-suite plutus-ledger-test
   hs-source-dirs:
       test
   default-extensions:
+      ConstraintKinds
+      DataKinds
+      DeriveAnyClass
       DeriveFoldable
       DeriveFunctor
       DeriveGeneric
       DeriveLift
       DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      EmptyDataDeriving
       ExplicitForAll
       FlexibleContexts
+      FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedStrings
+      PolyKinds
+      RankNTypes
+      RecordWildCards
       ScopedTypeVariables
       StandaloneDeriving
-  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+      TemplateHaskell
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      ViewPatterns
+  ghc-options: -Wall -Wcompat -Wnoncanonical-monad-instances -Wno-unused-packages -Wno-missed-extra-shared-lib -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fignore-hpc-changes -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:conservative-optimisation -fplugin-opt PlutusTx.Plugin:defer-errors
   build-depends:
       aeson
     , base >=4.9 && <5

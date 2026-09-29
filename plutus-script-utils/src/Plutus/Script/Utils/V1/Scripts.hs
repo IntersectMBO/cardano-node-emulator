@@ -1,3 +1,5 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Plutus.Script.Utils.V1.Scripts
   ( UntypedValidator,
     UntypedStakeValidator,
@@ -9,8 +11,7 @@ module Plutus.Script.Utils.V1.Scripts
 where
 
 import PlutusTx (BuiltinData, FromData, fromBuiltinData)
-import PlutusTx.Prelude (BuiltinString, BuiltinUnit, check, trace)
-import PlutusTx.Prelude qualified as PlutusTx
+import PlutusTx.Prelude (Bool (False), BuiltinString, BuiltinUnit, Maybe, check, fromMaybe, return, trace, ($))
 
 type UntypedValidator = BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
 
@@ -32,8 +33,8 @@ mkUntypedValidator ::
   (datum -> redeemer -> scriptContext -> Bool) ->
   UntypedValidator
 mkUntypedValidator f d r sc =
-  check $
-    PlutusTx.fromMaybe
+  check
+    $ fromMaybe
       False
       ( do
           dat <- tracedSafeFrom "Datum decoded successfully" d
@@ -49,8 +50,8 @@ mkUntypedStakeValidator ::
   (redeemer -> scriptContext -> Bool) ->
   UntypedStakeValidator
 mkUntypedStakeValidator f r sc =
-  check $
-    PlutusTx.fromMaybe
+  check
+    $ fromMaybe
       False
       ( do
           red <- tracedSafeFrom "Redeemer decoded successfully" r

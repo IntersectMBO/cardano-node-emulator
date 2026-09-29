@@ -6,70 +6,67 @@ license-file:
   - LICENSE
   - NOTICE
 language: Haskell2010
+
 default-extensions:
+  - ConstraintKinds
+  - DataKinds
+  - DeriveAnyClass
   - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
   - DeriveLift
   - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - EmptyDataDeriving
   - ExplicitForAll
   - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
+  - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedStrings
+  - PolyKinds
+  - RankNTypes
+  - RecordWildCards
   - ScopedTypeVariables
   - StandaloneDeriving
+  - TemplateHaskell
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeOperators
+  - ViewPatterns
+  
 ghc-options:
-  - -Wall
-  - -Wnoncanonical-monad-instances
-  - -Wno-unused-packages
-  - -Wincomplete-uni-patterns
-  - -Wincomplete-record-updates
-  - -Wredundant-constraints
-  - -Widentities
-  - -fobject-code
-  - -fno-ignore-interface-pragmas
-  - -fno-omit-interface-pragmas
-  - -fplugin-opt
-  - PlutusTx.Plugin:target-version=1.1.0
-  - -fplugin-opt
-  - PlutusTx.Plugin:defer-errors
+  -Wall
+  -Wcompat
+  -Wnoncanonical-monad-instances
+  -Wno-unused-packages
+  -Wno-missed-extra-shared-lib
+  -Wincomplete-uni-patterns
+  -Wincomplete-record-updates
+  -Wredundant-constraints
+  -Widentities
+  -fobject-code
+  -fignore-hpc-changes
+  -fno-ignore-interface-pragmas
+  -fno-omit-interface-pragmas
+  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+  -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+  -fplugin-opt PlutusTx.Plugin:defer-errors
+
+when:
+  - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+    buildable: false
 
 library:
   source-dirs: src
-  exposed-modules:
-    - Data.Aeson.Extras
-    - Data.Time.Units.Extra
-    - Ledger
-    - Ledger.Address
-    - Ledger.Address.Orphans
-    - Ledger.AddressMap
-    - Ledger.Blockchain
-    - Ledger.Builtins.Orphans
-    - Ledger.CardanoWallet
-    - Ledger.Credential.Orphans
-    - Ledger.Crypto
-    - Ledger.Crypto.Orphans
-    - Ledger.DCert.Orphans
-    - Ledger.Index
-    - Ledger.Index.Internal
-    - Ledger.Orphans
-    - Ledger.Scripts
-    - Ledger.Scripts.Orphans
-    - Ledger.Slot
-    - Ledger.Test
-    - Ledger.Tx
-    - Ledger.Tx.CardanoAPI
-    - Ledger.Tx.CardanoAPI.Internal
-    - Ledger.Tx.Internal
-    - Ledger.Tx.Orphans
-    - Ledger.Tx.Orphans.V1
-    - Ledger.Tx.Orphans.V2
-    - Ledger.Typed.Scripts.Orphans
-    - Ledger.Value.CardanoAPI
-    - Ledger.Value.Orphans
-  other-modules:
-    - Codec.CBOR.Extras
   dependencies:
     - aeson
     - base >=4.9 && <5
@@ -89,7 +86,7 @@ library:
     - flat
     - hashable
     - http-api-data
-    - lens
+    - optics-core
     - memory
     - ordered-containers
     - plutus-core
@@ -104,19 +101,11 @@ library:
     - text
     - time-units
     - vector
-  when:
-    - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
-      buildable: false
 
 tests:
   plutus-ledger-test:
     main: Spec.hs
     source-dirs: test
-    other-modules:
-      - Ledger.Tx.CardanoAPISpec
-    when:
-      - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
-        buildable: false
     dependencies:
       - aeson
       - base >=4.9 && <5

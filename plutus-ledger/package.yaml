@@ -22,7 +22,6 @@ default-extensions:
   - ExplicitForAll
   - FlexibleContexts
   - FlexibleInstances
-  - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - LambdaCase
@@ -31,7 +30,6 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedStrings
-  - PolyKinds
   - RankNTypes
   - RecordWildCards
   - ScopedTypeVariables
@@ -78,7 +76,7 @@ library:
     - cardano-crypto
     - cardano-ledger-alonzo
     - cardano-ledger-byron
-    - cardano-ledger-conway
+    - cardano-ledger-dijkstra
     - cardano-ledger-core
     - cardano-ledger-shelley
     - containers
@@ -86,8 +84,9 @@ library:
     - flat
     - hashable
     - http-api-data
-    - optics-core
+    - lens
     - memory
+    - newtype-generics
     - ordered-containers
     - plutus-core
     - plutus-ledger-api

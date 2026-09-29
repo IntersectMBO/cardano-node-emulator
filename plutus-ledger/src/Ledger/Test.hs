@@ -12,7 +12,7 @@ import Ledger.Address qualified as Ledger
 import Ledger.Value.CardanoAPI (policyId)
 import Plutus.Script.Utils.Address (ToCardanoAddress (toCardanoAddress))
 import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV1, PlutusV2, PlutusV3),
+  ( Language (PlutusV1, PlutusV2, PlutusV3, PlutusV4),
     MintingPolicy,
     MintingPolicyHash,
     Validator,
@@ -84,6 +84,7 @@ coinMintingPolicy lang = case lang of
   PlutusV1 -> Versioned coinMintingPolicyV1 lang
   PlutusV2 -> Versioned coinMintingPolicyV2 lang
   PlutusV3 -> error "Unsupported"
+  PlutusV4 -> error "Unsupported"
 
 coinMintingPolicyV1 :: MintingPolicy
 coinMintingPolicyV1 = toMintingPolicy $$(PlutusTx.compile [||V1.mkUntypedMintingPolicy mkPolicy||])

@@ -21,6 +21,7 @@ where
 import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Cardano.Api qualified as C
 import Cardano.Ledger.Alonzo.Genesis ()
+import Cardano.Ledger.Core qualified as Ledger
 import Codec.Serialise (Serialise, decode, encode)
 import Control.Lens qualified as L
 import Data.Aeson (FromJSON, ToJSON)
@@ -48,13 +49,13 @@ cardanoTxOutValue (C.TxOut _aie tov _tod _rs) =
 txOutValue :: TxOut -> C.Value
 txOutValue = cardanoTxOutValue . getTxOut
 
-outValue :: L.Lens TxOut TxOut C.Value (C.TxOutValue C.ConwayEra)
+outValue :: L.Lens TxOut TxOut C.Value (C.TxOutValue C.DijkstraEra)
 outValue =
   L.lens
     txOutValue
     (\(TxOut (C.TxOut aie _ tod rs)) tov -> TxOut (C.TxOut aie tov tod rs))
 
-outValue' :: L.Lens' TxOut (C.TxOutValue C.ConwayEra)
+outValue' :: L.Lens' TxOut (C.TxOutValue C.DijkstraEra)
 outValue' =
   L.lens
     (\(TxOut (C.TxOut _aie tov _tod _rs)) -> tov)
@@ -86,22 +87,22 @@ data Certificate = Certificate
 instance Pretty Certificate where
   pretty = viaShow
 
-newtype TxOut = TxOut {getTxOut :: C.TxOut C.CtxTx C.ConwayEra}
+newtype TxOut = TxOut {getTxOut :: C.TxOut C.CtxTx C.DijkstraEra}
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
   deriving newtype (Pretty)
 
 instance C.ToCBOR TxOut where
-  toCBOR = C.toCBOR . C.toShelleyTxOut C.ShelleyBasedEraConway . toCtxUTxOTxOut
+  toCBOR = Ledger.toEraCBOR @(C.ShelleyLedgerEra C.DijkstraEra) . C.toShelleyTxOut C.ShelleyBasedEraDijkstra . toCtxUTxOTxOut
 
 instance C.FromCBOR TxOut where
-  fromCBOR = TxOut . C.fromShelleyTxOut C.ShelleyBasedEraConway <$> C.fromCBOR
+  fromCBOR = TxOut . C.fromShelleyTxOut C.ShelleyBasedEraDijkstra <$> Ledger.fromEraCBOR @(C.ShelleyLedgerEra C.DijkstraEra)
 
 instance Serialise TxOut where
   encode = C.toCBOR
   decode = C.fromCBOR
 
-toCtxUTxOTxOut :: TxOut -> C.TxOut C.CtxUTxO C.ConwayEra
+toCtxUTxOTxOut :: TxOut -> C.TxOut C.CtxUTxO C.DijkstraEra
 toCtxUTxOTxOut = C.toCtxUTxOTxOut . getTxOut
 
 type ScriptsMap = Map ScriptHash (Versioned Script)
@@ -133,7 +134,7 @@ txOutDatum (TxOut (C.TxOut _aie _tov tod _rs)) =
     C.TxOutSupplementalDatum _era scriptData ->
       fromData @d $ C.toPlutusData $ C.getScriptData scriptData
 
-cardanoTxOutDatumHash :: C.TxOutDatum C.CtxUTxO C.ConwayEra -> Maybe (C.Hash C.ScriptData)
+cardanoTxOutDatumHash :: C.TxOutDatum C.CtxUTxO C.DijkstraEra -> Maybe (C.Hash C.ScriptData)
 cardanoTxOutDatumHash = \case
   C.TxOutDatumNone ->
     Nothing
@@ -147,19 +148,19 @@ txOutPubKey (TxOut (C.TxOut aie _ _ _)) = cardanoPubKeyHash aie
 txOutAddress :: TxOut -> CardanoAddress
 txOutAddress (TxOut (C.TxOut aie _tov _tod _rs)) = aie
 
-outAddress :: L.Lens' TxOut (C.AddressInEra C.ConwayEra)
+outAddress :: L.Lens' TxOut (C.AddressInEra C.DijkstraEra)
 outAddress =
   L.lens
     txOutAddress
     (\(TxOut (C.TxOut _ tov tod rs)) aie -> TxOut (C.TxOut aie tov tod rs))
 
-outDatumHash :: L.Lens TxOut TxOut (Maybe DatumHash) (C.TxOutDatum C.CtxTx C.ConwayEra)
+outDatumHash :: L.Lens TxOut TxOut (Maybe DatumHash) (C.TxOutDatum C.CtxTx C.DijkstraEra)
 outDatumHash =
   L.lens
     txOutDatumHash
     (\(TxOut (C.TxOut aie tov _ rs)) tod -> TxOut (C.TxOut aie tov tod rs))
 
-type ReferenceScript = C.ReferenceScript C.ConwayEra
+type ReferenceScript = C.ReferenceScript C.DijkstraEra
 
 txOutReferenceScript :: TxOut -> ReferenceScript
 txOutReferenceScript (TxOut (C.TxOut _aie _tov _tod rs)) = rs
@@ -182,7 +183,7 @@ lookupMintingPolicy txScripts = (fmap . fmap) MintingPolicy . lookupScript txScr
 lookupStakeValidator :: ScriptsMap -> StakeValidatorHash -> Maybe (Versioned StakeValidator)
 lookupStakeValidator txScripts = (fmap . fmap) StakeValidator . lookupScript txScripts . toScriptHash
 
-emptyTxBodyContent :: C.TxBodyContent C.BuildTx C.ConwayEra
+emptyTxBodyContent :: C.TxBodyContent C.BuildTx C.DijkstraEra
 emptyTxBodyContent =
   C.TxBodyContent
     { txIns = [],

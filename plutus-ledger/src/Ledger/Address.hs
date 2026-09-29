@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -59,11 +58,11 @@ import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty)
 
-type CardanoAddress = C.AddressInEra C.ConwayEra
+type CardanoAddress = C.AddressInEra C.DijkstraEra
 
-instance ToJSONKey (C.AddressInEra C.ConwayEra)
+instance ToJSONKey (C.AddressInEra C.DijkstraEra)
 
-instance FromJSONKey (C.AddressInEra C.ConwayEra)
+instance FromJSONKey (C.AddressInEra C.DijkstraEra)
 
 cardanoAddressCredential :: C.AddressInEra era -> Credential
 cardanoAddressCredential (C.AddressInEra C.ByronAddressInAnyEra (C.ByronAddress address)) =

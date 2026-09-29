@@ -91,9 +91,10 @@ where
 
 import Cardano.Api (TxBodyContent (txValidityUpperBound))
 import Cardano.Api qualified as C
-import Cardano.Ledger.Alonzo.Tx (AlonzoTx (..))
+import Cardano.Api.Experimental.Certificate qualified as C.Exp
 import Cardano.Ledger.Alonzo.TxWits (txwitsVKey)
 import Cardano.Ledger.Coin (Coin)
+import Cardano.Ledger.Dijkstra.Tx (DijkstraTx (DijkstraTx), pattern MkDijkstraTx)
 import Codec.Serialise (Serialise)
 import Control.Lens
   ( Getter,
@@ -257,7 +258,7 @@ toDecoratedTxOut (TxOut (C.TxOut addr' val dt rs)) =
     (toDecoratedDatum dt)
     (CardanoAPI.fromCardanoReferenceScript rs)
   where
-    toDecoratedDatum :: C.TxOutDatum C.CtxTx C.ConwayEra -> Maybe (V2.DatumHash, DatumFromQuery)
+    toDecoratedDatum :: C.TxOutDatum C.CtxTx C.DijkstraEra -> Maybe (V2.DatumHash, DatumFromQuery)
     toDecoratedDatum C.TxOutDatumNone =
       Nothing
     toDecoratedDatum (C.TxOutDatumHash _ h) =
@@ -284,7 +285,7 @@ toTxOut networkId p =
         )
 
 toTxOutDatum ::
-  Maybe (V2.DatumHash, DatumFromQuery) -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.ConwayEra)
+  Maybe (V2.DatumHash, DatumFromQuery) -> Either ToCardanoError (C.TxOutDatum C.CtxTx C.DijkstraEra)
 toTxOutDatum = CardanoAPI.toCardanoTxOutDatum . toPlutusOutputDatum
 
 -- | Converts a transaction output from the chain index to the plutus-ledger-api
@@ -364,7 +365,7 @@ instance Pretty CardanoAPI.CardanoBuildTx where
     Right tx -> pretty $ CardanoEmulatorEraTx tx
     _ -> viaShow txBodyContent
 
-getTxBodyContent :: CardanoTx -> C.TxBodyContent C.ViewTx C.ConwayEra
+getTxBodyContent :: CardanoTx -> C.TxBodyContent C.ViewTx C.DijkstraEra
 getTxBodyContent (CardanoEmulatorEraTx tx) = C.getTxBodyContent $ C.getTxBody tx
 
 getCardanoTxId :: CardanoTx -> C.TxId
@@ -410,7 +411,7 @@ getCardanoTxSpentOutputs = Set.fromList . getCardanoTxInputs
 getCardanoTxReturnCollateral :: CardanoTx -> Maybe TxOut
 getCardanoTxReturnCollateral = getTxBodyContentReturnCollateral . getTxBodyContent
 
-getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.ConwayEra -> Maybe TxOut
+getTxBodyContentReturnCollateral :: C.TxBodyContent ctx C.DijkstraEra -> Maybe TxOut
 getTxBodyContentReturnCollateral C.TxBodyContent {..} =
   case txReturnCollateral of
     C.TxReturnCollateralNone -> Nothing
@@ -442,7 +443,7 @@ getCardanoTxValidityRange (CardanoTx tx _) =
 getCardanoTxData :: CardanoTx -> Map V1.DatumHash V1.Datum
 getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody
 
-getTxBodyContentCerts :: C.TxBodyContent ctx era -> [C.Certificate era]
+getTxBodyContentCerts :: C.TxBodyContent ctx era -> [C.Exp.Certificate (C.ShelleyLedgerEra era)]
 getTxBodyContentCerts C.TxBodyContent {..} = case txCertificates of
   C.TxCertificatesNone -> mempty
   C.TxCertificates _ certs -> fst <$> OMap.toAscList certs
@@ -451,11 +452,11 @@ getTxBodyContentCerts C.TxBodyContent {..} = case txCertificates of
 
 txBodyContentIns ::
   Lens'
-    (C.TxBodyContent C.BuildTx C.ConwayEra)
-    [(C.TxIn, C.BuildTxWith C.BuildTx (C.Witness C.WitCtxTxIn C.ConwayEra))]
+    (C.TxBodyContent C.BuildTx C.DijkstraEra)
+    [(C.TxIn, C.BuildTxWith C.BuildTx (C.Witness C.WitCtxTxIn C.DijkstraEra))]
 txBodyContentIns = lens C.txIns (\bodyContent ins -> bodyContent {C.txIns = ins})
 
-txBodyContentCollateralIns :: Lens' (C.TxBodyContent C.BuildTx C.ConwayEra) [C.TxIn]
+txBodyContentCollateralIns :: Lens' (C.TxBodyContent C.BuildTx C.DijkstraEra) [C.TxIn]
 txBodyContentCollateralIns =
   lens
     ( \bodyContent -> case C.txInsCollateral bodyContent of
@@ -464,11 +465,11 @@ txBodyContentCollateralIns =
     )
     ( \bodyContent ins ->
         bodyContent
-          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.AlonzoEraOnwardsConway ins
+          { C.txInsCollateral = case ins of [] -> C.TxInsCollateralNone; _ -> C.TxInsCollateral C.AlonzoEraOnwardsDijkstra ins
           }
     )
 
-txBodyContentOuts :: Lens' (C.TxBodyContent ctx C.ConwayEra) [TxOut]
+txBodyContentOuts :: Lens' (C.TxBodyContent ctx C.DijkstraEra) [TxOut]
 txBodyContentOuts = lens (map TxOut . C.txOuts) (\bodyContent outs -> bodyContent {C.txOuts = map getTxOut outs})
 
 getCardanoTxRedeemers :: CardanoTx -> V2.Tx.Redeemers
@@ -482,8 +483,8 @@ getCardanoTxExtraKeyWitnesses (CardanoEmulatorEraTx tx) = case C.txExtraKeyWits 
 addCardanoTxWitness :: C.ShelleyWitnessSigningKey -> CardanoTx -> CardanoTx
 addCardanoTxWitness witness (CardanoEmulatorEraTx ctx) = CardanoEmulatorEraTx (addWitness ctx)
   where
-    addWitness (C.ShelleyTx shelleyBasedEra (AlonzoTx body wits isValid aux)) =
-      C.ShelleyTx shelleyBasedEra (AlonzoTx body wits' isValid aux)
+    addWitness (C.ShelleyTx shelleyBasedEra (MkDijkstraTx (DijkstraTx body wits isValid aux))) =
+      C.ShelleyTx shelleyBasedEra (MkDijkstraTx (DijkstraTx body wits' isValid aux))
       where
         wits' = wits <> mempty {txwitsVKey = newWits}
         newWits = case fromShelleyWitnessSigningKey body of
@@ -493,7 +494,7 @@ addCardanoTxWitness witness (CardanoEmulatorEraTx ctx) = CardanoEmulatorEraTx (a
     fromShelleyWitnessSigningKey txBody =
       C.makeShelleyKeyWitness
         C.shelleyBasedEra
-        (C.ShelleyTxBody C.ShelleyBasedEraConway txBody notUsed notUsed notUsed notUsed)
+        (C.ShelleyTxBody C.ShelleyBasedEraDijkstra txBody notUsed notUsed notUsed notUsed)
         witness
       where
         notUsed = undefined -- hack so we can reuse code from cardano-api

@@ -33,15 +33,15 @@ import Ledger.Tx.Orphans.V2 ()
 import Ledger.Value.Orphans ()
 import Prettyprinter (Pretty (pretty), hang, viaShow, vsep, (<+>))
 
-instance ToJSON (C.Tx C.ConwayEra) where
+instance ToJSON (C.Tx C.DijkstraEra) where
   toJSON tx =
     object ["tx" .= C.serialiseToTextEnvelope Nothing tx]
 
-instance FromJSON (C.Tx C.ConwayEra) where
+instance FromJSON (C.Tx C.DijkstraEra) where
   parseJSON (Object v) = do
     envelope <- v .: "tx"
     either
-      (const $ parseFail "Failed to parse ConwayEra 'tx' field from CardanoTx")
+      (const $ parseFail "Failed to parse DijkstraEra 'tx' field from CardanoTx")
       pure
       $ C.deserialiseFromTextEnvelope envelope
   parseJSON invalid =

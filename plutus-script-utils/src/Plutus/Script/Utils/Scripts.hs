@@ -26,7 +26,7 @@ module Plutus.Script.Utils.Scripts
 where
 
 import Cardano.Api qualified as C.Api
-import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
+import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3, PlutusV4))
 import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
@@ -106,6 +106,7 @@ instance Pretty Language where
   pretty PlutusV1 = "Plutus V1"
   pretty PlutusV2 = "Plutus V2"
   pretty PlutusV3 = "Plutus V3"
+  pretty PlutusV4 = "Plutus V4"
 
 -- | A script of some kind with its Plutus language version
 data Versioned script = Versioned
@@ -123,6 +124,7 @@ instance (ToScript a) => ToCardanoScriptHash (Versioned a) where
     PlutusV1 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV1 $ C.Api.PlutusScriptSerialised script
     PlutusV2 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV2 $ C.Api.PlutusScriptSerialised script
     PlutusV3 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV3 $ C.Api.PlutusScriptSerialised script
+    PlutusV4 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV4 $ C.Api.PlutusScriptSerialised script
 
 instance (ToScript a) => ToScript (Versioned a) where
   toScript = toScript . unversioned

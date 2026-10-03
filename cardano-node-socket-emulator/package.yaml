@@ -1,0 +1,99 @@
+spec-version: 0.36.0
+name: cardano-node-socket-emulator
+version: 1.4.1.0
+language: Haskell2010
+default-extensions:
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - ExplicitForAll
+  - FlexibleContexts
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - NamedFieldPuns
+  - ScopedTypeVariables
+  - StandaloneDeriving
+ghc-options:
+  - -Wall
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wnoncanonical-monad-instances
+  - -Wredundant-constraints
+  - -fplugin-opt
+  - PlutusTx.Plugin:target-version=1.1.0
+  - -fplugin-opt
+  - PlutusTx.Plugin:defer-errors
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Cardano.Node.Socket.Emulator
+    - Cardano.Node.Socket.Emulator.Mock
+    - Cardano.Node.Socket.Emulator.Params
+    - Cardano.Node.Socket.Emulator.Query
+    - Cardano.Node.Socket.Emulator.Server
+    - Cardano.Node.Socket.Emulator.Types
+    - Plutus.Monitoring.Util
+  when:
+    - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+      buildable: false
+  dependencies:
+    - aeson >=2
+    - async
+    - base >=4.9 && <5
+    - bytestring
+    - cardano-api
+    - cardano-ledger-api
+    - cardano-ledger-byron
+    - cardano-ledger-core
+    - cardano-ledger-core:testlib
+    - cardano-ledger-shelley
+    - cardano-ledger-shelley-test
+    - cardano-ledger-shelley:testlib
+    - cardano-node-emulator
+    - cardano-protocol-tpraos
+    - cardano-protocol-tpraos:testlib
+    - cardano-slotting
+    - containers
+    - contra-tracer
+    - cryptonite
+    - data-default
+    - exceptions
+    - freer-extras
+    - io-classes
+    - lens
+    - memory
+    - network-mux
+    - ouroboros-consensus:{ouroboros-consensus, cardano, diffusion, protocol}
+    - ouroboros-network:{ouroboros-network, api, framework, protocols}
+    - plutus-ledger
+    - plutus-script-utils
+    - prettyprinter
+    - serialise
+    - sop-core
+    - stm
+    - strict-sop-core
+    - text
+    - time
+    - time-units
+    - trace-dispatcher
+    - typed-protocols
+    - typed-protocols-stateful
+
+executables:
+  cardano-node-socket-emulator:
+    main: Main.hs
+    source-dirs: app
+    when:
+      - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+        buildable: false
+    dependencies:
+      - base >=4.9 && <5
+      - cardano-node-socket-emulator
+      - data-default
+      - prettyprinter
+      - trace-dispatcher

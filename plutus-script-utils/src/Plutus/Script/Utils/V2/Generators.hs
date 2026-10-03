@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -g -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
 module Plutus.Script.Utils.V2.Generators
@@ -56,20 +57,24 @@ import PlutusLedgerApi.V2
     Value,
     singleton,
   )
-import PlutusTx qualified
-import PlutusTx.Builtins.Internal qualified as PlutusTx
+import PlutusTx.Builtins.Internal (error, unitval)
+import PlutusTx.Code (unsafeApplyCode)
+import PlutusTx.Lift (liftCode)
+import PlutusTx.List (any)
+import PlutusTx.Prelude (Bool (False), BuiltinData, BuiltinUnit, Integer, ($), (.), (==))
+import PlutusTx.TH (compile)
 
 alwaysSucceedValidator :: Validator
-alwaysSucceedValidator = toValidator $$(PlutusTx.compile [||trueVal||])
+alwaysSucceedValidator = toValidator $$(compile [||trueVal||])
   where
-    trueVal :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
-    trueVal _ _ _ = PlutusTx.unitval
+    trueVal :: BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
+    trueVal _ _ _ = unitval
 
 alwaysFailValidator :: Validator
-alwaysFailValidator = toValidator $$(PlutusTx.compile [||falseVal||])
+alwaysFailValidator = toValidator $$(compile [||falseVal||])
   where
-    falseVal :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
-    falseVal _ _ _ = PlutusTx.error PlutusTx.unitval
+    falseVal :: BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
+    falseVal _ _ _ = error unitval
 
 alwaysSucceedValidatorVersioned :: Versioned Validator
 alwaysSucceedValidatorVersioned = Versioned alwaysSucceedValidator PlutusV2
@@ -84,16 +89,16 @@ alwaysFailValidatorHash :: ValidatorHash
 alwaysFailValidatorHash = toValidatorHash alwaysFailValidatorVersioned
 
 alwaysSucceedPolicy :: MintingPolicy
-alwaysSucceedPolicy = toMintingPolicy $$(PlutusTx.compile [||trueMP||])
+alwaysSucceedPolicy = toMintingPolicy $$(compile [||trueMP||])
   where
-    trueMP :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
-    trueMP _ _ = PlutusTx.unitval
+    trueMP :: BuiltinData -> BuiltinData -> BuiltinUnit
+    trueMP _ _ = unitval
 
 alwaysFailPolicy :: MintingPolicy
-alwaysFailPolicy = toMintingPolicy $$(PlutusTx.compile [||falseMP||])
+alwaysFailPolicy = toMintingPolicy $$(compile [||falseMP||])
   where
-    falseMP :: PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit
-    falseMP _ _ = PlutusTx.error PlutusTx.unitval
+    falseMP :: BuiltinData -> BuiltinData -> BuiltinUnit
+    falseMP _ _ = error unitval
 
 alwaysSucceedPolicyVersioned :: Versioned MintingPolicy
 alwaysSucceedPolicyVersioned = Versioned alwaysSucceedPolicy PlutusV2
@@ -123,9 +128,9 @@ alwaysFailTokenValue = singleton alwaysFailCurrencySymbol
 --  in the minting transaction.
 mkForwardingMintingPolicy :: ValidatorHash -> MintingPolicy
 mkForwardingMintingPolicy vshsh =
-  toMintingPolicy $
-    $$(PlutusTx.compile [||mkUntypedMintingPolicy . forwardToValidator||])
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
+  toMintingPolicy
+    $ $$(compile [||mkUntypedMintingPolicy . forwardToValidator||])
+    `unsafeApplyCode` liftCode plcVersion100 vshsh
   where
     {-# INLINEABLE forwardToValidator #-}
     forwardToValidator :: ValidatorHash -> () -> ScriptContext -> Bool
@@ -139,9 +144,9 @@ mkForwardingMintingPolicy vshsh =
 --  in the right transaction.
 mkForwardingStakeValidator :: ValidatorHash -> StakeValidator
 mkForwardingStakeValidator vshsh =
-  toStakeValidator $
-    $$(PlutusTx.compile [||mkUntypedStakeValidator . forwardToValidator||])
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
+  toStakeValidator
+    $ $$(compile [||mkUntypedStakeValidator . forwardToValidator||])
+    `unsafeApplyCode` liftCode plcVersion100 vshsh
   where
     {-# INLINEABLE forwardToValidator #-}
     forwardToValidator :: ValidatorHash -> () -> ScriptContext -> Bool

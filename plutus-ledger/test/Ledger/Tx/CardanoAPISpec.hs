@@ -67,7 +67,7 @@ tests =
     ]
 
 genValueDefault :: Gen C.Value
-genValueDefault = C.fromMaryValue <$> Gen.genValueDefault C.MaryEraOnwardsConway
+genValueDefault = C.fromMaryValue <$> Gen.genValueDefault C.MaryEraOnwardsDijkstra
 
 cardanoAssetNameRoundTrip :: Property
 cardanoAssetNameRoundTrip = property $ do

@@ -34,8 +34,9 @@ import Cardano.Ledger.Alonzo.Rules qualified as Alonzo
 import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
 import Cardano.Ledger.Coin qualified as Cardano
 import Cardano.Ledger.Conway.Governance qualified as Conway
-import Cardano.Ledger.Conway.Rules (ConwayLedgerPredFailure (ConwayUtxowFailure))
 import Cardano.Ledger.Core qualified as Ledger
+import Cardano.Ledger.Dijkstra.Rules (DijkstraLedgerPredFailure (DijkstraUtxowFailure))
+import Cardano.Ledger.Dijkstra.Tx (DijkstraTx (DijkstraTx), pattern MkDijkstraTx)
 import Cardano.Ledger.Credential qualified as Cardano
 import Cardano.Ledger.Plutus.Evaluate qualified as Ledger
 import Cardano.Ledger.Shelley.API qualified as Shelley
@@ -87,7 +88,7 @@ There are also some limitations of the emulator's functionality that could be
 addressed by extending the emulator, without having to bring in the full block
 validating machinery.
 
-\* We cannot represent different eras - everything is 'ConwayEra'.
+\* We cannot represent different eras - everything is 'DijkstraEra'.
 \* There is no handling of epoch boundaries, rewards, etc.
 \* The block size is unlimited - we simply take all transactions from the
   mempool when we make a block. There is however a limit on the size of
@@ -237,15 +238,15 @@ updateStateParams params (EmulatedLedgerState ledgerEnv ledgerState) =
 applyTx ::
   Params ->
   EmulatedLedgerState ->
-  Ledger.Tx EmulatorEra ->
-  Either (Shelley.ApplyTxError EmulatorEra) (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
+  Ledger.Tx Ledger.TopTx EmulatorEra ->
+  Either (Shelley.ApplyTxError EmulatorEra) (EmulatedLedgerState, Shelley.Validated (Ledger.Tx Ledger.TopTx EmulatorEra))
 applyTx params (EmulatedLedgerState ledgerEnv ledgerState) tx =
   first (EmulatedLedgerState ledgerEnv) <$> Shelley.applyTx (emulatorGlobals params) ledgerEnv ledgerState tx
 
 hasValidationErrors ::
   Params ->
   EmulatedLedgerState ->
-  C.Api.Tx C.Api.ConwayEra ->
+  C.Api.Tx C.Api.DijkstraEra ->
   (EmulatedLedgerState, P.Ledger.ValidationResult)
 hasValidationErrors params ls tx =
   case validateAndApplyTx params ls tx of
@@ -266,7 +267,7 @@ hasValidationErrors params ls tx =
       -- To handle the execution units failures, we inspect the validated
       -- transaction and check if we get a @IsValid False@.
       Right _
-        | Alonzo.IsValid False <- Alonzo.isValid $ Shelley.extractTx $ P.Ledger.getOnChainTx vtx ->
+        | Alonzo.IsValid False <- Shelley.extractTx (P.Ledger.getOnChainTx vtx) ^. Alonzo.isValidTxL ->
             ( ls',
               P.Ledger.FailPhase2
                 vtx
@@ -278,10 +279,10 @@ hasValidationErrors params ls tx =
 validateAndApplyTx ::
   Params ->
   EmulatedLedgerState ->
-  C.Api.Tx C.Api.ConwayEra ->
+  C.Api.Tx C.Api.DijkstraEra ->
   Either
     (Shelley.ApplyTxError EmulatorEra)
-    (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
+    (EmulatedLedgerState, Shelley.Validated (Ledger.Tx Ledger.TopTx EmulatorEra))
 validateAndApplyTx params ledgerState (C.Api.ShelleyTx _ tx) =
   constructValidated
     (emulatorGlobals params)
@@ -309,14 +310,14 @@ constructValidated ::
   Shelley.Globals ->
   Shelley.UtxoEnv EmulatorEra ->
   Shelley.UTxOState EmulatorEra ->
-  Ledger.Tx EmulatorEra ->
-  m (Alonzo.AlonzoTx EmulatorEra)
+  Ledger.Tx Ledger.TopTx EmulatorEra ->
+  m (Ledger.Tx Ledger.TopTx EmulatorEra)
 constructValidated globals (Shelley.UtxoEnv _ pp _) st tx =
   case Alonzo.collectPlutusScriptsWithContext ei sysS pp tx utxo of
     Left errs ->
       throwError
         ( Shelley.ApplyTxError
-            ( ConwayUtxowFailure
+            ( DijkstraUtxowFailure
                 (Ledger.injectFailure (Alonzo.UtxosFailure (Ledger.injectFailure $ Alonzo.CollectErrors errs)))
                 :| []
             )
@@ -324,11 +325,12 @@ constructValidated globals (Shelley.UtxoEnv _ pp _) st tx =
     Right sLst ->
       let scriptEvalResult = Alonzo.evalPlutusScripts sLst
           vTx =
-            Alonzo.AlonzoTx
-              (view Ledger.bodyTxL tx)
-              (view Ledger.witsTxL tx)
-              (Alonzo.IsValid (lift scriptEvalResult))
-              (view Ledger.auxDataTxL tx)
+            MkDijkstraTx $
+              DijkstraTx
+                (view Ledger.bodyTxL tx)
+                (view Ledger.witsTxL tx)
+                (Alonzo.IsValid (lift scriptEvalResult))
+                (view Ledger.auxDataTxL tx)
        in pure vTx
   where
     utxo = Shelley.utxosUtxo st
@@ -340,7 +342,7 @@ constructValidated globals (Shelley.UtxoEnv _ pp _) st tx =
 unsafeMakeValid :: P.Ledger.CardanoTx -> P.Ledger.OnChainTx
 unsafeMakeValid (P.Ledger.CardanoEmulatorEraTx (C.Api.Tx txBody _)) =
   let C.Api.ShelleyTxBody _ txBody' _ _ _ _ = txBody
-      vtx :: Ledger.Tx EmulatorEra = Alonzo.AlonzoTx txBody' mempty (Alonzo.IsValid True) Shelley.SNothing
+      vtx :: Ledger.Tx Ledger.TopTx EmulatorEra = MkDijkstraTx (DijkstraTx txBody' mempty (Alonzo.IsValid True) Shelley.SNothing)
    in P.Ledger.OnChainTx $ Shelley.unsafeMakeValidated vtx
 
 validateCardanoTx ::
@@ -356,7 +358,7 @@ validateCardanoTx params ls ctx@(P.Ledger.CardanoEmulatorEraTx tx) =
 getTxExUnitsWithLogs ::
   Params ->
   Shelley.UTxO EmulatorEra ->
-  C.Api.Tx C.Api.ConwayEra ->
+  C.Api.Tx C.Api.DijkstraEra ->
   Either P.Ledger.ValidationErrorInPhase P.Ledger.RedeemerReport
 getTxExUnitsWithLogs params utxo (C.Api.ShelleyTx _ tx) =
   traverse (either toCardanoLedgerError Right) result
@@ -370,7 +372,7 @@ getTxExUnitsWithLogs params utxo (C.Api.ShelleyTx _ tx) =
 createTransactionBody ::
   Params ->
   P.Ledger.CardanoBuildTx ->
-  Either P.Ledger.ToCardanoError (C.Api.TxBody C.Api.ConwayEra)
+  Either P.Ledger.ToCardanoError (C.Api.TxBody C.Api.DijkstraEra)
 createTransactionBody params (P.Ledger.CardanoBuildTx bodyContent) =
   first (P.Ledger.TxBodyError . C.Api.displayError) $
     C.Api.createTransactionBody C.Api.shelleyBasedEra $

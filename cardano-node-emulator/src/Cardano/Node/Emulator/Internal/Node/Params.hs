@@ -27,6 +27,7 @@ module Cardano.Node.Emulator.Internal.Node.Params
     emulatorShelleyGenesisDefaults,
     emulatorAlonzoGenesisDefaults,
     emulatorConwayGenesisDefaults,
+    emulatorDijkstraGenesisDefaults,
     keptBlocks,
 
     -- * cardano-ledger specific types and conversion functions
@@ -47,7 +48,7 @@ import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (ProtVer (ProtVer), boundRational, unNonZero)
 import Cardano.Ledger.Binary.Version (Version, natVersion)
-import Cardano.Ledger.Conway (ConwayEra)
+import Cardano.Ledger.Dijkstra (DijkstraEra)
 import Cardano.Ledger.Plutus.ExUnits (ExUnits (ExUnits), Prices (Prices))
 import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
@@ -83,7 +84,7 @@ import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
 -- | The default era for the emulator
-type EmulatorEra = ConwayEra
+type EmulatorEra = DijkstraEra
 
 type PParams = C.PParams EmulatorEra
 
@@ -134,7 +135,7 @@ instance Pretty Params where
 emulatorPParams :: Params -> PParams
 emulatorPParams = pEmulatorPParams
 
-ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
+ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.DijkstraEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
 -- | Set higher limits on transaction size and execution units.
@@ -161,6 +162,7 @@ defaultConfig =
     emulatorShelleyGenesisDefaults
     emulatorAlonzoGenesisDefaults
     emulatorConwayGenesisDefaults
+    emulatorDijkstraGenesisDefaults
 
 emulatorShelleyGenesisDefaults :: C.ShelleyGenesis
 emulatorShelleyGenesisDefaults =
@@ -180,7 +182,7 @@ instance MonadFail (Either String) where
 
 emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
 emulatorAlonzoGenesisDefaults =
-  (C.alonzoGenesisDefaults C.ConwayEra)
+  (C.alonzoGenesisDefaults C.DijkstraEra)
     { C.agPrices =
         Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000)),
       C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
@@ -188,6 +190,9 @@ emulatorAlonzoGenesisDefaults =
 
 emulatorConwayGenesisDefaults :: C.ConwayGenesis
 emulatorConwayGenesisDefaults = C.conwayGenesisDefaults
+
+emulatorDijkstraGenesisDefaults :: C.DijkstraGenesis
+emulatorDijkstraGenesisDefaults = C.dijkstraGenesisDefaults
 
 paramsFromConfig :: TransitionConfig -> Params
 paramsFromConfig tc =

@@ -154,7 +154,8 @@ checkDatum _ (Datum d) =
     Nothing -> throwError $ WrongDatumType d
 
 -- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
-data TypedScriptTxOut a = (IsDataDatum a) =>
+data TypedScriptTxOut a
+  = (IsDataDatum a) =>
   TypedScriptTxOut
   { tyTxOutTxOut :: TxOut,
     tyTxOutData :: DatumType a

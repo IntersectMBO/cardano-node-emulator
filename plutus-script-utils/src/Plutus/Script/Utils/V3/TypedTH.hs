@@ -6,13 +6,17 @@
 -- @case@ expression containing only the branches for purposes the caller
 -- declares active, instead of always compiling in all 6.
 module Plutus.Script.Utils.V3.TypedTH
-  ( ActivePurposes (..),
+  ( Purpose (..),
+    ActivePurposes,
     allPurposes,
     noPurposes,
     mkMultiPurposeScriptFor,
   )
 where
 
+import Control.Monad (replicateM)
+import Data.Char (toUpper)
+import Data.List (nub)
 import Language.Haskell.TH
   ( Body (GuardedB, NormalB),
     Exp (CaseE, VarE),
@@ -21,11 +25,15 @@ import Language.Haskell.TH
     Name,
     Q,
     Stmt (BindS),
+    appE,
     conP,
+    litE,
     mkName,
     newName,
+    stringL,
     varE,
     varP,
+    wildP,
   )
 import Plutus.Script.Utils.V3.Typed
   ( ScriptContextResolvedScriptInfo (..),
@@ -43,32 +51,25 @@ import PlutusTx.Prelude (check, trace, traceError)
 -- PART 1 — What the caller tells us at compile time
 -- ============================================================
 
--- | Which of the 6 purposes does this script actually implement?
---
--- Fill this in at the call site:
+-- | One of the 6 script purposes.
+data Purpose = Certifying | Minting | Proposing | Rewarding | Spending | Voting
+  deriving (Eq, Enum, Bounded)
+
+-- | Which purposes a script actually implements, decided at compile time.
 --
 -- @
 -- mintAndSpendOnly :: ActivePurposes
--- mintAndSpendOnly = noPurposes { hasMinting = True, hasSpending = True }
+-- mintAndSpendOnly = [Minting, Spending]
 -- @
---
--- GHC evaluates this record at *compile time* before generating any bytecode.
-data ActivePurposes = ActivePurposes
-  { hasCertifying :: Bool,
-    hasMinting :: Bool,
-    hasProposing :: Bool,
-    hasRewarding :: Bool,
-    hasSpending :: Bool,
-    hasVoting :: Bool
-  }
+type ActivePurposes = [Purpose]
 
--- | All six purposes active — same behaviour as the original 'mkMultiPurposeScript'.
+-- | All six purposes — same behaviour as the original 'mkMultiPurposeScript'.
 allPurposes :: ActivePurposes
-allPurposes = ActivePurposes True True True True True True
+allPurposes = [minBound .. maxBound]
 
--- | No purposes active. Use as a base, enabling only what you need.
+-- | No purposes. Use as a base: @Minting : Spending : noPurposes@.
 noPurposes :: ActivePurposes
-noPurposes = ActivePurposes False False False False False False
+noPurposes = []
 
 -- ============================================================
 -- PART 2 — Generating one case branch per purpose
@@ -92,33 +93,43 @@ purposeGuard purposeField handlerVar = do
   pat <- conP 'Just [varP handlerVar]
   pure $ PatG [BindS pat (VarE (mkName purposeField))]
 
-mintingBranches :: Q [Match]
-mintingBranches = do
-  curV <- newName "cur"
-  mhV <- newName "mh"
+-- | Build the two branches for a purpose whose constructor is just the
+-- redeemer/txInfo plus some fixed number of extra positional fields (the
+-- scrutinee, an index, a credential, ...) — every purpose except 'Spending',
+-- which also has to resolve an optional datum.
+simplePurposeBranches :: Name -> Int -> String -> String -> Q [Match]
+simplePurposeBranches ctorName extraArity purposeField label = do
+  extraVs <- replicateM extraArity (newName "arg")
+  handlerV <- newName "h"
   redV <- newName "red"
   txIV <- newName "txI"
 
+  let handlerApplication = foldl appE (varE handlerV) (map varE extraVs <> [varE redV, varE txIV])
+      runningMsg = "Running the validator with the " <> label <> " script purpose"
+      unsupportedMsg = "Unsupported purpose: " <> capitalize label
+
   let activeBranch = do
-        pat <- [p|MintingScript $(varP curV)|]
-        guard <- purposeGuard "mintingPurpose" mhV
+        pat <- conP ctorName (map varP extraVs)
+        guard <- purposeGuard purposeField handlerV
         body <-
           [|
             do
               ($(varP redV), $(varP txIV)) <-
-                deserializeContext "minting" $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
-              return $
-                trace "Running the validator with the minting script purpose" $
-                  $(varE mhV) $(varE curV) $(varE redV) $(varE txIV)
+                deserializeContext $(litE (stringL label)) $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
+              return $ trace $(litE (stringL runningMsg)) $(handlerApplication)
             |]
         return $ Match pat (GuardedB [(guard, body)]) []
 
   let errorBranch = do
-        pat <- [p|MintingScript {}|]
-        body <- [|traceError "Unsupported purpose: Minting"|]
+        pat <- conP ctorName (map (const wildP) extraVs)
+        body <- [|traceError $(litE (stringL unsupportedMsg))|]
         return $ Match pat (NormalB body) []
 
   sequence [activeBranch, errorBranch]
+
+capitalize :: String -> String
+capitalize [] = []
+capitalize (c : cs) = toUpper c : cs
 
 spendingBranches :: Q [Match]
 spendingBranches = do
@@ -156,120 +167,6 @@ spendingBranches = do
 
   sequence [activeBranch, errorBranch]
 
-certifyingBranches :: Q [Match]
-certifyingBranches = do
-  iV <- newName "i"
-  certV <- newName "cert"
-  chV <- newName "ch"
-  redV <- newName "red"
-  txIV <- newName "txI"
-
-  let activeBranch = do
-        pat <- [p|CertifyingScript $(varP iV) $(varP certV)|]
-        guard <- purposeGuard "certifyingPurpose" chV
-        body <-
-          [|
-            do
-              ($(varP redV), $(varP txIV)) <-
-                deserializeContext "certifying" $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
-              return $
-                trace "Running the validator with the certifying script purpose" $
-                  $(varE chV) $(varE iV) $(varE certV) $(varE redV) $(varE txIV)
-            |]
-        return $ Match pat (GuardedB [(guard, body)]) []
-
-  let errorBranch = do
-        pat <- [p|CertifyingScript {}|]
-        body <- [|traceError "Unsupported purpose: Certifying"|]
-        return $ Match pat (NormalB body) []
-
-  sequence [activeBranch, errorBranch]
-
-proposingBranches :: Q [Match]
-proposingBranches = do
-  iV <- newName "i"
-  propV <- newName "prop"
-  phV <- newName "ph"
-  redV <- newName "red"
-  txIV <- newName "txI"
-
-  let activeBranch = do
-        pat <- [p|ProposingScript $(varP iV) $(varP propV)|]
-        guard <- purposeGuard "proposingPurpose" phV
-        body <-
-          [|
-            do
-              ($(varP redV), $(varP txIV)) <-
-                deserializeContext "proposing" $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
-              return $
-                trace "Running the validator with the proposing script purpose" $
-                  $(varE phV) $(varE iV) $(varE propV) $(varE redV) $(varE txIV)
-            |]
-        return $ Match pat (GuardedB [(guard, body)]) []
-
-  let errorBranch = do
-        pat <- [p|ProposingScript {}|]
-        body <- [|traceError "Unsupported purpose: Proposing"|]
-        return $ Match pat (NormalB body) []
-
-  sequence [activeBranch, errorBranch]
-
-rewardingBranches :: Q [Match]
-rewardingBranches = do
-  credV <- newName "cred"
-  rhV <- newName "rh"
-  redV <- newName "red"
-  txIV <- newName "txI"
-
-  let activeBranch = do
-        pat <- [p|RewardingScript $(varP credV)|]
-        guard <- purposeGuard "rewardingPurpose" rhV
-        body <-
-          [|
-            do
-              ($(varP redV), $(varP txIV)) <-
-                deserializeContext "rewarding" $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
-              return $
-                trace "Running the validator with the rewarding script purpose" $
-                  $(varE rhV) $(varE credV) $(varE redV) $(varE txIV)
-            |]
-        return $ Match pat (GuardedB [(guard, body)]) []
-
-  let errorBranch = do
-        pat <- [p|RewardingScript {}|]
-        body <- [|traceError "Unsupported purpose: Rewarding"|]
-        return $ Match pat (NormalB body) []
-
-  sequence [activeBranch, errorBranch]
-
-votingBranches :: Q [Match]
-votingBranches = do
-  voterV <- newName "voter"
-  vhV <- newName "vh"
-  redV <- newName "red"
-  txIV <- newName "txI"
-
-  let activeBranch = do
-        pat <- [p|VotingScript $(varP voterV)|]
-        guard <- purposeGuard "votingPurpose" vhV
-        body <-
-          [|
-            do
-              ($(varP redV), $(varP txIV)) <-
-                deserializeContext "voting" $(varE (mkName "rsiRedeemer")) $(varE (mkName "rsiTxInfo"))
-              return $
-                trace "Running the validator with the voting script purpose" $
-                  $(varE vhV) $(varE voterV) $(varE redV) $(varE txIV)
-            |]
-        return $ Match pat (GuardedB [(guard, body)]) []
-
-  let errorBranch = do
-        pat <- [p|VotingScript {}|]
-        body <- [|traceError "Unsupported purpose: Voting"|]
-        return $ Match pat (NormalB body) []
-
-  sequence [activeBranch, errorBranch]
-
 -- ============================================================
 -- PART 3 — Assemble everything into one function expression
 -- ============================================================
@@ -287,22 +184,21 @@ votingBranches = do
 -- myScript
 --   :: TypedMultiPurposeScript () () mintRed mintTxInfo () () () () sDat sRed sTxInfo () ()
 --   -> BuiltinData -> BuiltinUnit
--- myScript = $(mkMultiPurposeScriptFor (noPurposes { hasMinting = True, hasSpending = True }))
+-- myScript = $(mkMultiPurposeScriptFor [Minting, Spending])
 -- @
+-- | With no active purposes, never deserialize anything and always fail.
 mkMultiPurposeScriptFor :: ActivePurposes -> Q Exp
-mkMultiPurposeScriptFor ActivePurposes {..} = do
-  let activeBranchGens :: [Q [Match]]
-      activeBranchGens =
-        concat
-          [ [certifyingBranches | hasCertifying],
-            [mintingBranches | hasMinting],
-            [proposingBranches | hasProposing],
-            [rewardingBranches | hasRewarding],
-            [spendingBranches | hasSpending],
-            [votingBranches | hasVoting]
-          ]
+mkMultiPurposeScriptFor (nub -> []) = [|\_ _ -> check False|]
+mkMultiPurposeScriptFor active = do
+  let branchesFor = \case
+        Certifying -> simplePurposeBranches 'CertifyingScript 2 "certifyingPurpose" "certifying"
+        Minting -> simplePurposeBranches 'MintingScript 1 "mintingPurpose" "minting"
+        Proposing -> simplePurposeBranches 'ProposingScript 2 "proposingPurpose" "proposing"
+        Rewarding -> simplePurposeBranches 'RewardingScript 1 "rewardingPurpose" "rewarding"
+        Spending -> spendingBranches
+        Voting -> simplePurposeBranches 'VotingScript 1 "votingPurpose" "voting"
 
-  allBranches <- concat <$> sequence activeBranchGens
+  allBranches <- concat <$> traverse branchesFor active
 
   [|
     \TypedMultiPurposeScript {..} dat ->

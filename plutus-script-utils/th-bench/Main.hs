@@ -1,48 +1,41 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Compiles the same minting+spending validator two ways — via the
--- hand-written 'mkMultiPurposeScript' (which always contains all 6 purpose
--- branches) and via the Template Haskell 'mkMultiPurposeScriptFor' (which
--- contains only the 2 requested branches) — and prints the size difference.
+-- | Compares 'mkMultiPurposeScript' (all 6 branches) against
+-- 'mkMultiPurposeScriptFor' (pruned to 2) on a validator that decodes a real 'TxInfo'.
 --
 -- Run with: cabal run plutus-script-utils-th-bench
 module Main (main) where
 
-import Plutus.Script.Utils.V3.Generators
-  ( falseTypedMultiPurposeScript,
-    trueMintingPurpose,
-    trueSpendingPurpose,
-    withMintingPurpose,
-    withSpendingPurpose,
-  )
-import Plutus.Script.Utils.V3.Typed (TypedMultiPurposeScript, mkMultiPurposeScript)
-import Plutus.Script.Utils.V3.TypedTH (ActivePurposes (..), mkMultiPurposeScriptFor, noPurposes)
-import PlutusLedgerApi.V3 (BuiltinData)
+import Plutus.Script.Utils.V3.Generators (trueMintingPurpose, trueSpendingPurpose)
+import Plutus.Script.Utils.V3.Typed (TypedMultiPurposeScript (TypedMultiPurposeScript), mkMultiPurposeScript)
+import Plutus.Script.Utils.V3.TypedTH (Purpose (..), mkMultiPurposeScriptFor)
+import PlutusLedgerApi.V3 (BuiltinData, TxInfo)
 import PlutusTx.Code (sizePlc)
 import PlutusTx.Prelude (BuiltinUnit)
 import PlutusTx.TH (compile)
 
--- | TH-generated equivalent of 'mkMultiPurposeScript', restricted to
--- minting + spending (4 of the possible 12 branches).
---
--- The 'ActivePurposes' value must stay inline in the splice rather than a
--- top-level binding — GHC's stage restriction forbids a splice referencing
--- a same-module top-level name.
+-- | Pruned to minting + spending. Purpose list stays inline — splicing a
+-- same-module top-level name is forbidden by GHC's stage restriction.
 {-# INLINEABLE thMkMultiPurposeScript #-}
 thMkMultiPurposeScript ::
-  TypedMultiPurposeScript () () () () () () () () () () () () () -> BuiltinData -> BuiltinUnit
+  TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData -> BuiltinData -> BuiltinUnit
 thMkMultiPurposeScript =
-  ( $(mkMultiPurposeScriptFor (noPurposes {hasMinting = True, hasSpending = True})) ::
-      TypedMultiPurposeScript () () () () () () () () () () () () () -> BuiltinData -> BuiltinUnit
+  ( $(mkMultiPurposeScriptFor [Minting, Spending]) ::
+      TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData -> BuiltinData -> BuiltinUnit
   )
 
--- | Same script, fed into both compilers below.
-script :: TypedMultiPurposeScript () () () () () () () () () () () () ()
+-- | Minting/spending decode a real 'TxInfo'; every other slot is
+-- 'BuiltinData' (never fails to decode), not '()' (fails on real data).
+script :: TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData
 script =
-  falseTypedMultiPurposeScript
-    `withMintingPurpose` trueMintingPurpose @() @()
-    `withSpendingPurpose` trueSpendingPurpose @() @() @()
+  TypedMultiPurposeScript
+    Nothing
+    (Just (trueMintingPurpose @BuiltinData @TxInfo))
+    Nothing
+    Nothing
+    (Just (trueSpendingPurpose @BuiltinData @BuiltinData @TxInfo))
+    Nothing
 
 originalCompiled = $$(compile [||mkMultiPurposeScript script||])
 

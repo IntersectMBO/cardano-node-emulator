@@ -200,7 +200,7 @@ mkMultiPurposeScriptFor active = do
         Spending -> spendingBranches
         Voting -> simplePurposeBranches 'VotingScript 1 "votingPurpose" "voting"
 
-  allBranches <- concat <$> traverse branchesFor active
+  allBranches <- concat <$> traverse branchesFor (nub active)
 
   [|
     \TypedMultiPurposeScript {..} dat ->

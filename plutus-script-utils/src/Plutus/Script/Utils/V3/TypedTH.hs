@@ -67,7 +67,7 @@ type ActivePurposes = [Purpose]
 allPurposes :: ActivePurposes
 allPurposes = [minBound .. maxBound]
 
--- | No purposes. Use as a base: @Minting : Spending : noPurposes@.
+-- | No purposes. Use as a base when building up a list, e.g. @Minting : noPurposes@.
 noPurposes :: ActivePurposes
 noPurposes = []
 
@@ -75,28 +75,22 @@ noPurposes = []
 -- PART 2 — Generating one case branch per purpose
 -- ============================================================
 
--- | Build the guard @| Just handlerVar <- purposeField@ as a real 'PatG'
--- pattern guard (a plain @[| Just h <- purposeField |]@ quote won't parse —
--- @<-@ only works inside a @do@ block).
+-- | Guard @| Just handlerVar <- purposeField@, built as 'PatG' since
+-- @[| Just h <- purposeField |]@ doesn't parse (@<-@ needs a @do@ block).
 --
--- @purposeField@ is a 'String' turned into a 'Name' via 'mkName', not
--- captured with @'foo@. Each branch here is built in its own 'Q'
--- computation, then spliced into the outer @TypedMultiPurposeScript{..}@
--- lambda in 'mkMultiPurposeScriptFor'. @'foo@ resolves once, at this
--- module's compile time, to the top-level field accessor — 'mkName'
--- instead stays unresolved until the splice site, where lexical scoping
--- picks up the @TypedMultiPurposeScript{..}@-bound local. Using @'foo@ here
--- would silently reintroduce the runtime @Maybe@ check this module exists
--- to eliminate.
+-- @purposeField@ becomes a 'Name' via 'mkName', not @'foo@. This guard is
+-- spliced into a lambda built elsewhere, in 'mkMultiPurposeScriptFor';
+-- @'foo@ would resolve now, to the top-level accessor in "Typed", not to
+-- that lambda's local binding — silently reintroducing the runtime @Maybe@
+-- check this module exists to remove.
 purposeGuard :: String -> Name -> Q Guard
 purposeGuard purposeField handlerVar = do
   pat <- conP 'Just [varP handlerVar]
   pure $ PatG [BindS pat (VarE (mkName purposeField))]
 
--- | Build the two branches for a purpose whose constructor is just the
--- redeemer/txInfo plus some fixed number of extra positional fields (the
--- scrutinee, an index, a credential, ...) — every purpose except 'Spending',
--- which also has to resolve an optional datum.
+-- | Two branches (handler present / missing) for a purpose whose
+-- 'ScriptInfo' constructor is fixed positional fields plus redeemer and
+-- @TxInfo@. Every purpose but 'Spending' (optional datum, handled below).
 simplePurposeBranches :: Name -> Int -> String -> String -> Q [Match]
 simplePurposeBranches ctorName extraArity purposeField label = do
   extraVs <- replicateM extraArity (newName "arg")
@@ -127,10 +121,13 @@ simplePurposeBranches ctorName extraArity purposeField label = do
 
   sequence [activeBranch, errorBranch]
 
+-- | Upper-case the first letter, e.g. @"spending"@ to @"Spending"@.
 capitalize :: String -> String
 capitalize [] = []
 capitalize (c : cs) = toUpper c : cs
 
+-- | 'Spending'\'s two branches: the datum is optional, decoded separately
+-- when present, unlike 'simplePurposeBranches'.
 spendingBranches :: Q [Match]
 spendingBranches = do
   oRefV <- newName "oRef"
@@ -172,7 +169,8 @@ spendingBranches = do
 -- ============================================================
 
 -- | Generate a @mkMultiPurposeScript@-like function containing only the
--- branches for the purposes listed in 'ActivePurposes'.
+-- branches for the purposes listed in 'ActivePurposes'. An empty list
+-- generates a function that never deserializes and always fails.
 --
 -- = Usage (in your script module)
 --
@@ -181,12 +179,16 @@ spendingBranches = do
 -- import Plutus.Script.Utils.V3.TypedTH
 --
 -- -- Only Minting + Spending branches will exist in the compiled script.
+-- -- Every unused slot is 'BuiltinData', not @()@: @()@ only decodes
+-- -- successfully against a specific empty structure and would reject real
+-- -- transaction data, whereas 'BuiltinData' never fails to decode.
 -- myScript
---   :: TypedMultiPurposeScript () () mintRed mintTxInfo () () () () sDat sRed sTxInfo () ()
+--   :: TypedMultiPurposeScript
+--        BuiltinData BuiltinData mintRed mintTxInfo BuiltinData BuiltinData
+--        BuiltinData BuiltinData sDat sRed sTxInfo BuiltinData BuiltinData
 --   -> BuiltinData -> BuiltinUnit
 -- myScript = $(mkMultiPurposeScriptFor [Minting, Spending])
 -- @
--- | With no active purposes, never deserialize anything and always fail.
 mkMultiPurposeScriptFor :: ActivePurposes -> Q Exp
 mkMultiPurposeScriptFor (nub -> []) = [|\_ _ -> check False|]
 mkMultiPurposeScriptFor active = do

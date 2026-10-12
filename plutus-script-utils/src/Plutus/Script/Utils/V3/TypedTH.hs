@@ -3,23 +3,20 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | Template Haskell alternative to 'mkMultiPurposeScript' that generates a
--- @case@ expression containing only the branches for purposes the caller
--- declares active, instead of always compiling in all 6.
+-- @case@ expression containing only the branches for purposes the given
+-- script actually implements, inferred from its own @Just@/@Nothing@
+-- fields instead of asked for separately.
 module Plutus.Script.Utils.V3.TypedTH
   ( Purpose (..),
-    ActivePurposes,
-    allPurposes,
-    noPurposes,
     mkMultiPurposeScriptFor,
   )
 where
 
 import Control.Monad (replicateM)
 import Data.Char (toUpper)
-import Data.List (nub)
 import Language.Haskell.TH
   ( Body (GuardedB, NormalB),
-    Exp (CaseE, VarE),
+    Exp (AppE, CaseE, ConE, SigE, VarE),
     Guard (PatG),
     Match (Match),
     Name,
@@ -48,28 +45,49 @@ import PlutusLedgerApi.V3
 import PlutusTx.Prelude (check, trace, traceError)
 
 -- ============================================================
--- PART 1 — What the caller tells us at compile time
+-- PART 1 — Reading which purposes are active off the script itself
 -- ============================================================
 
 -- | One of the 6 script purposes.
 data Purpose = Certifying | Minting | Proposing | Rewarding | Spending | Voting
   deriving (Eq, Enum, Bounded)
 
--- | Which purposes a script actually implements, decided at compile time.
---
--- @
--- mintAndSpendOnly :: ActivePurposes
--- mintAndSpendOnly = [Minting, Spending]
--- @
-type ActivePurposes = [Purpose]
+-- | The 6 purpose fields of a 'TypedMultiPurposeScript', in constructor order.
+purposesInOrder :: [Purpose]
+purposesInOrder = [Certifying, Minting, Proposing, Rewarding, Spending, Voting]
 
--- | All six purposes — same behaviour as the original 'mkMultiPurposeScript'.
-allPurposes :: ActivePurposes
-allPurposes = [minBound .. maxBound]
+-- | Which purposes @scriptExp@ sets to @Just _@, read directly off its
+-- source: stripped of any outer type annotation, @scriptExp@ must be a
+-- literal @TypedMultiPurposeScript may1 .. may6@ application, each @mayN@
+-- a literal @Just ..@ or @Nothing@ — the only shape this can see through
+-- without running the script, since TH only has the unevaluated syntax.
+activePurposesOf :: Exp -> Q [Purpose]
+activePurposesOf scriptExp = do
+  args <- collectArgs (stripSig scriptExp)
+  pure [p | (p, arg) <- zip purposesInOrder args, isJustE arg]
+  where
+    stripSig (SigE e _) = e
+    stripSig e = e
 
--- | No purposes. Use as a base when building up a list, e.g. @Minting : noPurposes@.
-noPurposes :: ActivePurposes
-noPurposes = []
+    collectArgs :: Exp -> Q [Exp]
+    collectArgs = go []
+      where
+        go acc (AppE f x) = go (x : acc) f
+        go acc (ConE n)
+          | n == 'TypedMultiPurposeScript, length acc == 6 = pure acc
+        go _ _ =
+          fail
+            "mkMultiPurposeScriptFor: expected a literal \
+            \`TypedMultiPurposeScript may1 .. may6` application, \
+            \each argument a literal `Just ..` or `Nothing`"
+
+    isJustE (AppE (ConE n) _) | n == 'Just = True
+    isJustE (ConE n) | n == 'Nothing = False
+    isJustE _ =
+      error
+        "mkMultiPurposeScriptFor: every field of the script must be a \
+        \literal `Just ..` or `Nothing`, not a variable or other \
+        \expression, so the active purposes can be read at compile time"
 
 -- ============================================================
 -- PART 2 — Generating one case branch per purpose
@@ -168,9 +186,21 @@ spendingBranches = do
 -- PART 3 — Assemble everything into one function expression
 -- ============================================================
 
--- | Generate a @mkMultiPurposeScript@-like function containing only the
--- branches for the purposes listed in 'ActivePurposes'. An empty list
--- generates a function that never deserializes and always fails.
+-- | Generate a @mkMultiPurposeScript@-like function, specialised to
+-- @scriptExp@, containing only the branches for the purposes it actually
+-- implements — read off its @Just@/@Nothing@ fields, not asked for
+-- separately. With no active purpose, the generated function never
+-- deserializes and always fails.
+--
+-- @scriptExp@ must be written directly inside the quote at the splice
+-- site, as a literal @TypedMultiPurposeScript ..@ application — quoting a
+-- reference to some other top-level binding, e.g. @[| myScript |]@, only
+-- captures that reference, not the definition it points to, so there is
+-- nothing here for this function to read.
+--
+-- Any purpose left @Nothing@ leaves its redeemer\/@TxInfo@ type variables
+-- completely unused, so nothing pins them — a type annotation inside the
+-- quote (as below) is required whenever at least one purpose is inactive.
 --
 -- = Usage (in your script module)
 --
@@ -178,34 +208,42 @@ spendingBranches = do
 -- {-\# LANGUAGE TemplateHaskell \#-}
 -- import Plutus.Script.Utils.V3.TypedTH
 --
--- -- Only Minting + Spending branches will exist in the compiled script.
 -- -- Every unused slot is 'BuiltinData', not @()@: @()@ only decodes
 -- -- successfully against a specific empty structure and would reject real
 -- -- transaction data, whereas 'BuiltinData' never fails to decode.
--- myScript
---   :: TypedMultiPurposeScript
---        BuiltinData BuiltinData mintRed mintTxInfo BuiltinData BuiltinData
---        BuiltinData BuiltinData sDat sRed sTxInfo BuiltinData BuiltinData
---   -> BuiltinData -> BuiltinUnit
--- myScript = $(mkMultiPurposeScriptFor [Minting, Spending])
+-- validate
+--   :: BuiltinData -> BuiltinUnit
+-- validate =
+--   $(mkMultiPurposeScriptFor
+--       [| TypedMultiPurposeScript Nothing (Just mintingHandler) Nothing
+--            Nothing (Just spendingHandler) Nothing
+--            :: TypedMultiPurposeScript
+--                 BuiltinData BuiltinData mintRed mintTxInfo
+--                 BuiltinData BuiltinData BuiltinData BuiltinData
+--                 sDat sRed sTxInfo BuiltinData BuiltinData |])
 -- @
-mkMultiPurposeScriptFor :: ActivePurposes -> Q Exp
-mkMultiPurposeScriptFor (nub -> []) = [|\_ _ -> check False|]
-mkMultiPurposeScriptFor active = do
-  let branchesFor = \case
-        Certifying -> simplePurposeBranches 'CertifyingScript 2 "certifyingPurpose" "certifying"
-        Minting -> simplePurposeBranches 'MintingScript 1 "mintingPurpose" "minting"
-        Proposing -> simplePurposeBranches 'ProposingScript 2 "proposingPurpose" "proposing"
-        Rewarding -> simplePurposeBranches 'RewardingScript 1 "rewardingPurpose" "rewarding"
-        Spending -> spendingBranches
-        Voting -> simplePurposeBranches 'VotingScript 1 "votingPurpose" "voting"
+mkMultiPurposeScriptFor :: Q Exp -> Q Exp
+mkMultiPurposeScriptFor scriptExpQ = do
+  scriptExp <- scriptExpQ
+  active <- activePurposesOf scriptExp
+  case active of
+    [] -> [|\_ -> check False|]
+    _ -> do
+      let branchesFor = \case
+            Certifying -> simplePurposeBranches 'CertifyingScript 2 "certifyingPurpose" "certifying"
+            Minting -> simplePurposeBranches 'MintingScript 1 "mintingPurpose" "minting"
+            Proposing -> simplePurposeBranches 'ProposingScript 2 "proposingPurpose" "proposing"
+            Rewarding -> simplePurposeBranches 'RewardingScript 1 "rewardingPurpose" "rewarding"
+            Spending -> spendingBranches
+            Voting -> simplePurposeBranches 'VotingScript 1 "votingPurpose" "voting"
 
-  allBranches <- concat <$> traverse branchesFor (nub active)
+      allBranches <- concat <$> traverse branchesFor active
 
-  [|
-    \TypedMultiPurposeScript {..} dat ->
-      either traceError check $ do
-        ScriptContextResolvedScriptInfo {..} <-
-          fromBuiltinDataEither "script info" dat
-        $(pure (CaseE (VarE (mkName "rsiScriptInfo")) allBranches))
-    |]
+      [|
+        \dat ->
+          let TypedMultiPurposeScript {..} = $(pure scriptExp)
+           in either traceError check $ do
+                ScriptContextResolvedScriptInfo {..} <-
+                  fromBuiltinDataEither "script info" dat
+                $(pure (CaseE (VarE (mkName "rsiScriptInfo")) allBranches))
+        |]

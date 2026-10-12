@@ -9,24 +9,37 @@ module Main (main) where
 
 import Plutus.Script.Utils.V3.Generators (trueMintingPurpose, trueSpendingPurpose)
 import Plutus.Script.Utils.V3.Typed (TypedMultiPurposeScript (TypedMultiPurposeScript), mkMultiPurposeScript)
-import Plutus.Script.Utils.V3.TypedTH (Purpose (..), mkMultiPurposeScriptFor)
+import Plutus.Script.Utils.V3.TypedTH (mkMultiPurposeScriptFor)
 import PlutusLedgerApi.V3 (BuiltinData, TxInfo)
 import PlutusTx.Code (sizePlc)
 import PlutusTx.Prelude (BuiltinUnit)
 import PlutusTx.TH (compile)
 
--- | Pruned to minting + spending. Purpose list stays inline — splicing a
--- same-module top-level name is forbidden by GHC's stage restriction.
+-- | 'mkMultiPurposeScriptFor' reads which purposes are active directly off
+-- a literal @TypedMultiPurposeScript ..@ expression, so there's no
+-- separate purpose list to pass or keep in sync — this is the same
+-- minting + spending configuration as 'script' below, written out again
+-- because quoting a reference to 'script' would only capture the
+-- reference, not the construction this needs to read.
 {-# INLINEABLE thMkMultiPurposeScript #-}
 thMkMultiPurposeScript ::
-  TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData -> BuiltinData -> BuiltinUnit
+  BuiltinData -> BuiltinUnit
 thMkMultiPurposeScript =
-  ( $(mkMultiPurposeScriptFor [Minting, Spending]) ::
-      TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData -> BuiltinData -> BuiltinUnit
-  )
+  $( mkMultiPurposeScriptFor
+       [|
+         ( TypedMultiPurposeScript
+             Nothing
+             (Just (trueMintingPurpose @BuiltinData @TxInfo))
+             Nothing
+             Nothing
+             (Just (trueSpendingPurpose @BuiltinData @BuiltinData @TxInfo))
+             Nothing ::
+             TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData
+         )
+         |]
+   )
 
--- | Minting/spending decode a real 'TxInfo'; every other slot is
--- 'BuiltinData' (never fails to decode), not '()' (fails on real data).
+-- | Minting/spending decode a real 'TxInfo'.
 script :: TypedMultiPurposeScript BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData BuiltinData TxInfo BuiltinData BuiltinData
 script =
   TypedMultiPurposeScript
@@ -39,7 +52,7 @@ script =
 
 originalCompiled = $$(compile [||mkMultiPurposeScript script||])
 
-thCompiled = $$(compile [||thMkMultiPurposeScript script||])
+thCompiled = $$(compile [||thMkMultiPurposeScript||])
 
 main :: IO ()
 main = do

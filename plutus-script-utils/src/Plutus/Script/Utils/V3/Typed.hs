@@ -21,7 +21,6 @@ module Plutus.Script.Utils.V3.Typed
     ScriptContextResolvedScriptInfo (..),
     fromBuiltinDataEither,
     deserializeContext,
-    traceRunning,
     CertifyingPurposeType',
     MintingPurposeType',
     ProposingPurposeType',

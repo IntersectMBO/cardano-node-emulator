@@ -16,7 +16,7 @@ import Control.Monad (replicateM)
 import Data.Char (toUpper)
 import Language.Haskell.TH
   ( Body (GuardedB, NormalB),
-    Exp (AppE, CaseE, ConE, SigE, VarE),
+    Exp (AppE, CaseE, ConE, InfixE, SigE, VarE),
     Guard (PatG),
     Match (Match),
     Name,
@@ -35,8 +35,22 @@ import Language.Haskell.TH
 import Plutus.Script.Utils.V3.Typed
   ( ScriptContextResolvedScriptInfo (..),
     TypedMultiPurposeScript (..),
+    addCertifyingPurpose,
+    addMintingPurpose,
+    addProposingPurpose,
+    addRewardingPurpose,
+    addSpendingPurpose,
+    addVotingPurpose,
     deserializeContext,
+    falseTypedMultiPurposeScript,
     fromBuiltinDataEither,
+    trueTypedMultiPurposeScript,
+    withCertifyingPurpose,
+    withMintingPurpose,
+    withProposingPurpose,
+    withRewardingPurpose,
+    withSpendingPurpose,
+    withVotingPurpose,
   )
 import PlutusLedgerApi.V3
   ( Datum (Datum),
@@ -56,30 +70,58 @@ data Purpose = Certifying | Minting | Proposing | Rewarding | Spending | Voting
 purposesInOrder :: [Purpose]
 purposesInOrder = [Certifying, Minting, Proposing, Rewarding, Spending, Voting]
 
--- | Which purposes @scriptExp@ sets to @Just _@, read directly off its
--- source: stripped of any outer type annotation, @scriptExp@ must be a
--- literal @TypedMultiPurposeScript may1 .. may6@ application, each @mayN@
--- a literal @Just ..@ or @Nothing@ — the only shape this can see through
--- without running the script, since TH only has the unevaluated syntax.
+-- | Which purposes @scriptExp@ ends up with set to @Just _@, read directly
+-- off its source, without running it. Two shapes are understood:
+--
+--   * A literal @TypedMultiPurposeScript may1 .. may6@ application, each
+--     @mayN@ a literal @Just ..@ or @Nothing@.
+--
+--   * 'falseTypedMultiPurposeScript' or 'trueTypedMultiPurposeScript',
+--     optionally chained through any number of
+--     @withXPurpose@\/@addXPurpose@ calls, e.g.
+--     @falseTypedMultiPurposeScript \`withMintingPurpose\` h@ — the usual
+--     way scripts are built in this package.
+--
+-- Anything else (a variable holding some other pre-built script, a call to
+-- something that isn't one of the combinators above) can't be read without
+-- actually running the program, which isn't available at this stage.
 activePurposesOf :: Exp -> Q [Purpose]
-activePurposesOf scriptExp = do
-  args <- collectArgs (stripSig scriptExp)
-  pure [p | (p, arg) <- zip purposesInOrder args, isJustE arg]
+activePurposesOf = go . stripSig
   where
     stripSig (SigE e _) = e
     stripSig e = e
 
-    collectArgs :: Exp -> Q [Exp]
-    collectArgs = go []
+    go expr
+      | Just args <- literalCtorArgs expr =
+          pure [p | (p, arg) <- zip purposesInOrder args, isJustE arg]
+    go (AppE (AppE (VarE combName) baseExpr) _handler)
+      | Just purpose <- combinatorPurpose combName = do
+          rest <- go (stripSig baseExpr)
+          pure (if purpose `elem` rest then rest else purpose : rest)
+    -- Backtick infix application (`baseExpr \`combName\` handler`) is its
+    -- own 'InfixE' node, not nested 'AppE' — distinct from the prefix form
+    -- above even though they mean the same thing.
+    go (InfixE (Just baseExpr) (VarE combName) (Just _handler))
+      | Just purpose <- combinatorPurpose combName = do
+          rest <- go (stripSig baseExpr)
+          pure (if purpose `elem` rest then rest else purpose : rest)
+    go (VarE n)
+      | n == 'falseTypedMultiPurposeScript = pure []
+      | n == 'trueTypedMultiPurposeScript = pure purposesInOrder
+    go _ =
+      fail
+        "mkMultiPurposeScriptFor: could not read which purposes are active \
+        \from this expression. Supported shapes: a literal \
+        \`TypedMultiPurposeScript may1 .. may6` application; or \
+        \`falseTypedMultiPurposeScript`/`trueTypedMultiPurposeScript`, \
+        \optionally chained through `withXPurpose`/`addXPurpose` calls."
+
+    literalCtorArgs :: Exp -> Maybe [Exp]
+    literalCtorArgs = collect []
       where
-        go acc (AppE f x) = go (x : acc) f
-        go acc (ConE n)
-          | n == 'TypedMultiPurposeScript, length acc == 6 = pure acc
-        go _ _ =
-          fail
-            "mkMultiPurposeScriptFor: expected a literal \
-            \`TypedMultiPurposeScript may1 .. may6` application, \
-            \each argument a literal `Just ..` or `Nothing`"
+        collect acc (AppE f x) = collect (x : acc) f
+        collect acc (ConE n) | n == 'TypedMultiPurposeScript, length acc == 6 = Just acc
+        collect _ _ = Nothing
 
     isJustE (AppE (ConE n) _) | n == 'Just = True
     isJustE (ConE n) | n == 'Nothing = False
@@ -88,6 +130,18 @@ activePurposesOf scriptExp = do
         "mkMultiPurposeScriptFor: every field of the script must be a \
         \literal `Just ..` or `Nothing`, not a variable or other \
         \expression, so the active purposes can be read at compile time"
+
+    combinatorPurpose :: Name -> Maybe Purpose
+    combinatorPurpose n
+      | n `oneOf` ['withCertifyingPurpose, 'addCertifyingPurpose] = Just Certifying
+      | n `oneOf` ['withMintingPurpose, 'addMintingPurpose] = Just Minting
+      | n `oneOf` ['withProposingPurpose, 'addProposingPurpose] = Just Proposing
+      | n `oneOf` ['withRewardingPurpose, 'addRewardingPurpose] = Just Rewarding
+      | n `oneOf` ['withSpendingPurpose, 'addSpendingPurpose] = Just Spending
+      | n `oneOf` ['withVotingPurpose, 'addVotingPurpose] = Just Voting
+      | otherwise = Nothing
+      where
+        oneOf x xs = x `elem` xs
 
 -- ============================================================
 -- PART 2 — Generating one case branch per purpose
@@ -193,10 +247,13 @@ spendingBranches = do
 -- deserializes and always fails.
 --
 -- @scriptExp@ must be written directly inside the quote at the splice
--- site, as a literal @TypedMultiPurposeScript ..@ application — quoting a
--- reference to some other top-level binding, e.g. @[| myScript |]@, only
--- captures that reference, not the definition it points to, so there is
--- nothing here for this function to read.
+-- site: either a literal @TypedMultiPurposeScript ..@ application, or
+-- 'falseTypedMultiPurposeScript'\/'trueTypedMultiPurposeScript' chained
+-- through @withXPurpose@\/@addXPurpose@ calls — see 'activePurposesOf' for
+-- the exact shapes understood. Quoting a reference to some other top-level
+-- binding, e.g. @[| myScript |]@, only captures that reference, not the
+-- definition it points to, so there is nothing here for this function to
+-- read.
 --
 -- Any purpose left @Nothing@ leaves its redeemer\/@TxInfo@ type variables
 -- completely unused, so nothing pins them — a type annotation inside the
@@ -206,6 +263,7 @@ spendingBranches = do
 --
 -- @
 -- {-\# LANGUAGE TemplateHaskell \#-}
+-- import Plutus.Script.Utils.V3.Typed
 -- import Plutus.Script.Utils.V3.TypedTH
 --
 -- -- Every unused slot is 'BuiltinData', not @()@: @()@ only decodes
@@ -215,8 +273,9 @@ spendingBranches = do
 --   :: BuiltinData -> BuiltinUnit
 -- validate =
 --   $(mkMultiPurposeScriptFor
---       [| TypedMultiPurposeScript Nothing (Just mintingHandler) Nothing
---            Nothing (Just spendingHandler) Nothing
+--       [| falseTypedMultiPurposeScript
+--            `withMintingPurpose` mintingHandler
+--            `withSpendingPurpose` spendingHandler
 --            :: TypedMultiPurposeScript
 --                 BuiltinData BuiltinData mintRed mintTxInfo
 --                 BuiltinData BuiltinData BuiltinData BuiltinData

@@ -13,6 +13,11 @@ import Control.Exception (SomeException, evaluate, try)
 import Plutus.Script.Utils.V3.Typed
   ( ScriptContextResolvedScriptInfo (ScriptContextResolvedScriptInfo),
     TypedMultiPurposeScript (TypedMultiPurposeScript),
+    addMintingPurpose,
+    falseTypedMultiPurposeScript,
+    trueTypedMultiPurposeScript,
+    withMintingPurpose,
+    withSpendingPurpose,
   )
 import Plutus.Script.Utils.V3.TypedTH (mkMultiPurposeScriptFor)
 import PlutusLedgerApi.V3
@@ -56,6 +61,40 @@ spendTrue = $(mkMultiPurposeScriptFor [|TypedMultiPurposeScript Nothing Nothing 
 noPurposesGen :: BuiltinData -> BuiltinUnit
 noPurposesGen = $(mkMultiPurposeScriptFor [|TypedMultiPurposeScript Nothing Nothing Nothing Nothing Nothing Nothing :: AllUnit|])
 
+-- Everything below exercises the combinator-based shapes 'activePurposesOf'
+-- recognizes, not just the literal-record shape above — this is the style
+-- every real script in "Plutus.Script.Utils.V3.Generators" actually uses.
+
+-- Backtick/infix combinator application: @base `withMintingPurpose` handler@.
+mintInfixTrue :: BuiltinData -> BuiltinUnit
+mintInfixTrue = $(mkMultiPurposeScriptFor [|falseTypedMultiPurposeScript `withMintingPurpose` mintHandlerTrue|])
+
+-- Ordinary prefix application of the same combinator: @withSpendingPurpose base handler@.
+spendPrefixTrue :: BuiltinData -> BuiltinUnit
+spendPrefixTrue = $(mkMultiPurposeScriptFor [|withSpendingPurpose falseTypedMultiPurposeScript spendHandlerTrue|])
+
+-- 'addMintingPurpose' (the "combine with existing" combinator) must be
+-- recognized as turning on Minting, same as 'withMintingPurpose'.
+mintAddTrue :: BuiltinData -> BuiltinUnit
+mintAddTrue = $(mkMultiPurposeScriptFor [|falseTypedMultiPurposeScript `withMintingPurpose` mintHandlerTrue `addMintingPurpose` mintHandlerTrue|])
+
+-- A chain turning on two purposes: both must work, and a third, untouched
+-- purpose must still have no branch generated for it at all.
+mintAndSpendTrue :: BuiltinData -> BuiltinUnit
+mintAndSpendTrue = $(mkMultiPurposeScriptFor [|falseTypedMultiPurposeScript `withMintingPurpose` mintHandlerTrue `withSpendingPurpose` spendHandlerTrue|])
+
+-- The 'trueTypedMultiPurposeScript' base case, used standalone with no
+-- combinators at all: every purpose should be active and succeed.
+allTrue :: BuiltinData -> BuiltinUnit
+allTrue = $(mkMultiPurposeScriptFor [|trueTypedMultiPurposeScript|])
+
+-- The 'falseTypedMultiPurposeScript' base case, used standalone: no
+-- purposes active, so this must always fail (same intent as
+-- 'noPurposesGen' above, but via the base-case 'VarE' match rather than
+-- a literal all-'Nothing' record).
+noPurposesViaBase :: BuiltinData -> BuiltinUnit
+noPurposesViaBase = $(mkMultiPurposeScriptFor [|falseTypedMultiPurposeScript|])
+
 encodeInput :: ScriptInfo -> BuiltinData
 encodeInput info = toBuiltinData (ScriptContextResolvedScriptInfo (toBuiltinData ()) (toBuiltinData ()) info)
 
@@ -92,5 +131,19 @@ tests =
       testCase "spending with no datum" $
         assertSucceeds (spendTrue spendingInputNoDatum),
       testCase "no purposes implemented: always fails" $
-        assertFails (noPurposesGen mintingInput)
+        assertFails (noPurposesGen mintingInput),
+      testCase "backtick/infix combinator chain: withMintingPurpose" $
+        assertSucceeds (mintInfixTrue mintingInput),
+      testCase "prefix-applied combinator: withSpendingPurpose" $
+        assertSucceeds (spendPrefixTrue spendingInputNoDatum),
+      testCase "addMintingPurpose is recognized as turning on Minting" $
+        assertSucceeds (mintAddTrue mintingInput),
+      testCase "two-purpose combinator chain: minting active" $
+        assertSucceeds (mintAndSpendTrue mintingInput),
+      testCase "two-purpose combinator chain: spending active" $
+        assertSucceeds (mintAndSpendTrue spendingInputNoDatum),
+      testCase "trueTypedMultiPurposeScript base case: all purposes succeed" $
+        assertSucceeds (allTrue mintingInput),
+      testCase "falseTypedMultiPurposeScript base case: always fails" $
+        assertFails (noPurposesViaBase mintingInput)
     ]

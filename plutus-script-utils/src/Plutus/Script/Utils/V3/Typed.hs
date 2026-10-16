@@ -17,7 +17,9 @@ module Plutus.Script.Utils.V3.Typed
     toCardanoAddressAny,
     IsDataDatum,
     TypedMultiPurposeScript (..),
-    mkMultiPurposeScript,
+    ScriptContextResolvedScriptInfo (..),
+    fromBuiltinDataEither,
+    deserializeContext,
     CertifyingPurposeType',
     MintingPurposeType',
     ProposingPurposeType',
@@ -30,6 +32,26 @@ module Plutus.Script.Utils.V3.Typed
     RewardingPurposeType,
     SpendingPurposeType,
     VotingPurposeType,
+    trueCertifyingPurpose,
+    trueMintingPurpose,
+    trueProposingPurpose,
+    trueRewardingPurpose,
+    trueSpendingPurpose,
+    trueVotingPurpose,
+    falseTypedMultiPurposeScript,
+    trueTypedMultiPurposeScript,
+    withCertifyingPurpose,
+    addCertifyingPurpose,
+    withMintingPurpose,
+    addMintingPurpose,
+    withProposingPurpose,
+    addProposingPurpose,
+    withRewardingPurpose,
+    addRewardingPurpose,
+    withSpendingPurpose,
+    addSpendingPurpose,
+    withVotingPurpose,
+    addVotingPurpose,
   )
 where
 
@@ -42,6 +64,7 @@ import Control.Monad.Except
   )
 import Data.Coerce (coerce)
 import Data.Kind (Type)
+import Data.Maybe (fromMaybe)
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Address
@@ -95,7 +118,7 @@ import PlutusLedgerApi.V3
     OutputDatum (OutputDatum, OutputDatumHash),
     ProposalProcedure,
     ScriptHash (ScriptHash),
-    ScriptInfo (CertifyingScript, MintingScript, ProposingScript, RewardingScript, SpendingScript, VotingScript),
+    ScriptInfo,
     ToData (toBuiltinData),
     TxCert,
     TxId (TxId),
@@ -109,7 +132,7 @@ import PlutusTx
   ( FromData (fromBuiltinData),
     unstableMakeIsData,
   )
-import PlutusTx.Prelude (BuiltinString, BuiltinUnit, check, trace, traceError)
+import PlutusTx.Prelude (BuiltinString)
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter qualified as PP
 import Prettyprinter.Extras qualified as PP
@@ -213,7 +236,7 @@ instance MultiPurposeScriptTypes Any where
     there instead of TxInfo itself.
 
   - The purposes all take additional parameters based on what can be retrieved
-    from the @scriptContextScriptInfo@ of the script context (which has to be
+    from the @rsiScriptInfo@ of the script context (which has to be
     deserialized). For instance, a minting purpose will receive its own currency
     symbol as a parameter.
 
@@ -293,6 +316,176 @@ data
     spendingPurpose :: Maybe (SpendingPurposeType' spendingDat spendingRed spendingTxInfo),
     votingPurpose :: Maybe (VotingPurposeType' votingRed votingTxInfo)
   }
+
+-- * Building typed multi-purpose scripts
+
+{-- Note on building multi-purpose scripts. Multi-purpose scripts are never meant
+  to be instantiated directly. The rationale is that most script will seldom be
+  used for more than 2 purposes. Thus it is more convient to start from a
+  default instance and build up the script from there. To that end, we provide
+  three facilities:
+
+  - 2 default instances, one that say No for every purpose, and one that says
+    Yes for every purpose. Most likely, the former will be the right starting
+    point in almost every cases.
+
+  - Helpers @withXXXpurpose@ to override a given purpose
+
+  - Helpers @addXXXpurpose@ to add constraints to an existing purpose. While
+    this can be detrimental to use this when the parameters need to be
+    deserialized in several constraints, it can prove useful when working with
+    several unrelated constraints. Using this is left at the user's discretion.
+
+  Example: if you want a script that fails for all purposes but spending and
+  always succeeds otherwise, use:
+  @falseTypedMultiPurposeScript `withSpendingPurpose` trueSpendingPurpose@
+--}
+
+trueCertifyingPurpose :: CertifyingPurposeType' red txInfo
+trueCertifyingPurpose _ _ _ _ = True
+
+trueMintingPurpose :: MintingPurposeType' red txInfo
+trueMintingPurpose _ _ _ = True
+
+trueProposingPurpose :: ProposingPurposeType' red txInfo
+trueProposingPurpose _ _ _ _ = True
+
+trueRewardingPurpose :: RewardingPurposeType' red txInfo
+trueRewardingPurpose _ _ _ = True
+
+trueSpendingPurpose :: SpendingPurposeType' dat red txInfo
+trueSpendingPurpose _ _ _ _ = True
+
+trueVotingPurpose :: VotingPurposeType' red txInfo
+trueVotingPurpose _ _ _ = True
+
+falseTypedMultiPurposeScript :: TypedMultiPurposeScript () () () () () () () () () () () () ()
+falseTypedMultiPurposeScript =
+  TypedMultiPurposeScript
+    Nothing
+    Nothing
+    Nothing
+    Nothing
+    Nothing
+    Nothing
+
+trueTypedMultiPurposeScript :: TypedMultiPurposeScript () () () () () () () () () () () () ()
+trueTypedMultiPurposeScript =
+  TypedMultiPurposeScript
+    (Just trueCertifyingPurpose)
+    (Just trueMintingPurpose)
+    (Just trueProposingPurpose)
+    (Just trueRewardingPurpose)
+    (Just trueSpendingPurpose)
+    (Just trueVotingPurpose)
+
+-- | Overrides the certifying purpose
+withCertifyingPurpose ::
+  (FromData cr', FromData ctx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  CertifyingPurposeType' cr' ctx' ->
+  TypedMultiPurposeScript cr' ctx' mr mtx pr ptx rr rtx sd sr stx vr vtx
+withCertifyingPurpose ts cs = ts {certifyingPurpose = Just cs}
+
+-- | Combines a new certifying purpose with the existing one
+addCertifyingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  CertifyingPurposeType' cr ctx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addCertifyingPurpose ts@(TypedMultiPurposeScript {certifyingPurpose}) cs =
+  ts `withCertifyingPurpose` \ix cert red txInfo ->
+    fromMaybe trueCertifyingPurpose certifyingPurpose ix cert red txInfo
+      && cs ix cert red txInfo
+
+-- | Overrides the minting purpose
+withMintingPurpose ::
+  (FromData mr', FromData mtx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  MintingPurposeType' mr' mtx' ->
+  TypedMultiPurposeScript cr ctx mr' mtx' pr ptx rr rtx sd sr stx vr vtx
+withMintingPurpose ts ms = ts {mintingPurpose = Just ms}
+
+-- | Combines a new minting purpose with the existing one
+addMintingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  MintingPurposeType' mr mtx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addMintingPurpose ts@(TypedMultiPurposeScript {mintingPurpose}) ms =
+  ts `withMintingPurpose` \cs red txInfo ->
+    fromMaybe trueMintingPurpose mintingPurpose cs red txInfo
+      && ms cs red txInfo
+
+-- | Overrides the proposing purpose
+withProposingPurpose ::
+  (FromData pr', FromData ptx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  ProposingPurposeType' pr' ptx' ->
+  TypedMultiPurposeScript cr ctx mr mtx pr' ptx' rr rtx sd sr stx vr vtx
+withProposingPurpose ts ps = ts {proposingPurpose = Just ps}
+
+-- | Combines a new proposing purpose with the existing one
+addProposingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  ProposingPurposeType' pr ptx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addProposingPurpose ts@(TypedMultiPurposeScript {proposingPurpose}) ps =
+  ts `withProposingPurpose` \ix prop red txInfo ->
+    fromMaybe trueProposingPurpose proposingPurpose ix prop red txInfo
+      && ps ix prop red txInfo
+
+-- | Overrides the rewarding purpose
+withRewardingPurpose ::
+  (FromData rr', FromData rtx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  RewardingPurposeType' rr' rtx' ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr' rtx' sd sr stx vr vtx
+withRewardingPurpose ts rs = ts {rewardingPurpose = Just rs}
+
+-- | Combines a new rewarding purpose with the existing one
+addRewardingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  RewardingPurposeType' rr rtx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addRewardingPurpose ts@(TypedMultiPurposeScript {rewardingPurpose}) rs =
+  ts `withRewardingPurpose` \cred red txInfo ->
+    fromMaybe trueRewardingPurpose rewardingPurpose cred red txInfo
+      && rs cred red txInfo
+
+-- | Overrides the spending purpose
+withSpendingPurpose ::
+  (FromData sd', FromData sr', FromData stx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  SpendingPurposeType' sd' sr' stx' ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd' sr' stx' vr vtx
+withSpendingPurpose ts ss = ts {spendingPurpose = Just ss}
+
+-- | Combines a new spending purpose with the existing one
+addSpendingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  SpendingPurposeType' sd sr stx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addSpendingPurpose ts@(TypedMultiPurposeScript {spendingPurpose}) ss =
+  ts `withSpendingPurpose` \oRef mDat red txInfo ->
+    fromMaybe trueSpendingPurpose spendingPurpose oRef mDat red txInfo
+      && ss oRef mDat red txInfo
+
+-- | Overrides the voting purpose
+withVotingPurpose ::
+  (FromData vr', FromData vtx') =>
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  VotingPurposeType' vr' vtx' ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr' vtx'
+withVotingPurpose ts vs = ts {votingPurpose = Just vs}
+
+-- | Combines a new voting purpose with the existing one
+addVotingPurpose ::
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
+  VotingPurposeType' vr vtx ->
+  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
+addVotingPurpose ts@(TypedMultiPurposeScript {votingPurpose}) vs =
+  ts `withVotingPurpose` \voter red txInfo ->
+    fromMaybe trueVotingPurpose votingPurpose voter red txInfo
+      && vs voter red txInfo
 
 -- * Compiled multi-purpose scripts
 
@@ -386,59 +579,23 @@ generalise = coerce
 
 -- | Custom script context to retrieve the script info
 data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
-  { scriptContextTxInfo :: BuiltinData,
-    scriptContextRedeemer :: BuiltinData,
-    scriptContextScriptInfo :: ScriptInfo
+  { rsiTxInfo :: BuiltinData,
+    rsiRedeemer :: BuiltinData,
+    rsiScriptInfo :: ScriptInfo
   }
 
 unstableMakeIsData ''ScriptContextResolvedScriptInfo
 
-{-# INLINEABLE mkMultiPurposeScript #-}
-mkMultiPurposeScript ::
-  TypedMultiPurposeScript cRed cTxInfo mRed mTxInfo pRed pTxInfo rRed rTxInfo sDat sRed sTxInfo vRed vTxInfo -> BuiltinData -> BuiltinUnit
-mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
-  either traceError check $ do
-    ScriptContextResolvedScriptInfo {..} <- fromBuiltinDataEither "script info" dat
-    case scriptContextScriptInfo of
-      CertifyingScript i cert | Just cPurpose <- certifyingPurpose -> do
-        (red, txInfo) <- deserializeContext "certifying" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Certifying" $ cPurpose i cert red txInfo
-      CertifyingScript {} -> traceError "Unsupported purpose: Certifying"
-      MintingScript cur | Just mPurpose <- mintingPurpose -> do
-        (red, txInfo) <- deserializeContext "minting" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Minting" $ mPurpose cur red txInfo
-      MintingScript {} -> traceError "Unsupported purpose: Minting"
-      ProposingScript i prop | Just pPurpose <- proposingPurpose -> do
-        (red, txInfo) <- deserializeContext "proposing" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Proposing" $ pPurpose i prop red txInfo
-      ProposingScript {} -> traceError "Unsupported purpose: Proposing"
-      RewardingScript cred | Just rPurpose <- rewardingPurpose -> do
-        (red, txInfo) <- deserializeContext "rewarding" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Rewarding" $ rPurpose cred red txInfo
-      RewardingScript {} -> traceError "Unsupported purpose: Rewarding"
-      SpendingScript oRef mDat | Just sPurpose <- spendingPurpose -> do
-        (red, txInfo) <- deserializeContext "spending" scriptContextRedeemer scriptContextTxInfo
-        mResolvedDat <- case mDat of
-          Nothing -> return Nothing
-          Just (Datum bDat) -> Just <$> fromBuiltinDataEither "datum" bDat
-        return $ traceRunning "Spending" $ sPurpose oRef mResolvedDat red txInfo
-      SpendingScript {} -> traceError "Unsupported purpose: Spending"
-      VotingScript voter | Just vPurpose <- votingPurpose -> do
-        (red, txInfo) <- deserializeContext "voting" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Voting" $ vPurpose voter red txInfo
-      VotingScript {} -> traceError "Unsupported purpose: Voting"
-  where
-    fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
-    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " PlutusTx.<> name) Right . fromBuiltinData
+{-# INLINEABLE fromBuiltinDataEither #-}
+fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
+fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " PlutusTx.<> name) Right . fromBuiltinData
 
-    traceRunning :: BuiltinString -> Bool -> Bool
-    traceRunning name = trace ("Running the validator with the " PlutusTx.<> name PlutusTx.<> " script purpose")
-
-    deserializeContext :: (FromData a, FromData b) => BuiltinString -> BuiltinData -> BuiltinData -> Either BuiltinString (a, b)
-    deserializeContext name redData txInfoData = do
-      red <- fromBuiltinDataEither (name PlutusTx.<> " redeemer") redData
-      txInfo <- fromBuiltinDataEither (name PlutusTx.<> " tx info") txInfoData
-      return (red, txInfo)
+{-# INLINEABLE deserializeContext #-}
+deserializeContext :: (FromData a, FromData b) => BuiltinString -> BuiltinData -> BuiltinData -> Either BuiltinString (a, b)
+deserializeContext name redData txInfoData = do
+  red <- fromBuiltinDataEither (name PlutusTx.<> " redeemer") redData
+  txInfo <- fromBuiltinDataEither (name PlutusTx.<> " tx info") txInfoData
+  return (red, txInfo)
 
 -- * Checks around typed multi-purpose scripts
 

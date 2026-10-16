@@ -1,5 +1,10 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
+-- | Example\/test purpose handlers and sample scripts. The general-purpose
+-- script-building combinators ('falseTypedMultiPurposeScript',
+-- 'withMintingPurpose', etc.) have moved to
+-- "Plutus.Script.Utils.V3.Typed" — re-exported here so existing imports
+-- from this module keep working.
 module Plutus.Script.Utils.V3.Generators
   ( trueCertifyingPurpose,
     trueMintingPurpose,
@@ -33,7 +38,7 @@ module Plutus.Script.Utils.V3.Generators
   )
 where
 
-import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
+import Data.Maybe (Maybe (Just, Nothing))
 import Plutus.Script.Utils.Scripts
   ( ScriptHash (ScriptHash),
     ToScript (toScript),
@@ -41,29 +46,36 @@ import Plutus.Script.Utils.Scripts
     toCurrencySymbol,
   )
 import Plutus.Script.Utils.V3.Typed
-  ( CertifyingPurposeType',
-    MintingPurposeType',
+  ( MintingPurposeType',
     MultiPurposeScript (MultiPurposeScript),
-    ProposingPurposeType',
-    RewardingPurposeType',
     SpendingPurposeType',
-    TypedMultiPurposeScript
-      ( TypedMultiPurposeScript,
-        certifyingPurpose,
-        mintingPurpose,
-        proposingPurpose,
-        rewardingPurpose,
-        spendingPurpose,
-        votingPurpose
-      ),
-    VotingPurposeType',
-    mkMultiPurposeScript,
+    addCertifyingPurpose,
+    addMintingPurpose,
+    addProposingPurpose,
+    addRewardingPurpose,
+    addSpendingPurpose,
+    addVotingPurpose,
+    falseTypedMultiPurposeScript,
+    trueCertifyingPurpose,
+    trueMintingPurpose,
+    trueProposingPurpose,
+    trueRewardingPurpose,
+    trueSpendingPurpose,
+    trueTypedMultiPurposeScript,
+    trueVotingPurpose,
+    withCertifyingPurpose,
+    withMintingPurpose,
+    withProposingPurpose,
+    withRewardingPurpose,
+    withSpendingPurpose,
+    withVotingPurpose,
   )
+import Plutus.Script.Utils.V3.TypedTH (mkMultiPurposeScriptFor)
 import PlutusLedgerApi.V1.Address (Address (Address))
 import PlutusLedgerApi.V3
-  ( Credential (ScriptCredential),
+  ( BuiltinData,
+    Credential (ScriptCredential),
     CurrencySymbol (CurrencySymbol),
-    FromData,
     MintValue,
     TokenName,
     TxInInfo (TxInInfo),
@@ -76,19 +88,13 @@ import PlutusTx.AssocMap qualified as Map
 import PlutusTx.List (elem)
 import PlutusTx.Prelude
   ( Bool (False, True),
+    BuiltinUnit,
     Eq ((==)),
     Integer,
     ($),
-    (&&),
     (.),
   )
 import PlutusTx.TH (compile)
-
-trueCertifyingPurpose :: CertifyingPurposeType' red txInfo
-trueCertifyingPurpose _ _ _ _ = True
-
-trueMintingPurpose :: MintingPurposeType' red txInfo
-trueMintingPurpose _ _ _ = True
 
 -- | Minting script that ensures a given spending script is invoked in the transaction
 {-# INLINEABLE forwardingMintingPurpose #-}
@@ -100,15 +106,6 @@ forwardingMintingPurpose (toScriptHash -> sHash) toTxInInfos _ _ (toTxInInfos ->
 {-# INLINEABLE ownForwardingMintingPurpose #-}
 ownForwardingMintingPurpose :: (mtx -> [TxInInfo]) -> MintingPurposeType' red mtx
 ownForwardingMintingPurpose toTxInInfos cs = forwardingMintingPurpose cs toTxInInfos cs
-
-trueProposingPurpose :: ProposingPurposeType' red txInfo
-trueProposingPurpose _ _ _ _ = True
-
-trueRewardingPurpose :: RewardingPurposeType' red txInfo
-trueRewardingPurpose _ _ _ = True
-
-trueSpendingPurpose :: SpendingPurposeType' dat red txInfo
-trueSpendingPurpose _ _ _ _ = True
 
 -- | Spending script that ensures a given minting script is invoked in the transaction
 {-# INLINEABLE forwardingSpendingPurpose #-}
@@ -123,162 +120,6 @@ ownForwardingSpendingPurpose toMintValue toTxInInfos oRef dat red txInfo =
   case [hash | TxInInfo ref (TxOut (Address (ScriptCredential hash) _) _ _ _) <- toTxInInfos txInfo, ref == oRef] of
     [hash] -> forwardingSpendingPurpose hash toMintValue oRef dat red txInfo
     _ -> False
-
-trueVotingPurpose :: VotingPurposeType' red txInfo
-trueVotingPurpose _ _ _ = True
-
--- * Building multi purpose scripts
-
-{-- Note on building multi-purpose scripts. Multi-purpose scripts are never meant
-  to be instantiated directly. The rationale is that most script will seldom be
-  used for more than 2 purposes. Thus it is more convient to start from a
-  default instance and build up the script from there. To that end, we provide
-  three facilities:
-
-  - 2 default instances, one that say No for every purpose, and one that says
-    Yes for every purpose. Most likely, the former will be the right starting
-    point in almost every cases.
-
-  - Helpers @withXXXpurpose@ to override a given purpose
-
-  - Helpers @addXXXpurpose@ to add constraints to an existing purpose. While
-    this can be detrimental to use this when the parameters need to be
-    deserialized in several constraints, it can prove useful when working with
-    several unrelated constraints. Using this is left at the user's discretion.
-
-  Example: if you want a script that fails for all purposes but spending and
-  always succeeds otherwise, use:
-  @falseTypedMultiPurposeScript `withSpendingPurpose` trueSpendingPurpose@
-
---}
-
-falseTypedMultiPurposeScript :: TypedMultiPurposeScript () () () () () () () () () () () () ()
-falseTypedMultiPurposeScript =
-  TypedMultiPurposeScript
-    Nothing
-    Nothing
-    Nothing
-    Nothing
-    Nothing
-    Nothing
-
-trueTypedMultiPurposeScript :: TypedMultiPurposeScript () () () () () () () () () () () () ()
-trueTypedMultiPurposeScript =
-  TypedMultiPurposeScript
-    (Just trueCertifyingPurpose)
-    (Just trueMintingPurpose)
-    (Just trueProposingPurpose)
-    (Just trueRewardingPurpose)
-    (Just trueSpendingPurpose)
-    (Just trueVotingPurpose)
-
--- | Overrides the certifying purpose
-withCertifyingPurpose ::
-  (FromData cr', FromData ctx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  CertifyingPurposeType' cr' ctx' ->
-  TypedMultiPurposeScript cr' ctx' mr mtx pr ptx rr rtx sd sr stx vr vtx
-withCertifyingPurpose ts cs = ts {certifyingPurpose = Just cs}
-
--- | Combines a new certifying purpose with the existing one
-addCertifyingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  CertifyingPurposeType' cr ctx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addCertifyingPurpose ts@(TypedMultiPurposeScript {certifyingPurpose}) cs =
-  ts `withCertifyingPurpose` \ix cert red txInfo ->
-    fromMaybe trueCertifyingPurpose certifyingPurpose ix cert red txInfo
-      && cs ix cert red txInfo
-
--- | Overrides the certifying purpose
-withMintingPurpose ::
-  (FromData mr', FromData mtx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  MintingPurposeType' mr' mtx' ->
-  TypedMultiPurposeScript cr ctx mr' mtx' pr ptx rr rtx sd sr stx vr vtx
-withMintingPurpose ts ms = ts {mintingPurpose = Just ms}
-
--- | Combines a new minting purpose with the existing one
-addMintingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  MintingPurposeType' mr mtx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addMintingPurpose ts@(TypedMultiPurposeScript {mintingPurpose}) ms =
-  ts `withMintingPurpose` \cs red txInfo ->
-    fromMaybe trueMintingPurpose mintingPurpose cs red txInfo
-      && ms cs red txInfo
-
--- | Overrides the proposing purpose
-withProposingPurpose ::
-  (FromData pr', FromData ptx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  ProposingPurposeType' pr' ptx' ->
-  TypedMultiPurposeScript cr ctx mr mtx pr' ptx' rr rtx sd sr stx vr vtx
-withProposingPurpose ts ps = ts {proposingPurpose = Just ps}
-
--- | Combines a new proposing purpose with the existing one
-addProposingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  ProposingPurposeType' pr ptx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addProposingPurpose ts@(TypedMultiPurposeScript {proposingPurpose}) ps =
-  ts `withProposingPurpose` \ix prop red txInfo ->
-    fromMaybe trueProposingPurpose proposingPurpose ix prop red txInfo
-      && ps ix prop red txInfo
-
--- | Overrides the rewardings purpose
-withRewardingPurpose ::
-  (FromData rr', FromData rtx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  RewardingPurposeType' rr' rtx' ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr' rtx' sd sr stx vr vtx
-withRewardingPurpose ts rs = ts {rewardingPurpose = Just rs}
-
--- | Combines a new rewardings purpose with the existing one
-addRewardingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  RewardingPurposeType' rr rtx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addRewardingPurpose ts@(TypedMultiPurposeScript {rewardingPurpose}) rs =
-  ts `withRewardingPurpose` \cred red txInfo ->
-    fromMaybe trueRewardingPurpose rewardingPurpose cred red txInfo
-      && rs cred red txInfo
-
--- | Overrides the spending purpose
-withSpendingPurpose ::
-  (FromData sd', FromData sr', FromData stx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  SpendingPurposeType' sd' sr' stx' ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd' sr' stx' vr vtx
-withSpendingPurpose ts ss = ts {spendingPurpose = Just ss}
-
--- | Combines a new spending purpose with the existing one
-addSpendingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  SpendingPurposeType' sd sr stx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addSpendingPurpose ts@(TypedMultiPurposeScript {spendingPurpose}) ss =
-  ts `withSpendingPurpose` \oRef mDat red txInfo ->
-    fromMaybe trueSpendingPurpose spendingPurpose oRef mDat red txInfo
-      && ss oRef mDat red txInfo
-
--- | Overrides the voting purpose
-withVotingPurpose ::
-  (FromData vr', FromData vtx') =>
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  VotingPurposeType' vr' vtx' ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr' vtx'
-withVotingPurpose ts vs = ts {votingPurpose = Just vs}
-
--- | Combines a new voting purpose with the existing one
-addVotingPurpose ::
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx ->
-  VotingPurposeType' vr vtx ->
-  TypedMultiPurposeScript cr ctx mr mtx pr ptx rr rtx sd sr stx vr vtx
-addVotingPurpose ts@(TypedMultiPurposeScript {votingPurpose}) vs =
-  ts `withVotingPurpose` \voter red txInfo ->
-    fromMaybe trueVotingPurpose votingPurpose voter red txInfo
-      && vs voter red txInfo
 
 -- * Creating and compiling multi-purpose scripts
 
@@ -301,33 +142,36 @@ addVotingPurpose ts@(TypedMultiPurposeScript {votingPurpose}) vs =
 -- | The multi-purpose script that returns @True@ in minting purpose and @False@
 -- otherwise
 trueMintingMPScript :: MultiPurposeScript a
-trueMintingMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+trueMintingMPScript = MultiPurposeScript $ toScript $$(compile [||validate||])
   where
-    script =
-      mkMultiPurposeScript
-        $ falseTypedMultiPurposeScript
-        `withMintingPurpose` (trueMintingPurpose @() @())
+    validate =
+      $( mkMultiPurposeScriptFor
+           [|falseTypedMultiPurposeScript `withMintingPurpose` (trueMintingPurpose @() @())|]
+       )
 
 -- | The multi-purpose script that returns @True@ in spending purpose and @False@
 -- otherwise
 trueSpendingMPScript :: MultiPurposeScript a
-trueSpendingMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+trueSpendingMPScript = MultiPurposeScript $ toScript $$(compile [||validate||])
   where
-    script =
-      mkMultiPurposeScript
-        $ falseTypedMultiPurposeScript
-        `withSpendingPurpose` trueSpendingPurpose @() @() @()
+    validate =
+      $( mkMultiPurposeScriptFor
+           [|falseTypedMultiPurposeScript `withSpendingPurpose` trueSpendingPurpose @() @() @()|]
+       )
 
 -- | The multi-purpose script that returns @True@ in all purposes
 trueMPScript :: MultiPurposeScript a
-trueMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+trueMPScript = MultiPurposeScript $ toScript $$(compile [||validate||])
   where
-    script = mkMultiPurposeScript trueTypedMultiPurposeScript
+    validate = $(mkMultiPurposeScriptFor [|trueTypedMultiPurposeScript|])
 
 falseMPScript :: MultiPurposeScript a
-falseMPScript = MultiPurposeScript $ toScript $$(compile [||script||])
+falseMPScript = MultiPurposeScript $ toScript $$(compile [||validate||])
   where
-    script = mkMultiPurposeScript falseTypedMultiPurposeScript
+    -- No active purposes generates a fully polymorphic `\_ -> check False`;
+    -- nothing else here pins its argument type, so it needs an explicit one.
+    validate :: BuiltinData -> BuiltinUnit
+    validate = $(mkMultiPurposeScriptFor [|falseTypedMultiPurposeScript|])
 
 multiPurposeScriptValue :: MultiPurposeScript a -> TokenName -> Integer -> Value
 multiPurposeScriptValue mpScript = singleton (toCurrencySymbol mpScript)

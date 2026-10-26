@@ -30,8 +30,6 @@ import Cardano.BM.Trace
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Freer
-import Control.Monad.Freer.Extras.Log (LogMsg (..), LogObserve (..), Observation (..))
-import Control.Monad.Freer.Extras.Log qualified as L
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Foldable (for_)

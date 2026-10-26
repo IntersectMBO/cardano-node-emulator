@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -35,15 +36,14 @@ import Cardano.Ledger.Alonzo.Tx qualified as Alonzo
 import Cardano.Ledger.Coin qualified as Cardano
 import Cardano.Ledger.Conway.Governance qualified as Conway
 import Cardano.Ledger.Core qualified as Ledger
+import Cardano.Ledger.Credential qualified as Cardano
 import Cardano.Ledger.Dijkstra.Rules (DijkstraLedgerPredFailure (DijkstraUtxowFailure))
 import Cardano.Ledger.Dijkstra.Tx (DijkstraTx (DijkstraTx), pattern MkDijkstraTx)
-import Cardano.Ledger.Credential qualified as Cardano
 import Cardano.Ledger.Plutus.Evaluate qualified as Ledger
 import Cardano.Ledger.Shelley.API qualified as Shelley
 import Cardano.Ledger.Shelley.LedgerState qualified as Shelley
 import Cardano.Ledger.Shelley.Rules qualified as Shelley
 import Cardano.Ledger.Shelley.Transition qualified as Shelley
-import Cardano.Ledger.UMap qualified as UM
 import Cardano.Node.Emulator.Internal.Node.Params
   ( EmulatorEra,
     Params (pConfig),
@@ -141,7 +141,7 @@ setReward sCred reward =
     ( \umap@(UM.RewDepUView -> uview) ->
         maybe
           umap
-          (\rdPair -> UM.insert sCred (rdPair {UM.rdReward = UM.compactCoinOrError reward}) uview)
+          undefined -- (\rdPair -> UM.insert sCred (rdPair {UM.rdReward = UM.compactCoinOrError reward}) uview)
           (UM.lookup sCred uview)
     )
 
@@ -184,7 +184,7 @@ setDeposit sCred deposit =
     ( \umap@(UM.RewDepUView -> uview) ->
         maybe
           umap
-          (\rdPair -> UM.insert sCred (rdPair {UM.rdDeposit = UM.compactCoinOrError deposit}) uview)
+          undefined -- (\rdPair -> UM.insert sCred (rdPair {UM.rdDeposit = UM.compactCoinOrError deposit}) uview)
           (UM.lookup sCred uview)
     )
 
@@ -222,7 +222,7 @@ initialState params =
           { Shelley.ledgerSlotNo = 0,
             Shelley.ledgerIx = minBound,
             Shelley.ledgerPp = emulatorPParams params,
-            Shelley.ledgerAccount = Shelley.AccountState (Shelley.Coin 0) (Shelley.Coin 0),
+            Shelley.ledgerAccount = undefined, -- Shelley.AccountState (Shelley.Coin 0) (Shelley.Coin 0),
             Shelley.ledgerEpochNo = Nothing
           },
       elsLedgerState = Shelley.esLState (Shelley.nesEs (Shelley.createInitialState (pConfig params)))
@@ -315,13 +315,13 @@ constructValidated ::
 constructValidated globals (Shelley.UtxoEnv _ pp _) st tx =
   case Alonzo.collectPlutusScriptsWithContext ei sysS pp tx utxo of
     Left errs ->
-      throwError
-        ( Shelley.ApplyTxError
-            ( DijkstraUtxowFailure
-                (Ledger.injectFailure (Alonzo.UtxosFailure (Ledger.injectFailure $ Alonzo.CollectErrors errs)))
-                :| []
-            )
-        )
+      throwError undefined
+    -- ( Shelley.ApplyTxError
+    --     ( DijkstraUtxowFailure
+    --         (Ledger.injectFailure (Alonzo.UtxosFailure (Ledger.injectFailure $ Alonzo.CollectErrors errs)))
+    --         :| []
+    --     )
+    -- )
     Right sLst ->
       let scriptEvalResult = Alonzo.evalPlutusScripts sLst
           vTx =

@@ -81,7 +81,6 @@
               pkgs.lmdb
               pkgs.openssl_3_6
               pkgs.postgresql # For cardano-node-emulator
-              pkgs.openldap # For freer-extras‽
             ];
 
             LANG = "C.UTF-8";

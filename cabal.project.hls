@@ -27,5 +27,3 @@ package cardano-node-emulator
   ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
 package cardano-node-socket-emulator
   ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
-package freer-extras
-  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code

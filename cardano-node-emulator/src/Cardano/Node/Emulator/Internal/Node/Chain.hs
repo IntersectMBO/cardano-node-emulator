@@ -22,7 +22,6 @@ import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
 import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
 import Control.Monad.Freer (Eff, Member, Members, send, type (~>))
-import Control.Monad.Freer.Extras.Log (LogMsg, logDebug, logInfo, logWarn)
 import Control.Monad.Freer.State (State, gets, modify)
 import Control.Monad.State qualified as S
 import Data.Aeson (FromJSON, ToJSON)

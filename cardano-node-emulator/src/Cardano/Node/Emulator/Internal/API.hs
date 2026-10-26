@@ -35,8 +35,6 @@ import Control.Monad (void)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Freer (Eff, Member, interpret, run, type (~>))
-import Control.Monad.Freer.Extras (raiseEnd)
-import Control.Monad.Freer.Extras.Log qualified as L
 import Control.Monad.Freer.State (State, modify, runState)
 import Control.Monad.Freer.Writer qualified as F (Writer, runWriter, tell)
 import Control.Monad.Identity (Identity)

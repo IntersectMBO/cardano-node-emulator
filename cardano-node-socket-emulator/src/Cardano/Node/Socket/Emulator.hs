@@ -25,7 +25,6 @@ import Cardano.Node.Socket.Emulator.Types
   )
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
-import Control.Monad.Freer.Extras.Log (logInfo)
 import Control.Monad.IO.Class (liftIO)
 import Data.Default (def)
 import Data.Map.Strict qualified as Map

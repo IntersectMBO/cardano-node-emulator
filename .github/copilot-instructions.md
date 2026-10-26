@@ -8,7 +8,6 @@ This is a Haskell project that provides an in-memory blockchain emulator for tes
 - **cardano-node-socket-emulator**: Socket-based wrapper exposing node-to-client protocol over Unix sockets
 - **plutus-ledger**: Ledger types and functionality for Plutus scripts and transactions
 - **plutus-script-utils**: Utilities for writing and working with Plutus scripts
-- **freer-extras**: Extensions to the `simple-freer` effect system
 
 ## Development Environment
 
@@ -95,7 +94,7 @@ To update dependencies: Edit the `index-state` in `cabal.project` and run `cabal
 
 ### Effect System
 
-The codebase uses `simple-freer` (Freer monad) for effect composition. The `freer-extras` package provides common extensions and utilities for this.
+The codebase uses `simple-freer` (Freer monad) for effect composition.
 
 ### Testing with Generators
 

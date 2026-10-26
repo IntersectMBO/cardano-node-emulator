@@ -19,7 +19,6 @@ packages: plutus-ledger
           plutus-script-utils
           cardano-node-emulator
           cardano-node-socket-emulator
-          freer-extras
 
 constraints:
   , cardano-api == 11.7.0.0
@@ -62,9 +61,6 @@ package cardano-node-emulator
   tests: true
   benchmarks: true
 package cardano-node-socket-emulator
-  tests: true
-  benchmarks: true
-package freer-extras
   tests: true
   benchmarks: true
 

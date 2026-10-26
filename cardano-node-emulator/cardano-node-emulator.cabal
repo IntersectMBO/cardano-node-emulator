@@ -54,7 +54,6 @@ library
     , cardano-slotting
     , containers
     , data-default
-    , freer-extras
     , hedgehog
     , lens
     , mtl

@@ -56,7 +56,6 @@ library
     , cryptonite
     , data-default
     , exceptions
-    , freer-extras
     , io-classes
     , lens
     , memory

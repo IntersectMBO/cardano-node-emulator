@@ -1,0 +1,121 @@
+spec-version: 0.36.0
+name: plutus-ledger
+version: 1.4.1.0
+license: Apache-2.0
+license-file:
+  - LICENSE
+  - NOTICE
+language: Haskell2010
+
+default-extensions:
+  - ConstraintKinds
+  - DataKinds
+  - DeriveAnyClass
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - EmptyDataDeriving
+  - ExplicitForAll
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedStrings
+  - RankNTypes
+  - RecordWildCards
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeOperators
+  - ViewPatterns
+  
+ghc-options:
+  -Wall
+  -Wcompat
+  -Wnoncanonical-monad-instances
+  -Wno-unused-packages
+  -Wno-missed-extra-shared-lib
+  -Wincomplete-uni-patterns
+  -Wincomplete-record-updates
+  -Wredundant-constraints
+  -Widentities
+  -fobject-code
+  -fignore-hpc-changes
+  -fno-ignore-interface-pragmas
+  -fno-omit-interface-pragmas
+  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+  -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+  -fplugin-opt PlutusTx.Plugin:defer-errors
+
+when:
+  - condition: "!((impl(ghc >= 9.6) && impl(ghc < 9.7)) || (impl(ghc >= 9.12) && impl(ghc < 9.13)))"
+    buildable: false
+
+library:
+  source-dirs: src
+  dependencies:
+    - aeson
+    - base >=4.9 && <5
+    - base16-bytestring
+    - bytestring
+    - cborg
+    - cardano-api
+    - cardano-binary
+    - cardano-crypto
+    - cardano-ledger-alonzo
+    - cardano-ledger-byron
+    - cardano-ledger-dijkstra
+    - cardano-ledger-core
+    - cardano-ledger-shelley
+    - containers
+    - cryptonite >=0.25
+    - flat
+    - hashable
+    - http-api-data
+    - lens
+    - memory
+    - newtype-generics
+    - ordered-containers
+    - plutus-core
+    - plutus-ledger-api
+    - plutus-script-utils ^>=2.0.1
+    - plutus-tx
+    - plutus-tx-plugin
+    - prettyprinter
+    - scientific
+    - serialise
+    - servant
+    - text
+    - time-units
+    - vector
+
+tests:
+  plutus-ledger-test:
+    main: Spec.hs
+    source-dirs: test
+    dependencies:
+      - aeson
+      - base >=4.9 && <5
+      - bytestring
+      - cardano-api
+      - cardano-api:gen
+      - hedgehog
+      - plutus-ledger
+      - plutus-ledger-api
+      - plutus-script-utils
+      - plutus-tx
+      - tasty
+      - tasty-hedgehog
+      - tasty-hunit

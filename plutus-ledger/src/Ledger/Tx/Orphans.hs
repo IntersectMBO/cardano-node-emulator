@@ -33,15 +33,15 @@ import Ledger.Tx.Orphans.V2 ()
 import Ledger.Value.Orphans ()
 import Prettyprinter (Pretty (pretty), hang, viaShow, vsep, (<+>))
 
-instance ToJSON (C.Tx C.ConwayEra) where
+instance ToJSON (C.Tx C.DijkstraEra) where
   toJSON tx =
     object ["tx" .= C.serialiseToTextEnvelope Nothing tx]
 
-instance FromJSON (C.Tx C.ConwayEra) where
+instance FromJSON (C.Tx C.DijkstraEra) where
   parseJSON (Object v) = do
     envelope <- v .: "tx"
     either
-      (const $ parseFail "Failed to parse ConwayEra 'tx' field from CardanoTx")
+      (const $ parseFail "Failed to parse DijkstraEra 'tx' field from CardanoTx")
       pure
       $ C.deserialiseFromTextEnvelope envelope
   parseJSON invalid =
@@ -65,13 +65,13 @@ instance (Pretty (C.TxOutDatum ctx era)) => Pretty (C.TxOut ctx era) where
 instance Pretty (C.TxOutDatum C.CtxTx era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
-  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
+  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . drop 1 $ show dh)
   pretty (C.TxOutSupplementalDatum _ dv) = "with supplemental datum" <+> viaShow dv
 
 instance Pretty (C.TxOutDatum C.CtxUTxO era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
-  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
+  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . drop 1 $ show dh)
 
 instance Serialise C.TxId where
   encode = encode . C.serialiseToRawBytes

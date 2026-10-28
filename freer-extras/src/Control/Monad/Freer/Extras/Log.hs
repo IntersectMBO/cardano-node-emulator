@@ -228,8 +228,7 @@ handleWriterLog f = interpret $ \case
 -- | Re-interpret a 'Log' effect with a 'Writer'
 handleLogWriter ::
   forall a w effs.
-  ( Member (Writer w) effs
-  ) =>
+  (Member (Writer w) effs) =>
   AReview w (LogMessage a) ->
   LogMsg a
     ~> Eff effs

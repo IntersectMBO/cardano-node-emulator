@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -g -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
 module Plutus.Script.Utils.V1.Generators
@@ -58,6 +59,8 @@ import PlutusLedgerApi.V1
   )
 import PlutusTx qualified
 import PlutusTx.Builtins.Internal qualified as PlutusTx
+import PlutusTx.List
+import PlutusTx.Prelude
 
 alwaysSucceedValidator :: Validator
 alwaysSucceedValidator = toValidator $$(PlutusTx.compile [||trueVal||])
@@ -123,9 +126,9 @@ alwaysFailTokenValue = singleton alwaysFailCurrencySymbol
 --  in the minting transaction.
 mkForwardingMintingPolicy :: ValidatorHash -> MintingPolicy
 mkForwardingMintingPolicy vshsh =
-  toMintingPolicy $
-    $$(PlutusTx.compile [||mkUntypedMintingPolicy . forwardToValidator||])
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
+  toMintingPolicy
+    $ $$(PlutusTx.compile [||mkUntypedMintingPolicy . forwardToValidator||])
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
   where
     {-# INLINEABLE forwardToValidator #-}
     forwardToValidator :: ValidatorHash -> () -> ScriptContext -> Bool
@@ -139,9 +142,9 @@ mkForwardingMintingPolicy vshsh =
 --  in the right transaction.
 mkForwardingStakeValidator :: ValidatorHash -> StakeValidator
 mkForwardingStakeValidator vshsh =
-  toStakeValidator $
-    $$(PlutusTx.compile [||mkUntypedStakeValidator . forwardToValidator||])
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
+  toStakeValidator
+    $ $$(PlutusTx.compile [||mkUntypedStakeValidator . forwardToValidator||])
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 vshsh
   where
     {-# INLINEABLE forwardToValidator #-}
     forwardToValidator :: ValidatorHash -> () -> ScriptContext -> Bool

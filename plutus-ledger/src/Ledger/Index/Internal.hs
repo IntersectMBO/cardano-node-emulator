@@ -18,8 +18,9 @@ module Ledger.Index.Internal where
 import Cardano.Api qualified as C
 import Cardano.Binary qualified as CBOR
 import Cardano.Ledger.Alonzo.Scripts (AsIx, ExUnits, PlutusPurpose)
-import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Core (Tx)
+import Cardano.Ledger.Alonzo.Tx (pattern IsValid)
+import Cardano.Ledger.Dijkstra.Tx (DijkstraTx (DijkstraTx), pattern MkDijkstraTx)
+import Cardano.Ledger.Core (TopTx, Tx)
 import Cardano.Ledger.Shelley.API (Validated, extractTx)
 import Codec.Serialise (Serialise (..))
 import Control.Lens (makePrisms)
@@ -37,7 +38,7 @@ import Prelude hiding (lookup)
 
 -- | A transaction on the blockchain.
 -- Invalid transactions are still put on the chain to be able to collect fees.
-newtype OnChainTx = OnChainTx {getOnChainTx :: Validated (Tx EmulatorEra)}
+newtype OnChainTx = OnChainTx {getOnChainTx :: Validated (Tx TopTx EmulatorEra)}
   deriving (Eq, Show, Generic)
 
 instance Serialise OnChainTx where
@@ -45,15 +46,15 @@ instance Serialise OnChainTx where
   decode = fail "Not allowed to use `decode` on `OnChainTx`" -- Unused
 
 eitherTx :: (CardanoTx -> r) -> (CardanoTx -> r) -> OnChainTx -> r
-eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(AlonzoTx _ _ (IsValid isValid) _)) =
-  let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraConway tx)
+eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(MkDijkstraTx (DijkstraTx _ _ (IsValid isValid) _))) =
+  let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraDijkstra tx)
    in if isValid then ifValid ctx else ifInvalid ctx
 
 unOnChain :: OnChainTx -> CardanoTx
 unOnChain = eitherTx id id
 
 -- | The UTxOs of a blockchain indexed by their references.
-type UtxoIndex = C.UTxO C.ConwayEra
+type UtxoIndex = C.UTxO C.DijkstraEra
 
 -- | A reason why a transaction is invalid.
 data ValidationError
@@ -82,7 +83,7 @@ deriving via (PrettyShow ValidationPhase) instance Pretty ValidationPhase
 
 type ValidationErrorInPhase = (ValidationPhase, ValidationError)
 
-type ValidationSuccess = (RedeemerReport, Validated (Tx EmulatorEra))
+type ValidationSuccess = (RedeemerReport, Validated (Tx TopTx EmulatorEra))
 
 type RedeemerReport = Map.Map (PlutusPurpose AsIx EmulatorEra) ([Text], ExUnits)
 

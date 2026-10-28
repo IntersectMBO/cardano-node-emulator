@@ -14,7 +14,6 @@ The repository consists of a set of components:
 - [cardano-node-socket-emulator](./cardano-node-socket-emulator) - a socket-based emulator exposing the node-to-client protocol over a Unix socket.
 - [plutus-ledger](./plutus-ledger) - ledger types and functionality for working with Plutus scripts and transactions.
 - [plutus-script-utils](./plutus-script-utils) - utilities for writing and working with Plutus scripts.
-- [freer-extras](./freer-extras) - useful extensions to the `simple-freer` effect system.
 
 ## Development
 

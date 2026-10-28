@@ -1,0 +1,44 @@
+-- Project file used only by HLS/hie-bios (see hie.yaml), not by regular
+-- `cabal build`. It layers editor-only GHC options on top of the normal
+-- cabal.project.
+--
+-- Why this exists: the PlutusTx plugin compiles quoted `$$(compile [|| .. ||])`
+-- terms and needs the GHC Core unfoldings of referenced INLINABLE bindings.
+-- A normal `cabal build` gets these via `-fobject-code` plus the interface
+-- pragma flags set in each package. HLS, however, loads modules with the
+-- bytecode interpreter, where those unfoldings are absent, so the plugin fails
+-- and (because of `-fplugin-opt PlutusTx.Plugin:defer-errors`) surfaces the
+-- failures as editor-only diagnostics.
+--
+-- The fix (GHC 9.6+) is to have GHC persist the simplified Core into the
+-- interface files and let the bytecode session restore it, which is exactly
+-- what `-fwrite-if-simplified-core` + `-fprefer-byte-code` do.
+--
+-- These options must be applied not only to our own packages but also to the
+-- Plutus dependencies whose INLINABLE bindings get referenced inside compiled
+-- Plinth code. For example compiling `mkUntypedMintingPolicy . forwardToValidator`
+-- fails with
+--   Reference to a name which is not a local, a builtin, or an external
+--   INLINABLE function: Variable PlutusTx.Base.. (No unfolding)
+-- because `.` comes from `plutus-tx`, and the on-chain `ScriptContext`/`Eq`
+-- machinery comes from `plutus-ledger-api` / `plutus-core`. If these were left
+-- loaded from their prebuilt `.hi` files (which lack the simplified Core), the
+-- plugin keeps failing. We list them explicitly rather than using `package *`
+-- so HLS only rebuilds the Plutus packages, not the entire dependency tree.
+import: cabal.project
+
+package plutus-tx
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+package plutus-core
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+package plutus-ledger-api
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+
+package plutus-ledger
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+package plutus-script-utils
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+package cardano-node-emulator
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code
+package cardano-node-socket-emulator
+  ghc-options: -fwrite-if-simplified-core -fprefer-byte-code

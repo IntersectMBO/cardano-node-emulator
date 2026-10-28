@@ -70,4 +70,4 @@ instance ToMaybeStakingCredential (Maybe Api.StakingCredential) where
 
 -- | Similar to 'ToAddress', but for Cardano addresses
 class ToCardanoAddress a where
-  toCardanoAddress :: C.Api.NetworkId -> a -> C.Api.AddressInEra C.Api.ConwayEra
+  toCardanoAddress :: C.Api.NetworkId -> a -> C.Api.AddressInEra C.Api.DijkstraEra

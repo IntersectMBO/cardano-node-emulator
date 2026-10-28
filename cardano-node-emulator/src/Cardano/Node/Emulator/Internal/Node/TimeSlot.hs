@@ -137,8 +137,7 @@ posixTimeRangeToContainedSlotRange :: SlotConfig -> POSIXTimeRange -> SlotRange
 posixTimeRangeToContainedSlotRange sc ptr = case fmap (posixTimeToEnclosingSlot sc) ptr of
   Interval (LowerBound start startIncl) (UpperBound end endIncl) ->
     Interval
-      ( LowerBound start (case start of Finite s -> slotToBeginPOSIXTime sc s `member` ptr; _ -> startIncl)
-      )
+      (LowerBound start (case start of Finite s -> slotToBeginPOSIXTime sc s `member` ptr; _ -> startIncl))
       (UpperBound end (case end of Finite e -> slotToEndPOSIXTime sc e `member` ptr; _ -> endIncl))
 
 {-# INLINEABLE posixTimeToEnclosingSlot #-}

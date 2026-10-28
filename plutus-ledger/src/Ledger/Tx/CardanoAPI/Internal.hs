@@ -96,9 +96,9 @@ import Cardano.Chain.Common (addrToBase58)
 import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Alonzo.TxWits qualified as Alonzo
 import Cardano.Ledger.Coin (Coin (Coin))
+import Cardano.Ledger.Core qualified as Ledger
 import Cardano.Ledger.Dijkstra (DijkstraEra)
 import Cardano.Ledger.Dijkstra.Scripts qualified as Dijkstra
-import Cardano.Ledger.Core qualified as Ledger
 import Control.Lens ((<&>))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
 import Data.Aeson qualified as Aeson
@@ -232,6 +232,7 @@ withShelleyBasedEraConstraintsForLedger = \case
   C.ShelleyBasedEraMary -> id
   C.ShelleyBasedEraAlonzo -> id
   C.ShelleyBasedEraBabbage -> id
+  C.ShelleyBasedEraConway -> id
   C.ShelleyBasedEraDijkstra -> id
 
 -- | Given a 'C.TxBody from a 'C.Tx era', return the datums and redeemers along
@@ -652,6 +653,7 @@ fromCardanoScriptInEra (C.ScriptInEra C.PlutusScriptV3InDijkstra (C.PlutusScript
 fromCardanoScriptInEra (C.ScriptInEra C.PlutusScriptV4InDijkstra (C.PlutusScript C.PlutusScriptV4 script)) =
   Just (P.Versioned (fromCardanoPlutusScript script) P.PlutusV4)
 fromCardanoScriptInEra (C.ScriptInEra _ C.SimpleScript {}) = Nothing
+fromCardanoScriptInEra _ = Nothing
 
 toCardanoScriptInEra :: P.Versioned P.Script -> C.ScriptInEra C.DijkstraEra
 toCardanoScriptInEra (P.Versioned (P.Script s) P.PlutusV1) =

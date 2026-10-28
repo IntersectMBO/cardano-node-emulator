@@ -96,6 +96,8 @@ toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
       C.PlutusScriptWitness C.PlutusScriptV2InDijkstra C.PlutusScriptV2 $ C.PReferenceScript txIn
     P.PlutusV3 ->
       C.PlutusScriptWitness C.PlutusScriptV3InDijkstra C.PlutusScriptV3 $ C.PReferenceScript txIn
+    P.PlutusV4 ->
+      C.PlutusScriptWitness C.PlutusScriptV4InDijkstra C.PlutusScriptV4 $ C.PReferenceScript txIn
 
 toCardanoTxInScriptWitnessHeader :: P.Versioned PV1.Script -> WitnessHeader witctx
 toCardanoTxInScriptWitnessHeader script =

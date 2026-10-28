@@ -51,11 +51,10 @@ where
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.Coin (Coin (Coin))
-import Cardano.Ledger.Dijkstra qualified as Dijkstra
 import Cardano.Ledger.Core (PParams, getMinCoinTxOut)
+import Cardano.Ledger.Dijkstra qualified as Dijkstra
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Control.Lens (alaf, (&), (.~), (<&>))
-import Data.Foldable (foldl')
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Ap (..))

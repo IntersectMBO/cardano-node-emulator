@@ -97,7 +97,6 @@ gh-pages
 *.db
 *.db-shm
 *.db-wal
-hie.yaml
 node-server.sock*
 node.sock
 **/node?/db

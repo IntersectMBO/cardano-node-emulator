@@ -1,55 +1,24 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 module Plutus.Script.Utils.V3.Typed
-  ( ConnectionError (..),
-    WrongOutTypeError (..),
-    checkMultiPurposeScriptAddress,
-    checkDatum,
-    TypedScriptTxOut (..),
-    TypedScriptTxOutRef (..),
-    makeTypedScriptTxOut,
-    typeScriptTxOut,
-    typeScriptTxOutRef,
-    MultiPurposeScriptTypes (..),
-    MultiPurposeScript (..),
-    generalise,
-    Any,
-    toCardanoAddressAny,
-    IsDataDatum,
-    TypedMultiPurposeScript (..),
-    mkMultiPurposeScript,
-    CertifyingPurposeType',
-    MintingPurposeType',
-    ProposingPurposeType',
-    RewardingPurposeType',
-    SpendingPurposeType',
-    VotingPurposeType',
-    CertifyingPurposeType,
+  ( CertifyingPurposeType,
     MintingPurposeType,
     ProposingPurposeType,
     RewardingPurposeType,
     SpendingPurposeType,
     VotingPurposeType,
+    TypedMultiPurposeScript (..),
+    MultiPurposeScript (..),
+    mkMultiPurposeScript,
   )
 where
 
-import Cardano.Api qualified as C.Api
 import Codec.Serialise (Serialise)
-import Control.Monad (unless)
-import Control.Monad.Except
-  ( MonadError,
-    throwError,
-  )
-import Data.Coerce (coerce)
-import Data.Kind (Type)
-import Data.Void (Void)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Address
   ( ToAddress (toAddress),
-    ToCardanoAddress (toCardanoAddress),
     ToCredential (toCredential),
   )
-import Plutus.Script.Utils.Data (datumHash)
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV3),
     MintingPolicy (MintingPolicy),
@@ -65,192 +34,78 @@ import Plutus.Script.Utils.Scripts
     ToValidatorHash (toValidatorHash),
     ToVersioned (toVersioned),
     Validator (Validator),
-    ValidatorHash (ValidatorHash),
     Versioned (Versioned),
   )
-import Plutus.Script.Utils.V1.Typed
-  ( Any,
-    ConnectionError
-      ( NoDatum,
-        UnknownRef,
-        WrongCredentialType,
-        WrongDatumType,
-        WrongRedeemerType,
-        WrongValidatorHash,
-        WrongValidatorType
-      ),
-    WrongOutTypeError
-      ( ExpectedPubkeyGotScript,
-        ExpectedScriptGotPubkey
-      ),
-  )
-import PlutusLedgerApi.V1 qualified as V1
 import PlutusLedgerApi.V3
-  ( Address (Address, addressCredential),
+  ( Address (Address),
     BuiltinData,
-    Credential (PubKeyCredential, ScriptCredential),
-    CurrencySymbol,
-    Datum (Datum),
+    Credential (ScriptCredential),
     FromData,
-    OutputDatum (OutputDatum, OutputDatumHash),
-    ProposalProcedure,
-    ScriptHash (ScriptHash),
-    ScriptInfo (CertifyingScript, MintingScript, ProposingScript, RewardingScript, SpendingScript, VotingScript),
-    ToData (toBuiltinData),
-    TxCert,
-    TxId (TxId),
-    TxInfo,
-    TxOut (TxOut),
-    TxOutRef (TxOutRef),
-    Value,
-    Voter,
   )
-import PlutusTx
-  ( FromData (fromBuiltinData),
-    unstableMakeIsData,
+import PlutusTx.Builtins (unsafeDataAsConstr)
+import PlutusTx.Prelude
+  ( Bool,
+    BuiltinString,
+    BuiltinUnit,
+    Either (Left, Right),
+    FromData (fromBuiltinData),
+    Integer,
+    Maybe (Just, Nothing),
+    check,
+    either,
+    maybe,
+    return,
+    trace,
+    traceError,
+    ($),
+    (.),
+    (<$>),
+    (<>),
+    (==),
   )
-import PlutusTx.Prelude (BuiltinString, BuiltinUnit, check, trace, traceError)
-import PlutusTx.Prelude qualified as PlutusTx
-import Prettyprinter qualified as PP
-import Prettyprinter.Extras qualified as PP
-
--- * Type family representing all the necessary types for a 'MultiPurposeScript'
-
-{-- Note on @MultipPurposeScriptTypes a@. While this type class is useful to
-  gather all the possible type information of a multi-purpose script, and to
-  benefit from their default instances, the Plutus compiler is unable to process
-  type families directly. In particular, @TypedMultiPurposeScript@ cannot be
-  indexed by a certain @a@ and is instead indexed by all the type components
-  directly, which is sadly inconvenient. For conveniency reasons, we do provide
-  @IndexedTypedMultiPurposeScript@ as a constrained instance of
-  @TypedMultiPurposeScript@ which can be used at an abstract level of script
-  definition. Note of our helpers and tools can take these directly as inputs
-  though, or the Plutus compiler will complain about irreducible type
-  families. --}
-
-class MultiPurposeScriptTypes a where
-  -- Certifying purpose type variables with default
-  type CertifyingRedeemerType a
-  type CertifyingTxInfoType a
-
-  type CertifyingRedeemerType a = ()
-  type CertifyingTxInfoType a = TxInfo
-
-  -- Minting purpose type variables with default
-  type MintingRedeemerType a
-  type MintingTxInfoType a
-
-  type MintingRedeemerType a = ()
-  type MintingTxInfoType a = TxInfo
-
-  -- Proposing purpose type variables with default
-  type ProposingRedeemerType a
-  type ProposingTxInfoType a
-
-  type ProposingRedeemerType a = ()
-  type ProposingTxInfoType a = TxInfo
-
-  -- Rewarding purpose type variables with default
-  type RewardingRedeemerType a
-  type RewardingTxInfoType a
-
-  type RewardingRedeemerType a = ()
-  type RewardingTxInfoType a = TxInfo
-
-  -- Spending purpose type variables with default
-  type SpendingRedeemerType a
-  type SpendingTxInfoType a
-  type SpendingDatumType a
-
-  type SpendingRedeemerType a = ()
-  type SpendingTxInfoType a = TxInfo
-  type SpendingDatumType a = ()
-
-  -- Voting purpose type variables with default
-  type VotingRedeemerType a
-  type VotingTxInfoType a
-
-  type VotingRedeemerType a = ()
-  type VotingTxInfoType a = TxInfo
-
-instance MultiPurposeScriptTypes ()
-
-instance MultiPurposeScriptTypes Void where
-  type CertifyingRedeemerType Void = Void
-  type MintingRedeemerType Void = Void
-  type ProposingRedeemerType Void = Void
-  type RewardingRedeemerType Void = Void
-  type SpendingRedeemerType Void = Void
-  type SpendingDatumType Void = Void
-  type VotingRedeemerType Void = Void
-
-instance MultiPurposeScriptTypes Any where
-  type CertifyingRedeemerType Any = BuiltinData
-  type MintingRedeemerType Any = BuiltinData
-  type ProposingRedeemerType Any = BuiltinData
-  type RewardingRedeemerType Any = BuiltinData
-  type SpendingRedeemerType Any = BuiltinData
-  type SpendingDatumType Any = BuiltinData
-  type VotingRedeemerType Any = BuiltinData
+import Prelude qualified as H
 
 -- * Various script purposes
 
-{-- Note on types for the script purposes: Each script purpose is associated with
-  a given function type with the following characteristics:
+{-- Note on types for the script purposes: Each purpose is associated with a
+  function type with the following characteristics:
 
-  - These purposes return a boolean which corresponds to the validation result
+  - Each purpose returns a 'Bool' indicating whether validation succeeds.
 
-  - These purposes all take a redeemer of a dedicated type, which varies between
-    the various purposes. Having a custom type here is mandatory because the
-    concrete redeemer type is only known by the user. It also allows to
-    customize the way deserialization of the redeemer is performed.
+  - Each purpose takes a redeemer of a purpose-specific type. The concrete
+    redeemer type is chosen by the user, who can also customize how it is
+    deserialized.
 
-  - The purposes all take a view on the @TxInfo@ from Plutus as parameter. This
-    type is also custom (although it is expected that it will be TxInfo itself
-    in some cases) to allows users to perform partial deserialization of the
-    TxInfo. It happens very seldom that all the fields of the TxInfo are
-    actually useful for a given script and this is advises to use a custom type
-    there instead of TxInfo itself.
+  - Each purpose takes a view of Plutus's @TxInfo@. This type is customizable
+    (though it may simply be @TxInfo@), allowing users to deserialize only the
+    fields they need. Scripts rarely need every field of @TxInfo@, so a custom
+    type is often preferable.
 
-  - The purposes all take additional parameters based on what can be retrieved
-    from the @scriptContextScriptInfo@ of the script context (which has to be
-    deserialized). For instance, a minting purpose will receive its own currency
-    symbol as a parameter.
+  - Each purpose also takes parameters from @scriptContextScriptInfo@, which is
+    decoded from the script context. For instance, a minting purpose receives
+    its own currency symbol.
 
-  - The spending purpose takes an optional datum among these additional
-    parameters which, similarly to the transaction info and redeemer, is given a
-    generic type.
+  - The spending purpose takes an optional datum as an additional parameter.
+    Like the redeemer and transaction-info view, its type is user-defined.
 --}
 
 -- | Certifying scripts take an index, certificate, redeemer and txInfo
-type CertifyingPurposeType' red txInfo = Integer -> TxCert -> red -> txInfo -> Bool
-
-type CertifyingPurposeType a = CertifyingPurposeType' (CertifyingRedeemerType a) (CertifyingTxInfoType a)
+type CertifyingPurposeType index cert red txInfo = index -> cert -> red -> txInfo -> Bool
 
 -- | Minting scripts take their own currency symbol, redeemer and txInfo
-type MintingPurposeType' red txInfo = CurrencySymbol -> red -> txInfo -> Bool
-
-type MintingPurposeType a = MintingPurposeType' (MintingRedeemerType a) (MintingTxInfoType a)
+type MintingPurposeType currencySymbol red txInfo = currencySymbol -> red -> txInfo -> Bool
 
 -- | Proposing scripts take an index, proposal, redeemer and txInfo
-type ProposingPurposeType' red txInfo = Integer -> ProposalProcedure -> red -> txInfo -> Bool
-
-type ProposingPurposeType a = ProposingPurposeType' (ProposingRedeemerType a) (ProposingTxInfoType a)
+type ProposingPurposeType index proposal red txInfo = index -> proposal -> red -> txInfo -> Bool
 
 -- | Rewarding scripts take a credential, redeemer and txInfo
-type RewardingPurposeType' red txInfo = Credential -> red -> txInfo -> Bool
-
-type RewardingPurposeType a = RewardingPurposeType' (RewardingRedeemerType a) (RewardingTxInfoType a)
+type RewardingPurposeType credential red txInfo = credential -> red -> txInfo -> Bool
 
 -- | Spending scripts take the utxo being consumed, an optional datum, redeemer and txInfo
-type SpendingPurposeType' dat red txInfo = TxOutRef -> Maybe dat -> red -> txInfo -> Bool
-
-type SpendingPurposeType a = SpendingPurposeType' (SpendingDatumType a) (SpendingRedeemerType a) (SpendingTxInfoType a)
+type SpendingPurposeType outRef dat red txInfo = outRef -> Maybe dat -> red -> txInfo -> Bool
 
 -- | Voting scripts take a voter, redeemer and txInfo
-type VotingPurposeType' red txInfo = Voter -> red -> txInfo -> Bool
-
-type VotingPurposeType a = VotingPurposeType' (VotingRedeemerType a) (VotingTxInfoType a)
+type VotingPurposeType voter red txInfo = voter -> red -> txInfo -> Bool
 
 -- * Typed multi-purpose scripts
 
@@ -258,281 +113,229 @@ type VotingPurposeType a = VotingPurposeType' (VotingRedeemerType a) (VotingTxIn
 -- own types as described above.
 data
   TypedMultiPurposeScript
+    certifyingIndex
+    certifyingCert
     certifyingRed
     certifyingTxInfo
+    mintingCurrencySymbol
     mintingRed
     mintingTxInfo
+    proposingIndex
+    proposingProposal
     proposingRed
     proposingTxInfo
+    rewardingCredential
     rewardingRed
     rewardingTxInfo
+    spendingOutRef
     spendingDat
     spendingRed
     spendingTxInfo
+    votingVoter
     votingRed
     votingTxInfo
-  = ( FromData certifyingRed,
+  = ( FromData certifyingIndex,
+      FromData certifyingCert,
+      FromData certifyingRed,
       FromData certifyingTxInfo,
+      FromData mintingCurrencySymbol,
       FromData mintingRed,
       FromData mintingTxInfo,
+      FromData proposingIndex,
+      FromData proposingProposal,
       FromData proposingRed,
       FromData proposingTxInfo,
+      FromData rewardingCredential,
       FromData rewardingRed,
       FromData rewardingTxInfo,
+      FromData spendingOutRef,
       FromData spendingDat,
       FromData spendingRed,
       FromData spendingTxInfo,
+      FromData votingVoter,
       FromData votingRed,
       FromData votingTxInfo
     ) =>
   TypedMultiPurposeScript
-  { certifyingPurpose :: Maybe (CertifyingPurposeType' certifyingRed certifyingTxInfo),
-    mintingPurpose :: Maybe (MintingPurposeType' mintingRed mintingTxInfo),
-    proposingPurpose :: Maybe (ProposingPurposeType' proposingRed proposingTxInfo),
-    rewardingPurpose :: Maybe (RewardingPurposeType' rewardingRed rewardingTxInfo),
-    spendingPurpose :: Maybe (SpendingPurposeType' spendingDat spendingRed spendingTxInfo),
-    votingPurpose :: Maybe (VotingPurposeType' votingRed votingTxInfo)
+  { certifyingPurpose :: Maybe (CertifyingPurposeType certifyingIndex certifyingCert certifyingRed certifyingTxInfo),
+    mintingPurpose :: Maybe (MintingPurposeType mintingCurrencySymbol mintingRed mintingTxInfo),
+    proposingPurpose :: Maybe (ProposingPurposeType proposingIndex proposingProposal proposingRed proposingTxInfo),
+    rewardingPurpose :: Maybe (RewardingPurposeType rewardingCredential rewardingRed rewardingTxInfo),
+    spendingPurpose :: Maybe (SpendingPurposeType spendingOutRef spendingDat spendingRed spendingTxInfo),
+    votingPurpose :: Maybe (VotingPurposeType votingVoter votingRed votingTxInfo)
   }
 
 -- * Compiled multi-purpose scripts
 
--- | A 'MultiPurposeScript' is a 'Script' with a phantom connection type
-newtype MultiPurposeScript (a :: Type) = MultiPurposeScript {getMultiPurposeScript :: Script}
+-- | A 'MultiPurposeScript' wraps a Plutus V3 'Script'.
+newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: Script}
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, Serialise)
-  deriving (PP.Pretty) via (PP.PrettyShow (MultiPurposeScript a))
+  deriving newtype (H.Eq, H.Ord, Serialise)
 
-instance Show (MultiPurposeScript a) where
-  show = ("Multi-purpose script #" <>) . show . toScriptHash
+instance H.Show MultiPurposeScript where
+  show = ("Multi-purpose script #" <>) . H.show . toScriptHash
 
-instance ToScript (MultiPurposeScript a) where
+instance ToScript MultiPurposeScript where
   toScript = getMultiPurposeScript
 
-instance ToVersioned Script (MultiPurposeScript a) where
+instance ToVersioned Script MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . toScript
 
-instance ToScriptHash (MultiPurposeScript a) where
+instance ToScriptHash MultiPurposeScript where
   toScriptHash = toScriptHash . toVersioned @Script
 
-instance ToCredential (MultiPurposeScript a) where
+instance ToCredential MultiPurposeScript where
   toCredential = ScriptCredential . toScriptHash
 
-instance ToAddress (MultiPurposeScript a) where
+instance ToAddress MultiPurposeScript where
   toAddress = (`Address` Nothing) . toCredential
 
-instance ToValidator (MultiPurposeScript a) where
+instance ToValidator MultiPurposeScript where
   toValidator = Validator . toScript
 
-instance ToVersioned Validator (MultiPurposeScript a) where
+instance ToVersioned Validator MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . toValidator
 
-instance ToValidatorHash (MultiPurposeScript a) where
+instance ToValidatorHash MultiPurposeScript where
   toValidatorHash = toValidatorHash . toScriptHash
 
-instance ToMintingPolicy (MultiPurposeScript a) where
+instance ToMintingPolicy MultiPurposeScript where
   toMintingPolicy = MintingPolicy . toScript
 
-instance ToVersioned MintingPolicy (MultiPurposeScript a) where
+instance ToVersioned MintingPolicy MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . MintingPolicy . toScript
 
-instance ToMintingPolicyHash (MultiPurposeScript a) where
+instance ToMintingPolicyHash MultiPurposeScript where
   toMintingPolicyHash = toMintingPolicyHash . toScriptHash
 
-instance ToStakeValidator (MultiPurposeScript a) where
+instance ToStakeValidator MultiPurposeScript where
   toStakeValidator = StakeValidator . toScript
 
-instance ToVersioned StakeValidator (MultiPurposeScript a) where
+instance ToVersioned StakeValidator MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . StakeValidator . toScript
 
-instance ToStakeValidatorHash (MultiPurposeScript a) where
+instance ToStakeValidatorHash MultiPurposeScript where
   toStakeValidatorHash = toStakeValidatorHash . toScriptHash
-
-instance ToCardanoAddress (MultiPurposeScript a) where
-  toCardanoAddress networkId = toCardanoAddress networkId . toVersioned @Script
-
-toCardanoAddressAny :: C.Api.NetworkId -> MultiPurposeScript a -> C.Api.AddressAny
-toCardanoAddressAny nid tv =
-  case toCardanoAddress nid tv of
-    C.Api.AddressInEra C.Api.ShelleyAddressInEra {} addr -> C.Api.AddressShelley addr
-    C.Api.AddressInEra C.Api.ByronAddressInAnyEra {} addr -> C.Api.AddressByron addr
-
--- | Generalise the multi-purpose script to one that works with the 'Data' type.
--- we can do this safely because the on-chain validators are untyped, so they
--- always take 'BuiltinData' arguments. The validator script stays the same, so
--- the conversion from 'BuiltinData' to 'a' still takes place, even if it's not
--- reflected in the type signature anymore.
-generalise :: MultiPurposeScript a -> MultiPurposeScript Any
-generalise = coerce
 
 -- * From 'TypedMultiPurposeScript' to 'MultiPurposeScript'
 
-{-- Note on converting 'TypedMultiPurposeScript' to their on-chain representation:
-  'TypedMultiPurposeScript' is an abstraction over actual scripts. It splits the
-  various purposes into manageable entities. However, the on-chain script is a
-  single function from 'BuiltinData' to 'BuiltinUnit'. In order to convert the
-  former to the latter, we follow these two steps:
+{-- Note on converting 'TypedMultiPurposeScript' to its on-chain representation:
+  'TypedMultiPurposeScript' separates the purposes into manageable handlers.
+  The on-chain script is a single function from 'BuiltinData' to 'BuiltinUnit'.
+  To convert the typed representation, we:
 
-  - We define a custom script context where only the script info is
-    deserialized, minimizing the cost and leaving to the various purpose the
-    opportunity to handle the deserialization of the @TxInfo@ the way they require.
+  - Decode the outer script context and purpose information, leaving the
+    @TxInfo@ and redeemer as 'BuiltinData' so each handler can deserialize them
+    using its own types.
 
-  - We define a function 'mkMultiPurposeScript' which wraps the various purposes
-    into an actual script. The function deserializes the script info, case
-    splits on it and delegates the work to the right script purpose. On the way,
-    some tracing is performed when errors occurs, tracing that will be erased by
-    the plutus compiler by default but can be kept if needed.
+  - Use 'mkMultiPurposeScript' to build the on-chain script. It dispatches to
+    the selected handler, decodes its typed arguments, and traces the selected
+    purpose. Deserialization and unsupported-purpose errors are reported with
+    'traceError'.
 
 --}
 
--- | Custom script context to retrieve the script info
-data ScriptContextResolvedScriptInfo = ScriptContextResolvedScriptInfo
-  { scriptContextTxInfo :: BuiltinData,
-    scriptContextRedeemer :: BuiltinData,
-    scriptContextScriptInfo :: ScriptInfo
-  }
+-- | Script-context representation retaining the transaction info and redeemer
+-- as raw data while decoding the purpose tag and arguments.
+data ScriptContextResolvedScriptInfo
+  = ScriptContextResolvedScriptInfo
+      -- | the TxInfo
+      BuiltinData
+      -- | the Redeemer
+      BuiltinData
+      -- | the script purpose and its arguments
+      (Integer, [BuiltinData])
 
-unstableMakeIsData ''ScriptContextResolvedScriptInfo
+-- | Decode the outer context and purpose information while leaving the
+-- transaction info and redeemer as raw data for the selected handler.
+instance FromData ScriptContextResolvedScriptInfo where
+  fromBuiltinData bData =
+    case unsafeDataAsConstr bData of
+      (_, [txInfo, redeemer, unsafeDataAsConstr -> (i, l)]) ->
+        Just $ ScriptContextResolvedScriptInfo txInfo redeemer (i, l)
+      _ -> Nothing
 
 {-# INLINEABLE mkMultiPurposeScript #-}
 mkMultiPurposeScript ::
-  TypedMultiPurposeScript cRed cTxInfo mRed mTxInfo pRed pTxInfo rRed rTxInfo sDat sRed sTxInfo vRed vTxInfo -> BuiltinData -> BuiltinUnit
+  TypedMultiPurposeScript
+    cIndex
+    cCert
+    cRed
+    cTxInfo
+    mCurrencySymbol
+    mRed
+    mTxInfo
+    pIndex
+    pProposal
+    pRed
+    pTxInfo
+    rCredential
+    rRed
+    rTxInfo
+    sOutRef
+    sDat
+    sRed
+    sTxInfo
+    vVoter
+    vRed
+    vTxInfo ->
+  BuiltinData ->
+  BuiltinUnit
 mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
   either traceError check $ do
-    ScriptContextResolvedScriptInfo {..} <- fromBuiltinDataEither "script info" dat
-    case scriptContextScriptInfo of
-      CertifyingScript i cert | Just cPurpose <- certifyingPurpose -> do
-        (red, txInfo) <- deserializeContext "certifying" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Certifying" $ cPurpose i cert red txInfo
-      CertifyingScript {} -> traceError "Unsupported purpose: Certifying"
-      MintingScript cur | Just mPurpose <- mintingPurpose -> do
-        (red, txInfo) <- deserializeContext "minting" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Minting" $ mPurpose cur red txInfo
-      MintingScript {} -> traceError "Unsupported purpose: Minting"
-      ProposingScript i prop | Just pPurpose <- proposingPurpose -> do
-        (red, txInfo) <- deserializeContext "proposing" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Proposing" $ pPurpose i prop red txInfo
-      ProposingScript {} -> traceError "Unsupported purpose: Proposing"
-      RewardingScript cred | Just rPurpose <- rewardingPurpose -> do
-        (red, txInfo) <- deserializeContext "rewarding" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Rewarding" $ rPurpose cred red txInfo
-      RewardingScript {} -> traceError "Unsupported purpose: Rewarding"
-      SpendingScript oRef mDat | Just sPurpose <- spendingPurpose -> do
-        (red, txInfo) <- deserializeContext "spending" scriptContextRedeemer scriptContextTxInfo
-        mResolvedDat <- case mDat of
-          Nothing -> return Nothing
-          Just (Datum bDat) -> Just <$> fromBuiltinDataEither "datum" bDat
-        return $ traceRunning "Spending" $ sPurpose oRef mResolvedDat red txInfo
-      SpendingScript {} -> traceError "Unsupported purpose: Spending"
-      VotingScript voter | Just vPurpose <- votingPurpose -> do
-        (red, txInfo) <- deserializeContext "voting" scriptContextRedeemer scriptContextTxInfo
-        return $ traceRunning "Voting" $ vPurpose voter red txInfo
-      VotingScript {} -> traceError "Unsupported purpose: Voting"
+    ScriptContextResolvedScriptInfo scTxInfo scRedeemer (purpose, args) <- fromBuiltinDataEither "script info" dat
+    case args of
+      [i, cert]
+        | purpose == 0,
+          Just cPurpose <- certifyingPurpose -> do
+            index <- fromBuiltinDataEither "certifying index" i
+            certificate <- fromBuiltinDataEither "certifying certificate" cert
+            red <- fromBuiltinDataEither "certifying redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "certifying tx info" scTxInfo
+            return $ traceRunning "Certifying" $ cPurpose index certificate red txInfo
+      [cur]
+        | purpose == 1,
+          Just mPurpose <- mintingPurpose -> do
+            currencySymbol <- fromBuiltinDataEither "minting currency symbol" cur
+            red <- fromBuiltinDataEither "minting redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "minting tx info" scTxInfo
+            return $ traceRunning "Minting" $ mPurpose currencySymbol red txInfo
+      [i, prop]
+        | purpose == 2,
+          Just pPurpose <- proposingPurpose -> do
+            index <- fromBuiltinDataEither "proposing index" i
+            proposal <- fromBuiltinDataEither "proposing proposal" prop
+            red <- fromBuiltinDataEither "proposing redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "proposing tx info" scTxInfo
+            return $ traceRunning "Proposing" $ pPurpose index proposal red txInfo
+      [cred]
+        | purpose == 3,
+          Just rPurpose <- rewardingPurpose -> do
+            credential <- fromBuiltinDataEither "rewarding credential" cred
+            red <- fromBuiltinDataEither "rewarding redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "rewarding tx info" scTxInfo
+            return $ traceRunning "Rewarding" $ rPurpose credential red txInfo
+      [oRef, mDat]
+        | purpose == 4,
+          Just sPurpose <- spendingPurpose -> do
+            outRef <- fromBuiltinDataEither "spending output reference" oRef
+            red <- fromBuiltinDataEither "spending redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "spending tx info" scTxInfo
+            mResolvedDat <- case unsafeDataAsConstr mDat of
+              (_, [unsafeDataAsConstr -> (_, [bDat])]) -> Just <$> fromBuiltinDataEither "datum" bDat
+              _ -> return Nothing
+            return $ traceRunning "Spending" $ sPurpose outRef mResolvedDat red txInfo
+      [voter]
+        | purpose == 5,
+          Just vPurpose <- votingPurpose -> do
+            resolvedVoter <- fromBuiltinDataEither "voting voter" voter
+            red <- fromBuiltinDataEither "voting redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "voting tx info" scTxInfo
+            return $ traceRunning "Voting" $ vPurpose resolvedVoter red txInfo
+      _ -> traceError "Script used with an unsupported purpose."
   where
     fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a
-    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " PlutusTx.<> name) Right . fromBuiltinData
+    fromBuiltinDataEither name = maybe (Left $ "Error when deserializing the " <> name) Right . fromBuiltinData
 
     traceRunning :: BuiltinString -> Bool -> Bool
-    traceRunning name = trace ("Running the validator with the " PlutusTx.<> name PlutusTx.<> " script purpose")
-
-    deserializeContext :: (FromData a, FromData b) => BuiltinString -> BuiltinData -> BuiltinData -> Either BuiltinString (a, b)
-    deserializeContext name redData txInfoData = do
-      red <- fromBuiltinDataEither (name PlutusTx.<> " redeemer") redData
-      txInfo <- fromBuiltinDataEither (name PlutusTx.<> " tx info") txInfoData
-      return (red, txInfo)
-
--- * Checks around typed multi-purpose scripts
-
--- | Checks that the given validator hash is consistent with the actual validator.
-checkMultiPurposeScriptAddress ::
-  (MonadError ConnectionError m) => MultiPurposeScript a -> Address -> m ()
-checkMultiPurposeScriptAddress (toScriptHash -> ScriptHash mpScriptHash) (Address (ScriptCredential (ScriptHash sHash)) _) =
-  unless (sHash == mpScriptHash) $
-    throwError $
-      WrongValidatorHash (ValidatorHash mpScriptHash) (ValidatorHash sHash)
-checkMultiPurposeScriptAddress _ _ = throwError $ WrongCredentialType ExpectedScriptGotPubkey
-
--- | Checks that the given datum has the right type.
-checkDatum ::
-  (FromData (SpendingDatumType a), MonadError ConnectionError m) =>
-  MultiPurposeScript a ->
-  Datum ->
-  m (SpendingDatumType a)
-checkDatum _ (Datum d) =
-  case fromBuiltinData d of
-    Just v -> pure v
-    Nothing -> throwError $ WrongDatumType d
-
-type IsDataDatum a = (FromData (SpendingDatumType a), ToData (SpendingDatumType a))
-
--- | A 'TxOut' tagged by a phantom type: and the connection type of the output.
-data TypedScriptTxOut a
-  = (IsDataDatum a) =>
-  TypedScriptTxOut
-  { tyTxOutTxOut :: TxOut,
-    tyTxOutData :: SpendingDatumType a
-  }
-
-deriving instance (Eq (SpendingDatumType a)) => Eq (TypedScriptTxOut a)
-
--- | Create a 'TypedScriptTxOut' from a correctly-typed data script, an address, and a value.
-makeTypedScriptTxOut ::
-  (IsDataDatum out) =>
-  MultiPurposeScript out ->
-  SpendingDatumType out ->
-  Value ->
-  TypedScriptTxOut out
-makeTypedScriptTxOut (toScriptHash -> mpScriptHash) dat val =
-  TypedScriptTxOut
-    ( TxOut
-        (Address (ScriptCredential mpScriptHash) Nothing)
-        val
-        (OutputDatumHash $ datumHash $ Datum $ toBuiltinData dat)
-        Nothing
-    )
-    dat
-
--- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOut ::
-  (IsDataDatum out, MonadError ConnectionError m) =>
-  MultiPurposeScript out ->
-  TxOutRef ->
-  TxOut ->
-  Datum ->
-  m (TypedScriptTxOut out)
-typeScriptTxOut mp (TxOutRef (TxId txId) ix) txOut@(TxOut addr _ dat _) datum =
-  case addressCredential addr of
-    PubKeyCredential _ ->
-      throwError $ WrongCredentialType ExpectedScriptGotPubkey
-    ScriptCredential _vh ->
-      case dat of
-        OutputDatum d
-          | datumHash datum == datumHash d ->
-              checkMultiPurposeScriptAddress mp addr
-                >> TypedScriptTxOut txOut <$> checkDatum mp datum
-        OutputDatumHash dh
-          | datumHash datum == dh ->
-              checkMultiPurposeScriptAddress mp addr
-                >> TypedScriptTxOut txOut <$> checkDatum mp datum
-        _ -> throwError $ NoDatum (V1.TxOutRef (V1.TxId txId) ix) (datumHash datum)
-
--- | A 'TxOutRef' tagged by a phantom type: and the connection type of the output.
-data TypedScriptTxOutRef a = TypedScriptTxOutRef
-  { tyTxOutRefRef :: TxOutRef,
-    tyTxOutRefOut :: TypedScriptTxOut a
-  }
-
-deriving instance (Eq (SpendingDatumType a)) => Eq (TypedScriptTxOutRef a)
-
--- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOutRef ::
-  ( FromData (SpendingDatumType out),
-    ToData (SpendingDatumType out),
-    MonadError ConnectionError m
-  ) =>
-  MultiPurposeScript out ->
-  TxOutRef ->
-  TxOut ->
-  Datum ->
-  m (TypedScriptTxOutRef out)
-typeScriptTxOutRef mp txOutRef txOut datum =
-  TypedScriptTxOutRef txOutRef <$> typeScriptTxOut mp txOutRef txOut datum
+    traceRunning name = trace ("Running the validator with the " <> name <> " script purpose")

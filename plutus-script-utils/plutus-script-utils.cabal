@@ -90,9 +90,9 @@ library
   if (impl(ghc <9.6) || impl(ghc >=9.7))
     buildable: False
 
-  --------------------------
-  -- Other IOG dependencies
-  --------------------------
+  -------------------------
+  -- Plutus dependencies --
+  -------------------------
   build-depends:
     , cardano-api
     , cardano-ledger-core
@@ -102,7 +102,7 @@ library
     , plutus-tx-plugin
 
   ------------------------
-  -- Non-IOG dependencies
+  -- Other dependencies --
   ------------------------
   build-depends:
     , aeson

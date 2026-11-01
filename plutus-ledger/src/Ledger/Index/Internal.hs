@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -8,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -38,7 +40,7 @@ import Prelude hiding (lookup)
 -- | A transaction on the blockchain.
 -- Invalid transactions are still put on the chain to be able to collect fees.
 newtype OnChainTx = OnChainTx {getOnChainTx :: Validated (Tx EmulatorEra)}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Serialise OnChainTx where
   encode = CBOR.toCBOR . extractTx . getOnChainTx -- For blockID
@@ -66,7 +68,7 @@ data ValidationError
     CardanoLedgerValidationError Text
   | -- | Balancing failed, it needed more than the maximum number of collateral inputs
     MaxCollateralInputsExceeded
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 makePrisms ''ValidationError
 
@@ -76,7 +78,9 @@ instance ToJSON ValidationError
 
 deriving via (PrettyShow ValidationError) instance Pretty ValidationError
 
-data ValidationPhase = Phase1 | Phase2 deriving (Eq, Show, Generic, FromJSON, ToJSON)
+data ValidationPhase = Phase1 | Phase2
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
 
 deriving via (PrettyShow ValidationPhase) instance Pretty ValidationPhase
 

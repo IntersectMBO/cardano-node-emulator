@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Plutus.Script.Utils.V2.Typed
@@ -161,7 +163,7 @@ data TypedScriptTxOut a
     tyTxOutData :: DatumType a
   }
 
-deriving instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a)
+deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a)
 
 -- | Create a 'TypedScriptTxOut' from a correctly-typed data script, an address, and a value.
 makeTypedScriptTxOut ::
@@ -210,7 +212,7 @@ data TypedScriptTxOutRef a = TypedScriptTxOutRef
     tyTxOutRefOut :: TypedScriptTxOut a
   }
 
-deriving instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a)
+deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a)
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
 typeScriptTxOutRef ::

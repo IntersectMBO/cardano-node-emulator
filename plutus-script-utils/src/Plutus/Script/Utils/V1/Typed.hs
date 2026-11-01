@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE EmptyDataDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Plutus.Script.Utils.V1.Typed
@@ -130,6 +135,7 @@ data TypedValidator (a :: Type) = TypedValidator
     tvLanguage :: Language
   }
   deriving stock (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 instance ToScript (TypedValidator a) where
   toScript = toScript . tvValidator
@@ -281,7 +287,7 @@ data TypedScriptTxOut a
     tyTxOutData :: DatumType a
   }
 
-deriving instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a)
+deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a)
 
 -- | Create a 'TypedScriptTxOut' from a correctly-typed data script, an address, and a value.
 makeTypedScriptTxOut ::
@@ -325,7 +331,7 @@ data TypedScriptTxOutRef a = TypedScriptTxOutRef
     tyTxOutRefOut :: TypedScriptTxOut a
   }
 
-deriving instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a)
+deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a)
 
 -- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
 typeScriptTxOutRef ::

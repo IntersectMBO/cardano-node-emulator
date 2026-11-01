@@ -1,4 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -54,7 +56,7 @@ type UtxoMap = Map C.TxIn (CardanoTx, TxOut)
 -- | A map of 'Address'es and their unspent outputs.
 newtype AddressMap = AddressMap {getAddressMap :: Map CardanoAddress UtxoMap}
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON)
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | An address map with a single unspent transaction output.
 singleton :: (CardanoAddress, C.TxIn, CardanoTx, TxOut) -> AddressMap

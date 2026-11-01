@@ -1,10 +1,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -82,12 +85,12 @@ instance Serialise C.TxId where
       pure
       $ C.deserialiseFromRawBytes C.AsTxId bs
 
-deriving instance Generic C.TxIn
+deriving stock instance Generic C.TxIn
 
-deriving instance Generic C.TxId
+deriving stock instance Generic C.TxId
 
-deriving instance Generic C.TxIx
+deriving stock instance Generic C.TxIx
 
-deriving instance Serialise C.TxIn
+deriving anyclass instance Serialise C.TxIn
 
 deriving newtype instance Serialise C.TxIx

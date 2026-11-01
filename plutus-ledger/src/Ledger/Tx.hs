@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -150,7 +151,8 @@ data DatumFromQuery
   = DatumUnknown
   | DatumInline V2.Datum
   | DatumInBody V2.Datum
-  deriving (Show, Eq, Serialise, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (Serialise, ToJSON, FromJSON)
 
 makePrisms ''DatumFromQuery
 
@@ -190,7 +192,8 @@ data DecoratedTxOut
         -- | Full version of the validator protecting the transaction output
         _decoratedTxOutValidator :: Maybe (Versioned Validator)
       }
-  deriving (Show, Eq, Serialise, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (Serialise, ToJSON, FromJSON)
 
 makeLenses ''DecoratedTxOut
 makePrisms ''DecoratedTxOut

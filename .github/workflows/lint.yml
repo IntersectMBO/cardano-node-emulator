@@ -18,18 +18,5 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      - name: nix flake check (nixfmt, ormolu, cabal-fmt)
+      - name: nix flake check (nixfmt-classic, ormolu, cabal-fmt, hlint)
         run: nix flake check --print-build-logs
-
-  hlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Run hlint
-        run: nix develop --command hlint .

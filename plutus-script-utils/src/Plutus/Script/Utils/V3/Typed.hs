@@ -286,7 +286,7 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
     ScriptContextResolvedScriptInfo scTxInfo scRedeemer (purpose, args) <- fromBuiltinDataEither "script info" dat
     case args of
       [i, cert]
-        | purpose == 0,
+        | purpose == 3,
           Just cPurpose <- certifyingPurpose -> do
             index <- fromBuiltinDataEither "certifying index" i
             certificate <- fromBuiltinDataEither "certifying certificate" cert
@@ -294,14 +294,14 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
             txInfo <- fromBuiltinDataEither "certifying tx info" scTxInfo
             return $ traceRunning "Certifying" $ cPurpose index certificate red txInfo
       [cur]
-        | purpose == 1,
+        | purpose == 0,
           Just mPurpose <- mintingPurpose -> do
             currencySymbol <- fromBuiltinDataEither "minting currency symbol" cur
             red <- fromBuiltinDataEither "minting redeemer" scRedeemer
             txInfo <- fromBuiltinDataEither "minting tx info" scTxInfo
             return $ traceRunning "Minting" $ mPurpose currencySymbol red txInfo
       [i, prop]
-        | purpose == 2,
+        | purpose == 5,
           Just pPurpose <- proposingPurpose -> do
             index <- fromBuiltinDataEither "proposing index" i
             proposal <- fromBuiltinDataEither "proposing proposal" prop
@@ -309,24 +309,28 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
             txInfo <- fromBuiltinDataEither "proposing tx info" scTxInfo
             return $ traceRunning "Proposing" $ pPurpose index proposal red txInfo
       [cred]
-        | purpose == 3,
+        | purpose == 2,
           Just rPurpose <- rewardingPurpose -> do
             credential <- fromBuiltinDataEither "rewarding credential" cred
             red <- fromBuiltinDataEither "rewarding redeemer" scRedeemer
             txInfo <- fromBuiltinDataEither "rewarding tx info" scTxInfo
             return $ traceRunning "Rewarding" $ rPurpose credential red txInfo
       [oRef, mDat]
-        | purpose == 4,
+        | purpose == 1,
           Just sPurpose <- spendingPurpose -> do
             outRef <- fromBuiltinDataEither "spending output reference" oRef
             red <- fromBuiltinDataEither "spending redeemer" scRedeemer
             txInfo <- fromBuiltinDataEither "spending tx info" scTxInfo
-            mResolvedDat <- case unsafeDataAsConstr mDat of
-              (_, [unsafeDataAsConstr -> (_, [bDat])]) -> Just <$> fromBuiltinDataEither "datum" bDat
-              _ -> return Nothing
+            mResolvedDat <-
+              let (constrIndex, fields) = unsafeDataAsConstr mDat
+               in if constrIndex == 0
+                    then case fields of
+                      [bDat] -> Just <$> fromBuiltinDataEither "datum" bDat
+                      _ -> Left "Error when deserializing the spending datum"
+                    else return Nothing
             return $ traceRunning "Spending" $ sPurpose outRef mResolvedDat red txInfo
       [voter]
-        | purpose == 5,
+        | purpose == 4,
           Just vPurpose <- votingPurpose -> do
             resolvedVoter <- fromBuiltinDataEither "voting voter" voter
             red <- fromBuiltinDataEither "voting redeemer" scRedeemer

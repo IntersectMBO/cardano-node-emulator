@@ -22,7 +22,7 @@ import Plutus.Script.Utils.Scripts (ToValidatorHash, ValidatorHash (..), toScrip
 import PlutusLedgerApi.V2 (Address (Address), Credential (ScriptCredential), OutputDatum, ScriptHash (ScriptHash), Value)
 import PlutusLedgerApi.V2.Contexts as Contexts hiding (findTxInByTxOutRef, valuePaidTo)
 import PlutusTx.List (find)
-import PlutusTx.Prelude (Maybe (Just), fst, mconcat, traceError, (.), (<$>), (==))
+import PlutusTx.Prelude (Maybe (Just, Nothing), fst, mapMaybe, mconcat, traceError, (.), (<$>), (==))
 
 {-# INLINEABLE findInput #-}
 findInput :: TxOutRef -> [TxInInfo] -> Maybe TxOut
@@ -39,7 +39,10 @@ findTxRefInByTxOutRef outRef = findInput outRef . txInfoReferenceInputs
 -- | Get the datums and values paid to an address by a pending transaction.
 {-# INLINEABLE outputsAt #-}
 outputsAt :: (ToAddress a) => TxInfo -> a -> [(Value, OutputDatum)]
-outputsAt txInfo (toAddress -> addr) = [(val, dat) | TxOut addr' val dat _ <- txInfoOutputs txInfo, addr == addr']
+outputsAt txInfo (toAddress -> addr) =
+  mapMaybe
+    (\(TxOut addr' val dat _) -> if addr == addr' then Just (val, dat) else Nothing)
+    (txInfoOutputs txInfo)
 
 -- | Get the datums and values paid to an address of a validator by a pending transaction.
 {-# INLINEABLE scriptOutputsAt #-}

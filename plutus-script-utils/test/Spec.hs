@@ -32,8 +32,10 @@ import PlutusLedgerApi.V1.Value qualified as Value
 import PlutusLedgerApi.V3
   ( Credential (ScriptCredential),
     CurrencySymbol (CurrencySymbol),
+    Datum (Datum),
     MintValue,
     OutputDatum (NoOutputDatum),
+    ScriptInfo (MintingScript, SpendingScript),
     TokenName (TokenName),
     TxId (TxId),
     TxInInfo (TxInInfo),
@@ -80,6 +82,13 @@ tests =
           testCase "voting" $ succeeds votingCode votingContext
         ],
       testGroup
+        "real ScriptInfo encoding"
+        [ testCase "dispatches a real MintingScript context" $
+            succeeds realMintingCode realMintingContext,
+          testCase "dispatches a real SpendingScript context carrying a Just datum" $
+            succeeds realSpendingCode realSpendingContext
+        ],
+      testGroup
         "non-trivial purpose generators"
         [ testCase "forwarding minting accepts an input at the target script" $
             succeeds forwardingMintingCode $
@@ -116,14 +125,14 @@ tests =
               context 6 [I 0] 0 0,
           testCase "rejects an incorrect purpose argument shape" $
             fails mintingCode $
-              context 1 [] 0 0,
+              context 0 [] 0 0,
           testCase "rejects a malformed script context" $
             fails mintingCode $
               dataToBuiltinData $
                 Constr 0 [],
           testCase "rejects an invalid redeemer" $
             fails mintingCode $
-              contextWithRedeemer 1 [I 21] (Constr 0 []) (I 0)
+              contextWithRedeemer 0 [I 21] (Constr 0 []) (I 0)
         ]
     ]
 
@@ -163,6 +172,30 @@ votingCode :: CompiledCode (BuiltinData -> P.BuiltinUnit)
 votingCode = $$(compile [||script||])
   where
     script = mkMultiPurposeScript $ falseTypedMultiPurposeScript {votingPurpose = Just votingHandler}
+
+-- These two scripts are exercised against contexts whose script-info field is
+-- produced by the genuine V3 'ScriptInfo' 'ToData' instance, so they guard the
+-- dispatcher against drift in the real constructor tags and in the single-layer
+-- 'Maybe' datum encoding.
+realMintingCode :: CompiledCode (BuiltinData -> P.BuiltinUnit)
+realMintingCode = $$(compile [||script||])
+  where
+    script =
+      mkMultiPurposeScript $
+        falseTypedMultiPurposeScript
+          { mintingPurpose =
+              Just (realMintingHandler :: MintingPurposeType CurrencySymbol BuiltinData BuiltinData)
+          }
+
+realSpendingCode :: CompiledCode (BuiltinData -> P.BuiltinUnit)
+realSpendingCode = $$(compile [||script||])
+  where
+    script =
+      mkMultiPurposeScript $
+        falseTypedMultiPurposeScript
+          { spendingPurpose =
+              Just (realSpendingHandler :: SpendingPurposeType BuiltinData P.Integer BuiltinData BuiltinData)
+          }
 
 falseCode :: CompiledCode (BuiltinData -> P.BuiltinUnit)
 falseCode = $$(compile [||script||])
@@ -307,16 +340,39 @@ votingHandler voter redeemer txInfo =
     P.&& txInfo
     P.== 63
 
--- These small contexts use the V3 ScriptInfo tags and field order while
--- keeping the test-specific TxInfo and redeemer payloads easy to distinguish.
+{-# INLINEABLE realMintingHandler #-}
+realMintingHandler :: CurrencySymbol -> BuiltinData -> BuiltinData -> P.Bool
+realMintingHandler currencySymbol _ _ = currencySymbol P.== targetCurrencySymbol
+
+{-# INLINEABLE realSpendingHandler #-}
+realSpendingHandler :: BuiltinData -> P.Maybe P.Integer -> BuiltinData -> BuiltinData -> P.Bool
+realSpendingHandler _ datum _ _ = datum P.== P.Just 52
+
+-- These small contexts use the real V3 'ScriptInfo' constructor tags
+-- (Minting=0, Spending=1, Rewarding=2, Certifying=3, Voting=4, Proposing=5)
+-- and field order, while keeping the test-specific TxInfo and redeemer
+-- payloads easy to distinguish. The spending datum is a 'Maybe' wrapped in a
+-- single 'Constr' layer: @Just d@ is @Constr 0 [d]@ and @Nothing@ is
+-- @Constr 1 []@.
 certifyingContext, mintingContext, proposingContext, rewardingContext, spendingContext, spendingWithoutDatumContext, votingContext :: BuiltinData
-certifyingContext = context 0 [I 11, I 12] 13 14
-mintingContext = context 1 [I 21] 22 23
-proposingContext = context 2 [I 31, I 32] 33 34
-rewardingContext = context 3 [I 41] 42 43
-spendingContext = context 4 [I 51, Constr 0 [Constr 0 [I 52]]] 53 54
-spendingWithoutDatumContext = context 4 [I 51, Constr 1 []] 53 54
-votingContext = context 5 [I 61] 62 63
+mintingContext = context 0 [I 21] 22 23
+spendingContext = context 1 [I 51, Constr 0 [I 52]] 53 54
+spendingWithoutDatumContext = context 1 [I 51, Constr 1 []] 53 54
+rewardingContext = context 2 [I 41] 42 43
+certifyingContext = context 3 [I 11, I 12] 13 14
+votingContext = context 4 [I 61] 62 63
+proposingContext = context 5 [I 31, I 32] 33 34
+
+-- The script-info field here is the real V3 'ScriptInfo' 'ToData' output, so a
+-- change to the library tag order or to the datum encoding would break these.
+realMintingContext :: BuiltinData
+realMintingContext =
+  dataToBuiltinData $ Constr 0 [I 0, I 0, toData (MintingScript targetCurrencySymbol)]
+
+realSpendingContext :: BuiltinData
+realSpendingContext =
+  dataToBuiltinData $
+    Constr 0 [I 0, I 0, toData (SpendingScript targetRef (Just (Datum (dataToBuiltinData (I 52)))))]
 
 targetScriptHash :: ScriptHash
 targetScriptHash = ScriptHash $ Builtins.toBuiltin $ BS.pack [1 .. 28]
@@ -363,20 +419,20 @@ inputAt ref (ScriptHash hash) =
 
 forwardingMintingContext :: TxInInfo -> BuiltinData
 forwardingMintingContext input =
-  contextWithRedeemer 1 [toData targetCurrencySymbol] (I 0) (toData [input])
+  contextWithRedeemer 0 [toData targetCurrencySymbol] (I 0) (toData [input])
 
 ownForwardingMintingContext :: TxInInfo -> BuiltinData
 ownForwardingMintingContext input =
-  contextWithRedeemer 1 [toData targetCurrencySymbol] (I 0) (toData [input])
+  contextWithRedeemer 0 [toData targetCurrencySymbol] (I 0) (toData [input])
 
 forwardingSpendingContext :: MintValue -> BuiltinData
 forwardingSpendingContext mintValue =
-  contextWithRedeemer 4 [toData targetRef, Constr 1 []] (I 0) (toData mintValue)
+  contextWithRedeemer 1 [toData targetRef, Constr 1 []] (I 0) (toData mintValue)
 
 ownForwardingSpendingContext :: MintValue -> TxInInfo -> BuiltinData
 ownForwardingSpendingContext mintValue input =
   contextWithRedeemer
-    4
+    1
     [toData targetRef, Constr 1 []]
     (I 0)
     (toData (mintValue, [input]))

@@ -209,7 +209,7 @@ forwardingMintingCode = $$(compile [||script||])
       mkMultiPurposeScript $
         falseTypedMultiPurposeScript
           { mintingPurpose =
-              Just $
+              Just
                 (forwardingMintingPurpose targetCurrencySymbol txInInfosFromData :: MintingPurposeType CurrencySymbol BuiltinData BuiltinData)
           }
 
@@ -220,7 +220,7 @@ ownForwardingMintingCode = $$(compile [||script||])
       mkMultiPurposeScript $
         falseTypedMultiPurposeScript
           { mintingPurpose =
-              Just $
+              Just
                 (ownForwardingMintingPurpose txInInfosFromData :: MintingPurposeType CurrencySymbol BuiltinData BuiltinData)
           }
 
@@ -231,7 +231,7 @@ forwardingSpendingCode = $$(compile [||script||])
       mkMultiPurposeScript $
         falseTypedMultiPurposeScript
           { spendingPurpose =
-              Just $
+              Just
                 (forwardingSpendingPurpose targetCurrencySymbol mintValueFromData :: SpendingPurposeType TxOutRef BuiltinData BuiltinData BuiltinData)
           }
 
@@ -242,7 +242,7 @@ ownForwardingSpendingCode = $$(compile [||script||])
       mkMultiPurposeScript $
         falseTypedMultiPurposeScript
           { spendingPurpose =
-              Just $
+              Just
                 (ownForwardingSpendingPurpose mintValueFromView inputsFromView :: SpendingPurposeType TxOutRef BuiltinData BuiltinData BuiltinData)
           }
 

@@ -517,30 +517,13 @@ Once a release is settled upon, fragments will be collected into the `CHANGELOG.
 
 We have a few sources of CI checks at the moment:
 
-- Hydra
 - ReadTheDocs
 - Github Actions
 - Buildkite
 
 The CI will report statuses on your PRs with links to the logs in case of failure.
-Pull requests cannot be merged without at least the Hydra CI check being green.
-
 > **Note:** This isn't strictly true: repository admins (notably @koslambrou) can force-merge PRs without the checks being green
 > If you really need this, ask.
-
-#### Hydra
-
-Hydra is the "standard" CI builder for Nix-based projects.
-It builds everything in the project, including all the tests, documentation, etc.
-
-Hydra builds jobs based on the `hydraJobs` flake output.
-
-Hydra can be a bit flaky, unfortunately:
-- If evaluation fails saying "out of memory" or "unexpected EOF reading line", then this is likely a transient failure.
-These will be automatically retried, but if you're in a hurry @koslambrou has permissions to force a new evaluation.
-- If a build fails spuriously, this is a _problem_: please report it to whoever is responsible for that build and we should try and iron it out.
-Nondeterministic failures are very annoying.
-@koslambrou also has permissions to restart failed builds.
 
 #### ReadTheDocs
 
@@ -555,7 +538,7 @@ Then you can run `serve-docs` to host a local instance at http://0.0.0.0:8002 (H
 
 #### Github Actions
 
-These perform some of the same checks as Hydra, but Github Actions is often more available, so they return faster and act as a "smoke check".
+These checks are often more available, so they return faster and act as a "smoke check".
 
 #### Buildkite
 

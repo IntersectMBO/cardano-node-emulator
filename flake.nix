@@ -121,9 +121,6 @@
 
         checks = { inherit pre-commit; };
 
-        # since this flake is not building the project actually, but just providing a dev shell,
-        # Hydra will just test if the devShell is actually buildable
-        hydraJobs.required = devShells.default;
       }
     );
 
@@ -136,7 +133,6 @@
     extra-trusted-public-keys = [
       "tweag-cooked-validators.cachix.org-1:g1TP7YtXjkBGXP/VbSTGBOGONSzdfzYwNJM27bn8pik="
       "pre-commit-hooks.cachix.org-1:Pkk3Panw5AW24TOv6kz3PvLhlH8puAsJTBbOPmBo7Rc="
-      "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
     ];
     allow-import-from-derivation = true;
     accept-flake-config = true;

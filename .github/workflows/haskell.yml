@@ -1,191 +1,124 @@
-# Inspired from cardano-cli's CI: https://github.com/IntersectMBO/cardano-cli/blob/main/.github/workflows/haskell.yml
 name: Haskell CI
 
 on:
   merge_group:
   pull_request:
   push:
-    # we need this to populate cache for `main` branch to make it available to the child branches, see
-    # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
     branches:
       - main
-  # GH caches are removed when not accessed within 7 days - this schedule runs the job every 6 days making
-  # sure that we always have some caches on main
   schedule:
     - cron: '0 0 */6 * *'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: ${{ matrix.sys.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        ghc: ["9.6.6"] # Same version as in Nix shell (see nix/project.nix)
-        cabal: ["3.14.1.0"]
-        sys:
-          - { os: ubuntu-latest,  shell: bash }
-
-    defaults:
-      run:
-        shell: ${{ matrix.sys.shell }}
-
-    env:
-      # Modify this value to "invalidate" the cabal cache.
-      CABAL_CACHE_VERSION: "2025-03-31"
-      # these two are msys2 env vars, they have no effect on non-msys2 installs.
-      MSYS2_PATH_TYPE: inherit
-      MSYSTEM: MINGW64
-
-    concurrency:
-      group: >
-        a+${{ github.event_name }}
-        b+${{ github.workflow_ref }}
-        c+${{ github.job }}
-        d+${{ matrix.ghc }}
-        e+${{ matrix.cabal }}
-        f+${{ matrix.sys.os }}
-        g+${{ (startsWith(github.ref, 'refs/heads/gh-readonly-queue/') && github.run_id) || github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
-
-    steps:
-    - name: Concurrency group
-      run: >
-        echo
-        a+${{ github.event_name }}
-        b+${{ github.workflow_ref }}
-        c+${{ github.job }}
-        d+${{ matrix.ghc }}
-        e+${{ matrix.cabal }}
-        f+${{ matrix.sys.os }}
-        g+${{ (startsWith(github.ref, 'refs/heads/gh-readonly-queue/') && github.run_id) || github.event.pull_request.number || github.ref }}
-
-    - name: Install Haskell
-      uses: input-output-hk/actions/haskell@latest
-      id: setup-haskell
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Install system dependencies
-      uses: input-output-hk/actions/base@latest
-      with:
-        use-sodium-vrf: true # default is true
-
-    - uses: actions/checkout@v7
-
-    - name: Cabal update
-      run: cabal update
-
-    # A dry run `build all` operation does *NOT* downlaod anything, it just looks at the package
-    # indices to generate an install plan.
-    - name: Build dry run
-      run: cabal build all --enable-tests --dry-run --minimize-conflict-set
-
-    # From the install plan we generate a dependency list.
-    - name: Record dependencies
-      id: record-deps
-      run: |
-        cat dist-newstyle/cache/plan.json | jq -r '."install-plan"[] | select(.style != "local") | .id' | sort | uniq > dependencies.txt
-
-    # Use a fresh cache each month
-    - name: Store month number as environment variable used in cache version
-      run:  echo "MONTHNUM=$(/usr/bin/date -u '+%m')" >> $GITHUB_ENV
-
-    # From the dependency list we restore the cached dependencies.
-    # We use the hash of `dependencies.txt` as part of the cache key because that will be stable
-    # until the `index-state` values in the `cabal.project` file changes.
-    - name: Restore cached dependencies
-      uses: actions/cache/restore@v6
-      id: cache
-      with:
-        path: |
-          ${{ steps.setup-haskell.outputs.cabal-store }}
-          dist-newstyle
-        key:
-          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-${{ hashFiles('dependencies.txt') }}
-        # try to restore previous cache from this month if there's no cache for the dependencies set
-        restore-keys: |
-          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-
-
-    # Now we install the dependencies. If the cache was found and restored in the previous step,
-    # this should be a no-op, but if the cache key was not found we need to build stuff so we can
-    # cache it for the next step.
-    - name: Install dependencies
-      run: cabal build all --enable-tests --only-dependencies -j --ghc-option=-j4
-
-    # Always store the cabal cache.
-    # This can fail (benign failure) if there is already a hash at that key.
-    - name: Cache Cabal store
-      uses: actions/cache/save@v6
-      with:
-        path: |
-          ${{ steps.setup-haskell.outputs.cabal-store }}
-          dist-newstyle
-        key:
-          cache-${{ env.CABAL_CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ env.MONTHNUM }}-${{ hashFiles('dependencies.txt') }}
-
-    # Now we build.
-    - name: Build all
-      run: cabal build all --enable-tests
-
-    - name: Run tests
-      env:
-        TMPDIR: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        KEEP_WORKSPACE: 1
-      run: cabal test all --enable-tests --test-show-details=direct -j1
-
-    - name: "Tar artifacts"
-      run: |
-        mkdir -p artifacts
-
-        for exe in $(cat dist-newstyle/cache/plan.json | jq -r '."install-plan"[] | select(.style == "local" and (."component-name" | startswith("exe:"))) | ."bin-file"'); do
-          if [ -f $exe ]; then
-            echo "Including artifact $exe"
-
-            ( cd artifacts
-              tar -C "$(dirname $exe)" -czf "$(basename $exe).tar.gz" "$(basename $exe)"
-            )
-          else
-            echo "Skipping artifact $exe"
-          fi
-        done
-
-    - name: Save Artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: artifacts-${{ matrix.sys.os }}-${{ matrix.ghc }}
-        path: ./artifacts
-
-    # Uncomment the following back in for debugging. Remember to launch a `pwsh` from
-    # the tmux session to debug `pwsh` issues. And be reminded that the `/msys2` and
-    # `/msys2/mingw64` paths are not in PATH by default for the workflow, but tmate
-    # will put them in.
-    # You may also want to run
-    #
-    #   $env:PATH=("C:\Program Files\PowerShell\7;{0}" -f $env:ORIGINAL_PATH)
-    #
-    # to restore the original path.  Do note that some test might need msys2
-    # and will silently fail if msys2 is not in path. See the "Run tests" step.
-    #
-    # - name: Setup tmate session
-    #  if: ${{ failure() }}
-    #  uses: mxschmitt/action-tmate@v3
-    #  with:
-    #     limit-access-to-actor: true
-
-  build-complete:
-    needs: [build]
-    if: ${{ always() }}
+  build-and-test:
+    name: Build and run tests
     runs-on: ubuntu-latest
+
     steps:
-    - name: Check if any previous job failed
-      run: |
-        if [[ "${{ needs.build.result }}" == "failure" ]]; then
-          # this ignores skipped dependencies
-          echo 'Required jobs failed to build.'
-          exit 1
-        else
-          echo 'Build complete'
-        fi
+      - name: Check out repository code
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Access the Cabal cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/cabal/packages
+            ~/.local/state/cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-${{ hashFiles('**/*.cabal', 'cabal.project', 'flake.nix', 'flake.lock') }}-build-and-test
+
+      - name: Build and run tests
+        env:
+          TMPDIR: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          KEEP_WORKSPACE: 1
+        run: |
+          nix develop .#ci --command bash -s <<'EOF'
+            set -uo pipefail
+
+            cabal update 2>&1 | tee cabal-update.out
+            cabal_update_status=$?
+            printf "%s\n" "$cabal_update_status" > cabal-update.res
+
+            cabal build all --enable-tests 2>&1 | tee cabal-build.out
+            cabal_build_status=$?
+            printf "%s\n" "$cabal_build_status" > cabal-build.res
+
+            cabal test all --enable-tests --test-show-details=direct -j1 2>&1 | tee cabal-test.out
+            cabal_test_status=$?
+            printf "%s\n" "$cabal_test_status" > cabal-test.res
+          EOF
+
+      - name: Upload build and test outputs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: haskell-ci-results
+          path: |
+            ./*.out
+            ./*.res
+          if-no-files-found: warn
+
+  check-result:
+    name: Check build and test results
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: always()
+
+    steps:
+      - name: Access build and test outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: haskell-ci-results
+
+      - name: Check build and test results
+        run: |
+          set -euo pipefail
+          result=0
+
+          for step in cabal-update cabal-build cabal-test; do
+            echo "Results for $step"
+
+            if [[ ! -f "$step.out" || ! -f "$step.res" ]]; then
+              echo "Missing output or result for $step"
+              result=1
+              continue
+            fi
+
+            cat "$step.out"
+            status=$(cat "$step.res")
+            echo "$step exit status: $status"
+
+            if [[ "$status" != "0" ]]; then
+              result=1
+            fi
+          done
+
+          exit "$result"
+
+  run-and-cache-flake-checks:
+    name: Run flake checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run flake checks
+        run: nix flake check --print-build-logs

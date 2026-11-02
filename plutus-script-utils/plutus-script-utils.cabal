@@ -115,3 +115,19 @@ library
     , tagged
 
   ghc-options:      -fprint-potential-instances
+
+test-suite plutus-script-utils-test
+  import:         lang
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Spec.hs
+  build-depends:
+    , base
+    , bytestring
+    , plutus-core          >=1.45 && <1.46
+    , plutus-ledger-api    >=1.45 && <1.46
+    , plutus-script-utils
+    , plutus-tx
+    , plutus-tx-plugin
+    , tasty
+    , tasty-hunit

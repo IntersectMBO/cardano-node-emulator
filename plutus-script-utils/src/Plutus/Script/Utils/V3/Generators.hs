@@ -51,7 +51,7 @@ import PlutusLedgerApi.V3
     mintValueToMap,
   )
 import PlutusTx.AssocMap qualified as Map
-import PlutusTx.List (elem)
+import PlutusTx.List (any, find)
 import PlutusTx.Prelude
   ( Bool (False, True),
     BuiltinData,
@@ -95,7 +95,13 @@ trueVotingPurpose _ _ _ = True
 {-# INLINEABLE forwardingMintingPurpose #-}
 forwardingMintingPurpose :: (ToScriptHash script) => script -> (mtx -> [TxInInfo]) -> MintingPurposeType CurrencySymbol red mtx
 forwardingMintingPurpose (toScriptHash -> sHash) toTxInInfos _ _ (toTxInInfos -> txInInfos) =
-  sHash `elem` [h | TxInInfo _ (TxOut (Address (ScriptCredential h) _) _ _ _) <- txInInfos]
+  any (isScriptInputAt sHash) txInInfos
+
+-- | Whether the given input is locked by the given script hash.
+{-# INLINEABLE isScriptInputAt #-}
+isScriptInputAt :: ScriptHash -> TxInInfo -> Bool
+isScriptInputAt sHash (TxInInfo _ (TxOut (Address (ScriptCredential h) _) _ _ _)) = h == sHash
+isScriptInputAt _ _ = False
 
 -- | Minting policy that ensures the own spending script is invoked in the transaction
 {-# INLINEABLE ownForwardingMintingPurpose #-}
@@ -112,9 +118,15 @@ forwardingSpendingPurpose (toScriptHash -> ScriptHash hash) toMintValue _ _ _ (m
 {-# INLINEABLE ownForwardingSpendingPurpose #-}
 ownForwardingSpendingPurpose :: (txInfo -> MintValue) -> (txInfo -> [TxInInfo]) -> SpendingPurposeType TxOutRef dat red txInfo
 ownForwardingSpendingPurpose toMintValue toTxInInfos oRef dat red txInfo =
-  case [hash | TxInInfo ref (TxOut (Address (ScriptCredential hash) _) _ _ _) <- toTxInInfos txInfo, ref == oRef] of
-    [hash] -> forwardingSpendingPurpose hash toMintValue oRef dat red txInfo
+  case find (isInputAt oRef) (toTxInInfos txInfo) of
+    Just (TxInInfo _ (TxOut (Address (ScriptCredential hash) _) _ _ _)) ->
+      forwardingSpendingPurpose hash toMintValue oRef dat red txInfo
     _ -> False
+
+-- | Whether the given input consumes the given output reference.
+{-# INLINEABLE isInputAt #-}
+isInputAt :: TxOutRef -> TxInInfo -> Bool
+isInputAt oRef (TxInInfo ref _) = ref == oRef
 
 -- * Building multi purpose scripts
 

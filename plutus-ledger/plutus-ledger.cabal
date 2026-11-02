@@ -46,12 +46,16 @@ library
     Ledger.Credential.Orphans
     Ledger.Crypto
     Ledger.Crypto.Orphans
+    Ledger.Data.CardanoAPI
     Ledger.DCert.Orphans
     Ledger.Index
     Ledger.Index.Internal
     Ledger.Orphans
     Ledger.Scripts
     Ledger.Scripts.Orphans
+    Ledger.Scripts.V1
+    Ledger.Scripts.V2
+    Ledger.Scripts.V3
     Ledger.Slot
     Ledger.Test
     Ledger.Tx
@@ -61,7 +65,11 @@ library
     Ledger.Tx.Orphans
     Ledger.Tx.Orphans.V1
     Ledger.Tx.Orphans.V2
+    Ledger.Typed.Scripts
     Ledger.Typed.Scripts.Orphans
+    Ledger.Typed.Scripts.V1
+    Ledger.Typed.Scripts.V2
+    Ledger.Typed.Scripts.V3
     Ledger.Value.CardanoAPI
     Ledger.Value.Orphans
 
@@ -114,6 +122,7 @@ library
     , http-api-data
     , lens
     , memory
+    , mtl
     , newtype-generics
     , ordered-containers
     , prettyprinter

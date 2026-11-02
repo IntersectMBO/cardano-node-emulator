@@ -116,9 +116,9 @@ import Data.Tuple (swap)
 import GHC.Exts
 import GHC.Generics (Generic)
 import Ledger.Address qualified as P
+import Ledger.Data.CardanoAPI qualified as Data
 import Ledger.Scripts qualified as P
 import Ledger.Slot qualified as P
-import Plutus.Script.Utils.Data qualified as P
 import Plutus.Script.Utils.Scripts (toCurrencySymbol, toMintingPolicyHash)
 import Plutus.Script.Utils.Scripts qualified as Scripts
 import Plutus.Script.Utils.Value qualified as Value
@@ -250,12 +250,17 @@ scriptDataFromCardanoTxBody
     withShelleyBasedEraConstraintsForLedger shelleyBasedEra $ case reds' of
       (Alonzo.Redeemers reds) ->
         let datums =
-              Map.fromList ((\d -> (P.datumHash d, d)) . P.Datum . fromCardanoScriptData . C.fromAlonzoData <$> Map.elems dats)
+              Map.fromList
+                ( (\d -> (Data.datumHash d, d)) . P.Datum . fromCardanoScriptData . C.fromAlonzoData
+                    <$> Map.elems dats
+                )
             redeemers =
               Map.fromList
                 $ map
                   ( \(ptr, rdmr) ->
-                      (redeemerPtrFromCardanoRdmrPtr ptr, P.Redeemer $ fromCardanoScriptData $ C.fromAlonzoData $ fst rdmr)
+                      ( redeemerPtrFromCardanoRdmrPtr ptr,
+                        P.Redeemer $ fromCardanoScriptData $ C.fromAlonzoData $ fst rdmr
+                      )
                   )
                 $ Map.toList reds
          in (datums, redeemers)

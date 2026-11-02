@@ -1,17 +1,20 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE EmptyDataDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Plutus.Script.Utils.V1.Typed
   ( ValidatorType,
-    validatorToTypedValidator,
-    alwaysSucceedTypedValidator,
-    alwaysFailTypedValidator,
-    mkTypedValidator,
-    mkTypedValidatorParam,
     ConnectionError (..),
     WrongOutTypeError (..),
     checkValidatorAddress,
@@ -19,9 +22,6 @@ module Plutus.Script.Utils.V1.Typed
     checkDatum,
     TypedScriptTxOut (..),
     TypedScriptTxOutRef (..),
-    makeTypedScriptTxOut,
-    typeScriptTxOut,
-    typeScriptTxOutRef,
     ValidatorTypes (..),
     TypedValidator
       ( TypedValidator,
@@ -33,12 +33,10 @@ module Plutus.Script.Utils.V1.Typed
       ),
     generalise,
     Any,
-    toCardanoAddressAny,
     IsDataDatum,
   )
 where
 
-import Cardano.Api qualified as C.Api
 import Control.Monad (unless)
 import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson (FromJSON, ToJSON)
@@ -46,48 +44,33 @@ import Data.Coerce (coerce)
 import Data.Kind (Type)
 import Data.Void (Void)
 import GHC.Generics (Generic)
-import Plutus.Script.Utils.Address (ToAddress (toAddress), ToCardanoAddress (toCardanoAddress), ToCredential (toCredential))
-import Plutus.Script.Utils.Data (datumHash)
 import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV1),
+  ( Language,
     MintingPolicy,
     MintingPolicyHash,
     Script,
-    ToMintingPolicyHash (toMintingPolicyHash),
     ToScript (toScript),
-    ToScriptHash (toScriptHash),
     ToValidator (toValidator),
-    ToValidatorHash (toValidatorHash),
     ToVersioned (toVersioned),
     Validator,
     ValidatorHash (ValidatorHash, getValidatorHash),
     Versioned (Versioned),
   )
-import Plutus.Script.Utils.V1.Generators
-  ( alwaysFailValidator,
-    alwaysSucceedValidator,
-    mkForwardingMintingPolicy,
-  )
-import Plutus.Script.Utils.V1.Scripts (UntypedValidator)
-import PlutusCore.Default (DefaultUni)
-import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1
-  ( Address (Address, addressCredential),
+  ( Address (Address),
     BuiltinData,
-    Credential (PubKeyCredential, ScriptCredential),
+    Credential (ScriptCredential),
     Datum (Datum),
     DatumHash,
     FromData (fromBuiltinData),
     Redeemer (Redeemer),
     ScriptContext,
     ScriptHash (ScriptHash),
-    ToData (toBuiltinData),
-    TxOut (TxOut),
+    ToData,
+    TxOut,
     TxOutRef,
-    Value,
     builtinDataToData,
   )
-import PlutusTx (CompiledCode, Lift, liftCode, unsafeApplyCode)
 import Prettyprinter (Pretty (pretty), viaShow, (<+>))
 
 data Any
@@ -149,27 +132,6 @@ instance ToVersioned Script (TypedValidator a) where
 instance ToVersioned Validator (TypedValidator a) where
   toVersioned (TypedValidator {tvLanguage, tvValidator}) = Versioned tvValidator tvLanguage
 
-instance ToScriptHash (TypedValidator a) where
-  toScriptHash = toScriptHash . toVersioned @Script
-
-instance ToValidatorHash (TypedValidator a) where
-  toValidatorHash = toValidatorHash . toVersioned @Validator
-
-instance ToCredential (TypedValidator a) where
-  toCredential = toCredential . toVersioned @Script
-
-instance ToAddress (TypedValidator a) where
-  toAddress = toAddress . toVersioned @Script
-
-instance ToCardanoAddress (TypedValidator a) where
-  toCardanoAddress networkId = toCardanoAddress networkId . toVersioned @Script
-
-toCardanoAddressAny :: C.Api.NetworkId -> TypedValidator a -> C.Api.AddressAny
-toCardanoAddressAny nid tv =
-  case toCardanoAddress nid tv of
-    C.Api.AddressInEra C.Api.ShelleyAddressInEra {} addr -> C.Api.AddressShelley addr
-    C.Api.AddressInEra C.Api.ByronAddressInAnyEra {} addr -> C.Api.AddressByron addr
-
 -- | Generalise the typed validator to one that works with the 'Data' type.  we
 -- can do this safely because the on-chain validators are untyped, so they
 -- always take 'BuiltinData' arguments. The validator script stays the same, so
@@ -180,45 +142,6 @@ generalise = coerce
 
 -- | The type of validators for the given connection type.
 type ValidatorType (a :: Type) = DatumType a -> RedeemerType a -> ScriptContext -> Bool
-
-validatorToTypedValidator :: Validator -> TypedValidator a
-validatorToTypedValidator val =
-  TypedValidator val hsh fmp fmph lang
-  where
-    lang = PlutusV1
-    hsh = toValidatorHash (Versioned val lang)
-    fmp = mkForwardingMintingPolicy hsh
-    fmph = toMintingPolicyHash (Versioned fmp lang)
-
-alwaysSucceedTypedValidator :: TypedValidator a
-alwaysSucceedTypedValidator = validatorToTypedValidator alwaysSucceedValidator
-
-alwaysFailTypedValidator :: TypedValidator a
-alwaysFailTypedValidator = validatorToTypedValidator alwaysFailValidator
-
--- | Make a 'TypedValidator' from the 'CompiledCode' of a validator script and its wrapper.
-mkTypedValidator ::
-  -- | Validator script (compiled)
-  CompiledCode (ValidatorType a) ->
-  -- | A wrapper for the compiled validator
-  CompiledCode (ValidatorType a -> UntypedValidator) ->
-  TypedValidator a
-mkTypedValidator vc wrapper =
-  validatorToTypedValidator $ toValidator $ wrapper `unsafeApplyCode` vc
-
--- | Make a 'TypedValidator' from the 'CompiledCode' of a parameterized validator script and its wrapper.
-mkTypedValidatorParam ::
-  forall a param.
-  (Lift DefaultUni param) =>
-  -- | Validator script (compiled)
-  CompiledCode (param -> ValidatorType a) ->
-  -- | A wrapper for the compiled validator
-  CompiledCode (ValidatorType a -> UntypedValidator) ->
-  -- | The extra paramater for the validator script
-  param ->
-  TypedValidator a
-mkTypedValidatorParam vc wrapper param =
-  mkTypedValidator (vc `unsafeApplyCode` liftCode plcVersion100 param) wrapper
 
 data WrongOutTypeError
   = ExpectedScriptGotPubkey
@@ -289,42 +212,6 @@ data TypedScriptTxOut a
 
 deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOut a)
 
--- | Create a 'TypedScriptTxOut' from a correctly-typed data script, an address, and a value.
-makeTypedScriptTxOut ::
-  (IsDataDatum out) =>
-  TypedValidator out ->
-  DatumType out ->
-  Value ->
-  TypedScriptTxOut out
-makeTypedScriptTxOut (TypedValidator {tvValidatorHash}) dat val =
-  TypedScriptTxOut
-    ( TxOut
-        (Address (ScriptCredential (toScriptHash tvValidatorHash)) Nothing)
-        val
-        (Just (datumHash $ Datum $ toBuiltinData dat))
-    )
-    dat
-
--- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOut ::
-  (IsDataDatum out, MonadError ConnectionError m) =>
-  TypedValidator out ->
-  TxOutRef ->
-  TxOut ->
-  Datum ->
-  m (TypedScriptTxOut out)
-typeScriptTxOut tv txOutRef txOut@(TxOut addr _ dHash) datum =
-  case addressCredential addr of
-    PubKeyCredential _ ->
-      throwError $ WrongCredentialType ExpectedScriptGotPubkey
-    ScriptCredential _vh ->
-      case dHash of
-        Just dh
-          | datumHash datum == dh ->
-              checkValidatorAddress tv addr
-                >> TypedScriptTxOut txOut <$> checkDatum tv datum
-        _ -> throwError $ NoDatum txOutRef (datumHash datum)
-
 -- | A 'TxOutRef' tagged by a phantom type: the connection type of the output.
 data TypedScriptTxOutRef a = TypedScriptTxOutRef
   { tyTxOutRefRef :: TxOutRef,
@@ -332,14 +219,3 @@ data TypedScriptTxOutRef a = TypedScriptTxOutRef
   }
 
 deriving stock instance (Eq (DatumType a)) => Eq (TypedScriptTxOutRef a)
-
--- | Create a 'TypedScriptTxOut' from an existing 'TxOut' by checking the types of its parts.
-typeScriptTxOutRef ::
-  (IsDataDatum out, MonadError ConnectionError m) =>
-  TypedValidator out ->
-  TxOutRef ->
-  TxOut ->
-  Datum ->
-  m (TypedScriptTxOutRef out)
-typeScriptTxOutRef tv txOutRef txOut datum =
-  TypedScriptTxOutRef txOutRef <$> typeScriptTxOut tv txOutRef txOut datum

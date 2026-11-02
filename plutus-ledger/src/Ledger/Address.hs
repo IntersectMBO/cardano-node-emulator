@@ -10,6 +10,7 @@
 module Ledger.Address
   ( module Export,
     CardanoAddress,
+    ToCardanoAddress (..),
     PaymentPrivateKey (..),
     PaymentPubKey (..),
     PaymentPubKeyHash (..),
@@ -49,6 +50,7 @@ import Ledger.Orphans ()
 import Ledger.Scripts
   ( ScriptHash (..),
     StakeValidatorHash (..),
+    ToCardanoAddress (..),
     ValidatorHash (..),
   )
 import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress, toScriptHash)

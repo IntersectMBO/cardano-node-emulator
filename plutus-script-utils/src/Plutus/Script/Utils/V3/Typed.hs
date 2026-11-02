@@ -18,31 +18,21 @@ where
 
 import Codec.Serialise (Serialise)
 import GHC.Generics (Generic)
-import Plutus.Script.Utils.Address
-  ( ToAddress (toAddress),
-    ToCredential (toCredential),
-  )
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV3),
     MintingPolicy (MintingPolicy),
     Script,
     StakeValidator (StakeValidator),
     ToMintingPolicy (toMintingPolicy),
-    ToMintingPolicyHash (toMintingPolicyHash),
     ToScript (toScript),
-    ToScriptHash (toScriptHash),
     ToStakeValidator (toStakeValidator),
-    ToStakeValidatorHash (toStakeValidatorHash),
     ToValidator (toValidator),
-    ToValidatorHash (toValidatorHash),
     ToVersioned (toVersioned),
     Validator (Validator),
     Versioned (Versioned),
   )
 import PlutusLedgerApi.V3
-  ( Address (Address),
-    BuiltinData,
-    Credential (ScriptCredential),
+  ( BuiltinData,
     FromData,
   )
 import PlutusTx.Builtins (unsafeDataAsConstr)
@@ -160,9 +150,11 @@ data
       FromData votingTxInfo
     ) =>
   TypedMultiPurposeScript
-  { certifyingPurpose :: Maybe (CertifyingPurposeType certifyingIndex certifyingCert certifyingRed certifyingTxInfo),
+  { certifyingPurpose ::
+      Maybe (CertifyingPurposeType certifyingIndex certifyingCert certifyingRed certifyingTxInfo),
     mintingPurpose :: Maybe (MintingPurposeType mintingCurrencySymbol mintingRed mintingTxInfo),
-    proposingPurpose :: Maybe (ProposingPurposeType proposingIndex proposingProposal proposingRed proposingTxInfo),
+    proposingPurpose ::
+      Maybe (ProposingPurposeType proposingIndex proposingProposal proposingRed proposingTxInfo),
     rewardingPurpose :: Maybe (RewardingPurposeType rewardingCredential rewardingRed rewardingTxInfo),
     spendingPurpose :: Maybe (SpendingPurposeType spendingOutRef spendingDat spendingRed spendingTxInfo),
     votingPurpose :: Maybe (VotingPurposeType votingVoter votingRed votingTxInfo)
@@ -175,23 +167,11 @@ newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: Script
   deriving stock (Generic)
   deriving newtype (H.Eq, H.Ord, Serialise)
 
-instance H.Show MultiPurposeScript where
-  show = ("Multi-purpose script #" <>) . H.show . toScriptHash
-
 instance ToScript MultiPurposeScript where
   toScript = getMultiPurposeScript
 
 instance ToVersioned Script MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . toScript
-
-instance ToScriptHash MultiPurposeScript where
-  toScriptHash = toScriptHash . toVersioned @Script
-
-instance ToCredential MultiPurposeScript where
-  toCredential = ScriptCredential . toScriptHash
-
-instance ToAddress MultiPurposeScript where
-  toAddress = (`Address` Nothing) . toCredential
 
 instance ToValidator MultiPurposeScript where
   toValidator = Validator . toScript
@@ -199,26 +179,17 @@ instance ToValidator MultiPurposeScript where
 instance ToVersioned Validator MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . toValidator
 
-instance ToValidatorHash MultiPurposeScript where
-  toValidatorHash = toValidatorHash . toScriptHash
-
 instance ToMintingPolicy MultiPurposeScript where
   toMintingPolicy = MintingPolicy . toScript
 
 instance ToVersioned MintingPolicy MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . MintingPolicy . toScript
 
-instance ToMintingPolicyHash MultiPurposeScript where
-  toMintingPolicyHash = toMintingPolicyHash . toScriptHash
-
 instance ToStakeValidator MultiPurposeScript where
   toStakeValidator = StakeValidator . toScript
 
 instance ToVersioned StakeValidator MultiPurposeScript where
   toVersioned = (`Versioned` PlutusV3) . StakeValidator . toScript
-
-instance ToStakeValidatorHash MultiPurposeScript where
-  toStakeValidatorHash = toStakeValidatorHash . toScriptHash
 
 -- * From 'TypedMultiPurposeScript' to 'MultiPurposeScript'
 
@@ -286,7 +257,8 @@ mkMultiPurposeScript ::
   BuiltinUnit
 mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
   either traceError check $ do
-    ScriptContextResolvedScriptInfo scTxInfo scRedeemer (purpose, args) <- fromBuiltinDataEither "script info" dat
+    ScriptContextResolvedScriptInfo scTxInfo scRedeemer (purpose, args) <-
+      fromBuiltinDataEither "script info" dat
     case args of
       [i, cert]
         | purpose == 3,

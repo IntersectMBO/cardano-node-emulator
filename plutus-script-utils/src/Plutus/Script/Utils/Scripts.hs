@@ -11,7 +11,6 @@ module Plutus.Script.Utils.Scripts
     PV1.ScriptHash (..),
     ToScript (..),
     ToScriptHash (..),
-    ToCardanoScriptHash (..),
     Language (..),
     Versioned (..),
     ToVersioned (..),
@@ -31,12 +30,18 @@ module Plutus.Script.Utils.Scripts
   )
 where
 
-import Cardano.Api qualified as C.Api
-import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
 import Codec.CBOR.Extras (SerialiseViaFlat (SerialiseViaFlat))
 import Codec.CBOR.Write qualified as CBOR
 import Codec.Serialise (Serialise (encode), deserialiseOrFail)
-import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey, object, (.:), (.=))
+import Data.Aeson
+  ( FromJSON (parseJSON),
+    FromJSONKey,
+    ToJSON (toJSON),
+    ToJSONKey,
+    object,
+    (.:),
+    (.=),
+  )
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Base16 qualified as Base16
@@ -46,7 +51,6 @@ import Data.Hashable (Hashable)
 import Data.String (IsString)
 import Data.Text.Encoding qualified as TE
 import GHC.Generics (Generic)
-import Plutus.Script.Utils.Address (ToAddress (toAddress), ToCardanoAddress (toCardanoAddress), ToCredential (toCredential))
 import PlutusLedgerApi.Common (serialiseCompiledCode)
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Bytes (LedgerBytes (LedgerBytes))
@@ -67,18 +71,8 @@ class ToScriptHash a where
 instance ToScriptHash PV1.ScriptHash where
   toScriptHash = id
 
-instance ToScriptHash C.Api.ScriptHash where
-  toScriptHash = PV1.ScriptHash . Builtins.toBuiltin . C.Api.serialiseToRawBytes
-
 instance ToScriptHash PV1.CurrencySymbol where
   toScriptHash = coerce
-
--- | Extracting Cardano script hashes
-class ToCardanoScriptHash a where
-  toCardanoScriptHash :: a -> C.Api.ScriptHash
-
-instance ToCardanoScriptHash C.Api.ScriptHash where
-  toCardanoScriptHash = id
 
 -- * Scripts
 
@@ -139,7 +133,10 @@ instance ToScript (CompiledCode (BuiltinData -> BuiltinUnit)) where
 
 -- * Scripts with a version attached
 
-deriving anyclass instance Serialise Language
+-- | Plutus script language tags independent of Cardano ledger types.
+data Language = PlutusV1 | PlutusV2 | PlutusV3
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (FromJSON, ToJSON, Serialise)
 
 instance Pretty Language where
   pretty PlutusV1 = "Plutus V1"
@@ -157,39 +154,14 @@ data Versioned script = Versioned
 instance (Pretty script) => Pretty (Versioned script) where
   pretty Versioned {unversioned, version} = pretty unversioned <> " (" <> pretty version <> ")"
 
-instance (ToScript a) => ToCardanoScriptHash (Versioned a) where
-  toCardanoScriptHash (Versioned (toScript -> Script script) lang) = case lang of
-    PlutusV1 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV1 $ C.Api.PlutusScriptSerialised script
-    PlutusV2 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV2 $ C.Api.PlutusScriptSerialised script
-    PlutusV3 -> C.Api.hashScript $ C.Api.PlutusScript C.Api.PlutusScriptV3 $ C.Api.PlutusScriptSerialised script
-
 instance (ToScript a) => ToScript (Versioned a) where
   toScript = toScript . unversioned
-
-instance (ToScript a) => ToScriptHash (Versioned a) where
-  toScriptHash = toScriptHash . toCardanoScriptHash
-
-instance (ToScript a) => ToCredential (Versioned a) where
-  toCredential = PV1.ScriptCredential . toScriptHash
-
-instance (ToScript a) => ToAddress (Versioned a) where
-  toAddress = (`PV1.Address` Nothing) . toCredential
 
 class ToVersioned s a where
   toVersioned :: a -> Versioned s
 
 instance ToVersioned a (Versioned a) where
   toVersioned = id
-
--- | Anything that can be seen as a versioned script can be assigned a Cardano
--- address. However this address will bear no staking.
-instance (ToScript a) => ToCardanoAddress (Versioned a) where
-  toCardanoAddress networkId =
-    flip (C.Api.makeShelleyAddressInEra C.Api.shelleyBasedEra networkId) C.Api.NoStakeAddress
-      . C.Api.PaymentCredentialByScript
-      . toCardanoScriptHash
-
--- * Validators
 
 -- | 'Validator' is a wrapper around 'Script's which are used as validators in
 -- transaction outputs.
@@ -232,7 +204,8 @@ instance ToVersioned Validator (Versioned Script) where
 newtype ValidatorHash = ValidatorHash {getValidatorHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving newtype
+    (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
   deriving anyclass (FromJSONKey, ToJSONKey)
 
 instance ToJSON ValidatorHash where
@@ -252,12 +225,6 @@ instance ToValidatorHash ValidatorHash where
 
 instance ToValidatorHash PV1.ScriptHash where
   toValidatorHash = coerce
-
-instance ToValidatorHash (Versioned Validator) where
-  toValidatorHash = toValidatorHash . toScriptHash . fmap toScript
-
-instance ToValidatorHash (Versioned Script) where
-  toValidatorHash = toValidatorHash . toScriptHash
 
 instance ToScriptHash ValidatorHash where
   toScriptHash = coerce
@@ -305,7 +272,8 @@ instance ToVersioned MintingPolicy (Versioned Script) where
 newtype MintingPolicyHash = MintingPolicyHash {getMintingPolicyHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving newtype
+    (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
   deriving anyclass (FromJSONKey, ToJSONKey)
 
 instance ToJSON MintingPolicyHash where
@@ -325,12 +293,6 @@ instance ToMintingPolicyHash MintingPolicyHash where
 
 instance ToMintingPolicyHash PV1.ScriptHash where
   toMintingPolicyHash = coerce
-
-instance ToMintingPolicyHash (Versioned MintingPolicy) where
-  toMintingPolicyHash = toMintingPolicyHash . toScriptHash . fmap toScript
-
-instance ToMintingPolicyHash (Versioned Script) where
-  toMintingPolicyHash = toMintingPolicyHash . toScriptHash
 
 instance ToMintingPolicyHash PV1.CurrencySymbol where
   toMintingPolicyHash = coerce
@@ -387,7 +349,8 @@ instance ToVersioned StakeValidator (Versioned Script) where
 newtype StakeValidatorHash = StakeValidatorHash {getStakeValidatorHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving newtype
+    (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
   deriving anyclass (FromJSONKey, ToJSONKey)
 
 instance ToJSON StakeValidatorHash where
@@ -407,12 +370,6 @@ instance ToStakeValidatorHash StakeValidatorHash where
 
 instance ToStakeValidatorHash PV1.ScriptHash where
   toStakeValidatorHash = coerce
-
-instance ToStakeValidatorHash (Versioned StakeValidator) where
-  toStakeValidatorHash = toStakeValidatorHash . toScriptHash . fmap toScript
-
-instance ToStakeValidatorHash (Versioned Script) where
-  toStakeValidatorHash = toStakeValidatorHash . toScriptHash
 
 instance ToScriptHash StakeValidatorHash where
   toScriptHash = coerce

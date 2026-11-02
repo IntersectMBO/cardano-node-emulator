@@ -67,6 +67,7 @@
               buildInputs = [
                 blst-portable
                 pkgs.pkg-config
+                pkgs.curl
                 pkgs.glibcLocales
                 pkgs.zlib
                 pkgs.libsodium

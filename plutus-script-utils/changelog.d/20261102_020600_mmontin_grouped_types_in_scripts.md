@@ -5,7 +5,8 @@
   `checkMultiPurposeScriptAddress`, `WrongOutTypeError`,
   `MultiPurposeScriptTypes`, `IsDataDatum`, `generalise`, `Any`,
   `toCardanoAddressAny` and the primed `*PurposeType'` synonyms from
-  `Plutus.Script.Utils.V3.Typed`.
+  `Plutus.Script.Utils.V3.Typed`. They are outdated and will no longer be part
+  of the project's content.
 
 ### Changed
 
@@ -19,14 +20,6 @@
   `Plutus.Script.Utils.V2.Contexts` and `Plutus.Script.Utils.V3.Contexts` no
   longer use list comprehensions (they use `mapMaybe`), so they compile reliably
   under the PlutusTx plugin.
-
-### Fixed
-
-- `mkMultiPurposeScript` now dispatches on the real V3 `ScriptInfo` constructor
-  tags (`Minting`, `Spending`, `Rewarding`, `Certifying`, `Voting`,
-  `Proposing`) and decodes the spending datum as a single `Maybe` layer, fixing
-  an incorrect purpose ordering and a crash that occurred when a real datum was
-  supplied.
 
 ### Added
 

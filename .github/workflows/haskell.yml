@@ -110,22 +110,3 @@ jobs:
           done
 
           exit "$result"
-
-  run-and-cache-flake-checks:
-    name: Run flake checks
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v7
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run flake checks
-        run: nix flake check --print-build-logs

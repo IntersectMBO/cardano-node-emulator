@@ -12,7 +12,7 @@ newtype SerialiseViaFlat a = SerialiseViaFlat a
 
 instance (Flat.Flat a) => Serialise (SerialiseViaFlat a) where
   encode (SerialiseViaFlat a) = encode $ Flat.flat a
-  decode = SerialiseViaFlat <$> (decodeViaFlat (Flat.decode))
+  decode = SerialiseViaFlat <$> decodeViaFlat Flat.decode
 
 decodeViaFlat :: Flat.Get a -> CBOR.Decoder s a
 decodeViaFlat decoder = do

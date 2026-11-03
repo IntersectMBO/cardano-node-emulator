@@ -11,19 +11,9 @@ common lang
   default-extensions:
     ConstraintKinds
     DataKinds
-    DeriveAnyClass
-    DeriveFoldable
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    EmptyDataDeriving
     FlexibleContexts
     FlexibleInstances
     GADTs
-    GeneralizedNewtypeDeriving
     ImportQualifiedPost
     LambdaCase
     MultiParamTypeClasses
@@ -35,7 +25,6 @@ common lang
     RankNTypes
     RecordWildCards
     ScopedTypeVariables
-    StandaloneDeriving
     TemplateHaskell
     TupleSections
     TypeApplications
@@ -86,6 +75,8 @@ library
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
 
+  other-modules:    Codec.CBOR.Extras
+
   -- The limitation of plutus-tx-plugin
   if (impl(ghc <9.6) || impl(ghc >=9.7))
     buildable: False
@@ -106,13 +97,18 @@ library
   ------------------------
   build-depends:
     , aeson
-    , base           >=4.9 && <5
+    , base               >=4.9 && <5
+    , base16-bytestring
     , bytestring
+    , cborg
     , data-default
+    , flat
+    , hashable
     , mtl
     , prettyprinter
     , serialise
     , tagged
+    , text
 
   ghc-options:      -fprint-potential-instances
 

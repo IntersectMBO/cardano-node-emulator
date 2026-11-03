@@ -32,7 +32,8 @@ ghc-options:
   -fno-omit-interface-pragmas
   -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
   -fplugin-opt PlutusTx.Plugin:defer-errors
-
+  -fplugin=Polysemy.Plugin
+  
 library:
   source-dirs: src
   dependencies:
@@ -51,6 +52,8 @@ library:
     - ouroboros-consensus
     - plutus-ledger-api
     - plutus-tx
+    - polysemy
+    - polysemy-plugin
     - sop-extras
     - strict-sop-core
     - aeson >=2

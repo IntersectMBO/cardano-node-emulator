@@ -41,7 +41,7 @@ library
       NamedFieldPuns
       ScopedTypeVariables
       StandaloneDeriving
-  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wunused-packages -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -Wmissing-import-lists -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wunused-packages -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -Wmissing-import-lists -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors -fplugin=Polysemy.Plugin
   build-depends:
       aeson >=2
     , base >=4.9 && <5
@@ -67,6 +67,8 @@ library
     , plutus-ledger
     , plutus-ledger-api
     , plutus-tx
+    , polysemy
+    , polysemy-plugin
     , prettyprinter >=1.1.0.1
     , sop-core
     , sop-extras

@@ -19,6 +19,7 @@ library
       Cardano.Node.Emulator.Internal.Node.Params
       Cardano.Node.Emulator.Internal.Node.TimeSlot
       Cardano.Node.Emulator.Internal.Node.Validation
+      Cardano.Node.Emulator.Log
       Cardano.Node.Emulator.LogMessages
   other-modules:
       Paths_cardano_node_emulator

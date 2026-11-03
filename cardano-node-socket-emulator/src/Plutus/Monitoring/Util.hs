@@ -29,8 +29,6 @@ import Cardano.BM.Trace
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Freer
-import Control.Monad.Freer.Extras.Log (LogMsg (..), LogObserve (..), Observation (..))
-import Control.Monad.Freer.Extras.Log qualified as L
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Foldable (for_)
@@ -57,7 +55,7 @@ handleLogMsgTrace ::
   ) =>
   Trace m a ->
   LogMsg a
-    ~> Eff effs
+    ~> Sem effs
 handleLogMsgTrace trace = \case
   LMessage L.LogMessage {L._logLevel, L._logMessageContent} ->
     let defaultPrivacy = Public -- TODO: Configurable / add to 'L.LogMessage'?
@@ -72,14 +70,14 @@ handleLogMsgTraceMap ::
   (b -> a) ->
   Trace m a ->
   LogMsg b
-    ~> Eff effs
+    ~> Sem effs
 handleLogMsgTraceMap f t = handleLogMsgTrace (convertLog f t)
 
 runLogEffects ::
   forall m l.
   (MonadIO m) =>
   Trace m l ->
-  Eff '[LogMsg l, m]
+  Sem '[LogMsg l, m]
     ~> m
 runLogEffects trace = runM . interpret (handleLogMsgTrace trace)
 
@@ -97,8 +95,8 @@ handleObserveTrace ::
   ) =>
   CM.Configuration ->
   Trace m a ->
-  Eff (LogObserve (L.LogMessage Text) ': effs)
-    ~> Eff effs
+  Sem (LogObserve (L.LogMessage Text) ': effs)
+    ~> Sem effs
 handleObserveTrace config t =
   -- We need to call 'observeOpen' and 'observeClose' with the appropriate
   -- arguments.
@@ -106,7 +104,7 @@ handleObserveTrace config t =
   -- 'observeBefore' makes the call to 'observeOpen' and 'observeAfter'
   -- makes the call to 'observeClose.'
 
-  let observeBefore :: L.LogMessage Text -> Eff effs (Maybe (SubTrace, CounterState))
+  let observeBefore :: L.LogMessage Text -> Sem effs (Maybe (SubTrace, CounterState))
       observeBefore L.LogMessage {L._logLevel, L._logMessageContent} = do
         -- find the correct subtrace using the logging config and the content
         -- of the message.
@@ -121,7 +119,7 @@ handleObserveTrace config t =
           Left _ -> pure Nothing
           Right counterState -> pure (Just (subtrace, counterState))
 
-      observeAfter :: Observation (L.LogMessage Text) (Maybe (SubTrace, CounterState)) -> Eff effs ()
+      observeAfter :: Observation (L.LogMessage Text) (Maybe (SubTrace, CounterState)) -> Sem effs ()
       observeAfter Observation {obsStart} =
         for_ obsStart $ \(subtrace, counterState) ->
           void $ sendM $ observeClose subtrace Info t counterState []

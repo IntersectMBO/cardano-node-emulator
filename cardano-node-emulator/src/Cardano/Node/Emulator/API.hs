@@ -102,7 +102,6 @@ import Cardano.Node.Emulator.LogMessages
   )
 import Control.Lens (use, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
-import Control.Monad.Freer.Extras.Log qualified as L
 import Control.Monad.RWS.Class (ask, asks, get, tell)
 import Data.Aeson (ToJSON (toJSON))
 import Data.Map (Map)

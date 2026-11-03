@@ -37,7 +37,6 @@ ghc-options:
 library:
   source-dirs: src
   dependencies:
-    - freer-extras
     - plutus-ledger
     - cardano-api
     - cardano-api:gen
@@ -61,10 +60,8 @@ library:
     - bytestring
     - containers
     - data-default
-    - freer-simple
     - hedgehog
     - lens
-    - mtl
     - prettyprinter >=1.1.0.1
     - sop-core
     - text

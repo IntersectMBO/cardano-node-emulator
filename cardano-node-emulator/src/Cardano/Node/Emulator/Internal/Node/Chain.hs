@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -18,10 +19,10 @@
 module Cardano.Node.Emulator.Internal.Node.Chain where
 
 import Cardano.Api (SlotNo (SlotNo))
-import Cardano.Node.Emulator.Internal.Node.Params (Params)
+import Cardano.Node.Emulator.Internal.Node.Params (EmulatorParams)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
+import Cardano.Node.Emulator.Log (LogMsg, logDebug, logInfo, logWarn)
 import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
-import Control.Monad.State qualified as S
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (traverse_)
 import Data.List ((\\))
@@ -39,7 +40,16 @@ import Ledger
   )
 import Ledger.Index qualified as Index
 import Polysemy
-import Polysemy.State
+  ( Effect,
+    InterpreterFor,
+    Member,
+    Members,
+    Sem,
+    interpret,
+    makeSem,
+    run,
+  )
+import Polysemy.State (State, get, gets, modify, put, runState)
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
 -- | Events produced by the blockchain emulator.
@@ -78,45 +88,35 @@ data ChainState = ChainState
 
 makeLenses ''ChainState
 
-emptyChainState :: Params -> ChainState
+emptyChainState :: EmulatorParams -> ChainState
 emptyChainState params = ChainState [] [] mempty (Validation.initialState params)
 
-fromBlockchain :: Params -> Blockchain -> ChainState
+fromBlockchain :: EmulatorParams -> Blockchain -> ChainState
 fromBlockchain params bc =
   emptyChainState params
     & chainNewestFirst .~ bc
     & index .~ Index.initialise bc
 
-data ChainControlEffect r where
-  ProcessBlock :: ChainControlEffect Block
-  ModifySlot :: (Slot -> Slot) -> ChainControlEffect Slot
+data ChainControlEffect :: Effect where
+  ProcessBlock :: ChainControlEffect m Block
+  ModifySlot :: (Slot -> Slot) -> ChainControlEffect m Slot
 
-data ChainEffect r where
-  QueueTx :: CardanoTx -> ChainEffect ()
-  GetCurrentSlot :: ChainEffect Slot
-  GetParams :: ChainEffect Params
+makeSem ''ChainControlEffect
 
--- | Make a new block
-processBlock :: (Member ChainControlEffect effs) => Sem effs Block
-processBlock = send ProcessBlock
+data ChainEffect :: Effect where
+  QueueTx :: CardanoTx -> ChainEffect m ()
+  GetCurrentSlot :: ChainEffect m Slot
+  GetParams :: ChainEffect m EmulatorParams
 
--- | Adjust the current slot number, returning the new slot.
-modifySlot :: (Member ChainControlEffect effs) => (Slot -> Slot) -> Sem effs Slot
-modifySlot = send . ModifySlot
-
-queueTx :: (Member ChainEffect effs) => CardanoTx -> Sem effs ()
-queueTx tx = send (QueueTx tx)
-
-getParams :: (Member ChainEffect effs) => Sem effs Params
-getParams = send GetParams
-
-getCurrentSlot :: (Member ChainEffect effs) => Sem effs Slot
-getCurrentSlot = send GetCurrentSlot
+makeSem ''ChainEffect
 
 type ChainEffs = '[State ChainState, LogMsg ChainEvent]
 
-handleControlChain :: (Members ChainEffs effs) => Params -> ChainControlEffect ~> Sem effs
-handleControlChain params = \case
+handleControlChain ::
+  (Members ChainEffs effs) =>
+  EmulatorParams ->
+  InterpreterFor ChainControlEffect effs
+handleControlChain params = interpret $ \case
   ProcessBlock -> do
     pool <- gets $ view txPool
     idx <- gets $ view index
@@ -130,7 +130,7 @@ handleControlChain params = \case
     modify $ ledgerState .~ ls'
     modify $ addBlock block
 
-    traverse_ logEvent events
+    traverse_ logChainEvent events
     pure block
   ModifySlot f -> do
     modify @ChainState
@@ -140,15 +140,15 @@ handleControlChain params = \case
       )
     gets (Validation.getSlot . view ledgerState)
 
-logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Sem effs ()
-logEvent e = case e of
+logChainEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Sem effs ()
+logChainEvent e = case e of
   SlotAdd {} -> logDebug e
   TxnValidation Index.FailPhase1 {} -> logWarn e
   TxnValidation Index.FailPhase2 {} -> logWarn e
   TxnValidation Index.Success {} -> logInfo e
 
-handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Sem effs
-handleChain params = \case
+handleChain :: (Members ChainEffs effs) => EmulatorParams -> InterpreterFor ChainEffect effs
+handleChain params = interpret $ \case
   QueueTx tx -> modify (addTxToPool tx)
   GetCurrentSlot -> gets (Validation.getSlot . view ledgerState)
   GetParams -> pure params
@@ -166,18 +166,17 @@ data ValidatedBlock = ValidatedBlock
 
 data ValidationCtx = ValidationCtx
   { vctxIndex :: !Index.UtxoIndex,
-    vctxParams :: !Params,
+    vctxParams :: !EmulatorParams,
     vctxLedgerState :: Validation.EmulatedLedgerState
   }
 
 -- | Validate a block given the current slot and UTxO index, returning the valid
 --  transactions, success/failure events and the updated UTxO set.
 validateBlock ::
-  Params -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
+  EmulatorParams -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
 validateBlock params idx ls txns =
   let -- Validate transactions, updating the UTXO index each time
-      (results, ValidationCtx idx' _ ls') =
-        flip S.runState (ValidationCtx idx params ls) $ for txns validateEm
+      (ValidationCtx idx' _ ls', results) = run $ runState (ValidationCtx idx params ls) $ for txns validateEm
 
       -- The new block contains all transaction that were validated
       -- successfully
@@ -190,17 +189,17 @@ validateBlock params idx ls txns =
 
 -- | Validate a transaction in the current emulator state.
 validateEm ::
-  (S.MonadState ValidationCtx m) =>
+  (Member (State ValidationCtx) effs) =>
   CardanoTx ->
-  m Index.ValidationResult
+  Sem effs Index.ValidationResult
 validateEm txn = do
-  ctx@(ValidationCtx idx params ls) <- S.get
+  ctx@(ValidationCtx idx params ls) <- get
   let (ls', res) = Validation.validateCardanoTx params ls txn
       idx' = case res of
         Index.FailPhase1 {} -> idx
         Index.FailPhase2 {} -> Index.insertCollateral txn idx
         Index.Success {} -> Index.insert txn idx
-  _ <- S.put ctx {vctxIndex = idx', vctxLedgerState = ls'}
+  _ <- put ctx {vctxIndex = idx', vctxLedgerState = ls'}
   pure res
 
 -- | Adds a block to ChainState, without validation.

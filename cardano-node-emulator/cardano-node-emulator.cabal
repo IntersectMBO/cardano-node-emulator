@@ -58,11 +58,8 @@ library
     , cardano-slotting
     , containers
     , data-default
-    , freer-extras
-    , freer-simple
     , hedgehog
     , lens
-    , mtl
     , ouroboros-consensus
     , plutus-ledger
     , plutus-ledger-api

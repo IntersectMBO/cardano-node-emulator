@@ -21,9 +21,6 @@ import Cardano.Api (SlotNo (SlotNo))
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
 import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
-import Control.Monad.Freer (Eff, Member, Members, send, type (~>))
-import Control.Monad.Freer.Extras.Log (LogMsg, logDebug, logInfo, logWarn)
-import Control.Monad.Freer.State (State, gets, modify)
 import Control.Monad.State qualified as S
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (traverse_)
@@ -41,6 +38,8 @@ import Ledger
     unOnChain,
   )
 import Ledger.Index qualified as Index
+import Polysemy
+import Polysemy.State
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
 -- | Events produced by the blockchain emulator.
@@ -98,25 +97,25 @@ data ChainEffect r where
   GetParams :: ChainEffect Params
 
 -- | Make a new block
-processBlock :: (Member ChainControlEffect effs) => Eff effs Block
+processBlock :: (Member ChainControlEffect effs) => Sem effs Block
 processBlock = send ProcessBlock
 
 -- | Adjust the current slot number, returning the new slot.
-modifySlot :: (Member ChainControlEffect effs) => (Slot -> Slot) -> Eff effs Slot
+modifySlot :: (Member ChainControlEffect effs) => (Slot -> Slot) -> Sem effs Slot
 modifySlot = send . ModifySlot
 
-queueTx :: (Member ChainEffect effs) => CardanoTx -> Eff effs ()
+queueTx :: (Member ChainEffect effs) => CardanoTx -> Sem effs ()
 queueTx tx = send (QueueTx tx)
 
-getParams :: (Member ChainEffect effs) => Eff effs Params
+getParams :: (Member ChainEffect effs) => Sem effs Params
 getParams = send GetParams
 
-getCurrentSlot :: (Member ChainEffect effs) => Eff effs Slot
+getCurrentSlot :: (Member ChainEffect effs) => Sem effs Slot
 getCurrentSlot = send GetCurrentSlot
 
 type ChainEffs = '[State ChainState, LogMsg ChainEvent]
 
-handleControlChain :: (Members ChainEffs effs) => Params -> ChainControlEffect ~> Eff effs
+handleControlChain :: (Members ChainEffs effs) => Params -> ChainControlEffect ~> Sem effs
 handleControlChain params = \case
   ProcessBlock -> do
     pool <- gets $ view txPool
@@ -141,14 +140,14 @@ handleControlChain params = \case
       )
     gets (Validation.getSlot . view ledgerState)
 
-logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Eff effs ()
+logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Sem effs ()
 logEvent e = case e of
   SlotAdd {} -> logDebug e
   TxnValidation Index.FailPhase1 {} -> logWarn e
   TxnValidation Index.FailPhase2 {} -> logWarn e
   TxnValidation Index.Success {} -> logInfo e
 
-handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Eff effs
+handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Sem effs
 handleChain params = \case
   QueueTx tx -> modify (addTxToPool tx)
   GetCurrentSlot -> gets (Validation.getSlot . view ledgerState)

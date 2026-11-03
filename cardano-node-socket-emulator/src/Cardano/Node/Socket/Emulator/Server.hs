@@ -67,7 +67,6 @@ import Control.Exception (throwIO)
 import Control.Lens (over, (.~), (^.))
 import Control.Monad (forever, void)
 import Control.Monad.Freer (send)
-import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
   ( MonadReader (ask),

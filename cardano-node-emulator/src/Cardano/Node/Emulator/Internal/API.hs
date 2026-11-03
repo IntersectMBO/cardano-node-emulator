@@ -20,7 +20,7 @@ module Cardano.Node.Emulator.Internal.API
     EmulatorT,
     EmulatorM,
 
-    -- * Running Eff chain effects in MTL
+    -- * Running Sem chain effects in MTL
     handleChain,
     processBlock,
     modifySlot,
@@ -34,9 +34,7 @@ import Control.Lens (makeLenses, (&))
 import Control.Monad (void)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.Except (ExceptT)
-import Control.Monad.Freer (Eff, Member, interpret, run, type (~>))
-import Control.Monad.Freer.Extras (raiseEnd)
-import Control.Monad.Freer.Extras.Log qualified as L
+import Control.Monad.Freer (Member, Sem, interpret, run, type (~>))
 import Control.Monad.Freer.State (State, modify, runState)
 import Control.Monad.Freer.Writer qualified as F (Writer, runWriter, tell)
 import Control.Monad.Identity (Identity)
@@ -81,7 +79,7 @@ type EmulatorT m = ExceptT EmulatorError (RWST E.Params EmulatorLogs EmulatorSta
 
 type EmulatorM = EmulatorT Identity
 
-handleChain :: (MonadEmulator m) => Eff [E.ChainControlEffect, E.ChainEffect] a -> m a
+handleChain :: (MonadEmulator m) => Sem [E.ChainControlEffect, E.ChainEffect] a -> m a
 handleChain eff = do
   params <- ask
   EmulatorState chainState am dm <- get
@@ -104,7 +102,7 @@ handleChain eff = do
         Member (State (Map DatumHash Datum)) effs,
         Member (F.Writer EmulatorLogs) effs
       ) =>
-      L.LogMsg E.ChainEvent ~> Eff effs
+      L.LogMsg E.ChainEvent ~> Sem effs
     handleChainLogs (L.LMessage msg@(L.LogMessage _ e)) = do
       F.tell @EmulatorLogs (pure $ ChainEvent <$> msg)
       E.chainEventOnChainTx e

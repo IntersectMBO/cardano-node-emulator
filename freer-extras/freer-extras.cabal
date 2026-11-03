@@ -51,7 +51,6 @@ library
     , base           >=4.7 && <5
     , containers
     , data-default
-    , freer-simple
     , lens
     , mtl
     , prettyprinter

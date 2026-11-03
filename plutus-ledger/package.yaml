@@ -1,0 +1,98 @@
+name: plutus-ledger
+version: 1.4.1.0
+license: Apache-2.0
+license-file:
+  - LICENSE
+  - NOTICE
+verbatim:
+  cabal-version: 3.8
+
+language: Haskell2010
+default-extensions:
+  - ExplicitForAll
+  - FlexibleContexts
+  - ImportQualifiedPost
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+ghc-options:
+  -Wall
+  -Wnoncanonical-monad-instances
+  -Wno-unused-packages
+  -Wincomplete-uni-patterns
+  -Wincomplete-record-updates
+  -Wredundant-constraints
+  -Widentities
+  -fobject-code
+  -fno-ignore-interface-pragmas
+  -fno-omit-interface-pragmas
+  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+  -fplugin-opt PlutusTx.Plugin:defer-errors
+
+library:
+  source-dirs: src
+  dependencies:
+    - plutus-script-utils ^>=2.0.1
+    - cardano-api
+    - cardano-binary
+    - cardano-crypto
+    - cardano-ledger-alonzo
+    - cardano-ledger-byron
+    - cardano-ledger-conway
+    - cardano-ledger-core
+    - cardano-ledger-shelley
+    - data-default
+    - iohk-monitoring
+    - plutus-core
+    - plutus-ledger-api
+    - plutus-tx
+    - plutus-tx-plugin
+    - aeson
+    - base >=4.9 && <5
+    - base16-bytestring
+    - bytestring
+    - cborg
+    - containers
+    - cryptonite >=0.25
+    - hashable
+    - http-api-data
+    - lens
+    - memory
+    - mtl
+    - newtype-generics
+    - ordered-containers
+    - prettyprinter
+    - scientific
+    - serialise
+    - servant
+    - text
+    - time-units
+    - vector
+  ghc-options:
+    -fprint-potential-instances
+  when:
+    - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+      buildable: false
+
+tests:
+  plutus-ledger-test:
+    main: Spec.hs
+    source-dirs: test
+    default-extensions:
+      - ImportQualifiedPost
+    dependencies:
+      - plutus-ledger
+      - plutus-script-utils
+      - cardano-api
+      - cardano-api:gen
+      - plutus-ledger-api
+      - plutus-tx
+      - aeson
+      - base >=4.9 && <5
+      - bytestring
+      - hedgehog
+      - tasty
+      - tasty-hedgehog
+      - tasty-hunit
+    when:
+      - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+        buildable: false

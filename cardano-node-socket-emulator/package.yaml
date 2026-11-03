@@ -1,0 +1,100 @@
+name: cardano-node-socket-emulator
+version: 1.4.1.0
+verbatim:
+  cabal-version: 3.8
+
+language: Haskell2010
+default-extensions:
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - ExplicitForAll
+  - FlexibleContexts
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - NamedFieldPuns
+  - ScopedTypeVariables
+  - StandaloneDeriving
+ghc-options:
+  -Wall
+  -Widentities
+  -Wincomplete-record-updates
+  -Wincomplete-uni-patterns
+  -Wnoncanonical-monad-instances
+  -Wredundant-constraints
+  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
+  -fplugin-opt PlutusTx.Plugin:defer-errors
+
+library:
+  source-dirs: src
+  dependencies:
+    - cardano-node-emulator
+    - freer-extras
+    - plutus-ledger
+    - plutus-script-utils
+    - cardano-api
+    - cardano-ledger-api
+    - cardano-ledger-byron
+    - cardano-ledger-core
+    - cardano-ledger-core:testlib
+    - cardano-ledger-shelley
+    - cardano-ledger-shelley-test
+    - cardano-ledger-shelley:testlib
+    - cardano-protocol-tpraos
+    - cardano-protocol-tpraos:testlib
+    - cardano-slotting
+    - cryptonite
+    - exceptions
+    - io-classes
+    - iohk-monitoring
+    - memory
+    - network-mux
+    - ouroboros-consensus
+    - ouroboros-consensus-cardano
+    - ouroboros-consensus-diffusion
+    - ouroboros-consensus-protocol
+    - ouroboros-network
+    - ouroboros-network-api
+    - ouroboros-network-framework
+    - ouroboros-network-protocols
+    - serialise
+    - strict-sop-core
+    - typed-protocols
+    - typed-protocols-cborg
+    - typed-protocols-stateful
+    - aeson >=2
+    - async
+    - base >=4.9 && <5
+    - bytestring
+    - containers
+    - contra-tracer
+    - data-default
+    - freer-simple
+    - lens
+    - mtl
+    - prettyprinter
+    - sop-core
+    - stm
+    - text
+    - time
+    - time-units
+  when:
+    - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+      buildable: false
+
+executables:
+  cardano-node-socket-emulator:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+      - cardano-node-socket-emulator
+      - iohk-monitoring
+      - base >=4.9 && <5
+      - data-default
+      - prettyprinter
+    when:
+      - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+        buildable: false

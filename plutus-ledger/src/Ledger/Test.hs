@@ -8,9 +8,12 @@
 module Ledger.Test where
 
 import Cardano.Api qualified as C.Api
+import Ledger.Address (ToCardanoAddress (toCardanoAddress))
 import Ledger.Address qualified as Ledger
+import Ledger.Typed.Scripts (Any)
+import Ledger.Typed.Scripts qualified as Typed
+import Ledger.Typed.Scripts.V2 qualified as TypedV2
 import Ledger.Value.CardanoAPI (policyId)
-import Plutus.Script.Utils.Address (ToCardanoAddress (toCardanoAddress))
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV1, PlutusV2, PlutusV3),
     MintingPolicy,
@@ -23,7 +26,6 @@ import Plutus.Script.Utils.Scripts
     toMintingPolicyHash,
     toValidator,
   )
-import Plutus.Script.Utils.V1 (Any, TypedValidator)
 import Plutus.Script.Utils.V1 qualified as V1
 import Plutus.Script.Utils.V2 qualified as V2
 import PlutusLedgerApi.V1 qualified as V1
@@ -32,7 +34,9 @@ import PlutusTx qualified
 import PlutusTx.Builtins.Internal qualified as PlutusTx
 import Prelude hiding (not)
 
-someCode :: PlutusTx.CompiledCode (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit)
+someCode ::
+  PlutusTx.CompiledCode
+    (PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinUnit)
 someCode = $$(PlutusTx.compile [||\_ _ _ -> PlutusTx.unitval||])
 
 someValidator :: Validator
@@ -41,11 +45,11 @@ someValidator = toValidator someCode
 someVersionedValidator :: Versioned Validator
 someVersionedValidator = Versioned someValidator PlutusV1
 
-someTypedValidator :: TypedValidator Any
-someTypedValidator = V1.validatorToTypedValidator someValidator
+someTypedValidator :: Typed.TypedValidator Any
+someTypedValidator = Typed.validatorToTypedValidator someValidator
 
 someValidatorHash :: ValidatorHash
-someValidatorHash = V1.tvValidatorHash someTypedValidator
+someValidatorHash = Typed.tvValidatorHash someTypedValidator
 
 someCardanoAddress :: C.Api.NetworkId -> Ledger.CardanoAddress
 someCardanoAddress = flip toCardanoAddress someVersionedValidator
@@ -59,11 +63,11 @@ someValidatorV2 = toValidator someCode
 someVersionedValidatorV2 :: Versioned Validator
 someVersionedValidatorV2 = Versioned someValidatorV2 PlutusV2
 
-someTypedValidatorV2 :: TypedValidator Any
-someTypedValidatorV2 = V2.validatorToTypedValidator someValidator
+someTypedValidatorV2 :: Typed.TypedValidator Any
+someTypedValidatorV2 = TypedV2.validatorToTypedValidator someValidator
 
 someValidatorHashV2 :: ValidatorHash
-someValidatorHashV2 = V2.tvValidatorHash someTypedValidatorV2
+someValidatorHashV2 = TypedV2.tvValidatorHash someTypedValidatorV2
 
 someCardanoAddressV2 :: C.Api.NetworkId -> Ledger.CardanoAddress
 someCardanoAddressV2 = flip toCardanoAddress someVersionedValidatorV2

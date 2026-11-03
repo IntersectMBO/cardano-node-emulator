@@ -31,9 +31,9 @@ import GHC.Generics (Generic)
 import Ledger.Address (CardanoAddress, cardanoPubKeyHash)
 import Ledger.Crypto
 import Ledger.DCert.Orphans ()
+import Ledger.Data.CardanoAPI (datumHash)
 import Ledger.Tx.Orphans ()
 import Ledger.Tx.Orphans.V2 ()
-import Plutus.Script.Utils.Data (datumHash)
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts

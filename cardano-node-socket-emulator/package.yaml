@@ -74,7 +74,9 @@ library:
     - containers
     - contra-tracer
     - data-default
-    - lens
+    - optics-core
+    - optics-th
+    - optics-vl
     - prettyprinter
     - sop-core
     - stm

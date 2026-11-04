@@ -24,13 +24,14 @@ import Cardano.Node.Socket.Emulator.Types
 import Cardano.Slotting.EpochInfo (epochInfoEpoch)
 import Cardano.Slotting.Slot (WithOrigin (..))
 import Control.Concurrent (MVar, readMVar)
-import Control.Lens (alaf, view)
+import Control.Monad (foldM)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Monoid (Ap (Ap))
 import Data.SOP (K (K))
 import Data.SOP.Strict (NS (S, Z))
 import Data.Set qualified as Set
 import Ledger.Tx.CardanoAPI (fromPlutusIndex)
+import Optics.Core (view)
+import Optics.VL (lensVL)
 import Ouroboros.Consensus.Cardano.Block (BlockQuery (..), CardanoBlock)
 import Ouroboros.Consensus.HardFork.Combinator (QueryHardFork (..))
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
@@ -77,7 +78,7 @@ queryIfCurrentConway ::
   BlockQuery block a result ->
   Sem effs result
 queryIfCurrentConway = \case
-  GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams
+  GetGenesisConfig -> Shelley.compactGenesis . view (lensVL C.tcShelleyGenesisL) . E.pConfig <$> E.getParams
   GetCurrentPParams -> emulatorPParams <$> E.getParams
   GetEpochNo -> do
     ei <- epochInfo . emulatorGlobals <$> E.getParams
@@ -87,7 +88,11 @@ queryIfCurrentConway = \case
       Right epoch -> pure epoch
   GetStakePools -> pure mempty
   GetUTxOByAddress addrs ->
-    fromPlutusIndex <$> alaf Ap foldMap (E.utxosAt . C.fromShelleyAddrIsSbe C.shelleyBasedEra) addrs
+    fromPlutusIndex
+      <$> foldM
+        (\utxos addr -> (utxos <>) <$> E.utxosAt (C.fromShelleyAddrIsSbe C.shelleyBasedEra addr))
+        mempty
+        addrs
   GetUTxOByTxIn txIns -> fromPlutusIndex <$> E.utxosAtTxIns (Set.map C.fromShelleyTxIn txIns)
   q -> printError $ "Unimplemented BlockQuery(QueryIfCurrentConway) received: " ++ show q
 

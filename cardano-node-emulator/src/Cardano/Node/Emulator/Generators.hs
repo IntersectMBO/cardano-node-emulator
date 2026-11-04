@@ -75,7 +75,6 @@ import Cardano.Node.Emulator.Internal.Node.Validation
     initialState,
     validateCardanoTx,
   )
-import Control.Lens (view, (.~))
 import Control.Monad (guard, replicateM)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
@@ -123,6 +122,8 @@ import Ledger.Tx qualified as Tx
 import Ledger.Tx.CardanoAPI qualified as LC
 import Ledger.Value.CardanoAPI qualified as Value
 import Numeric.Natural (Natural)
+import Optics.Core (view, (.~))
+import Optics.VL (lensVL)
 import PlutusLedgerApi.V1 qualified as V1
 import PlutusLedgerApi.V1.Interval qualified as Interval
 import PlutusTx (toData)
@@ -152,7 +153,7 @@ generatorModel =
    in GeneratorModel
         { gmInitialBalance = Map.fromList $ map (,vl) pubKeys,
           gmPubKeys = Set.fromList pubKeys,
-          gmMaxCollateralInputs = Just $ view (ppMaxCollateralInputsL @LC.EmulatorEra) def
+          gmMaxCollateralInputs = Just $ view (lensVL $ ppMaxCollateralInputsL @LC.EmulatorEra) def
         }
 
 -- | Blockchain for testing the emulator implementation and traces.
@@ -448,13 +449,13 @@ assertValid tx mc =
         H.assert $ isNothing res
 
 -- | Split a value into max. n positive-valued parts such that the sum of the
---    parts equals the original value. Each part should contain the required
---    minimum amount of Ada.
+--   parts equals the original value. Each part should contain the required
+--   minimum amount of Ada.
 --
---    I noticed how for values of `mx` > 1000 the resulting lists are much smaller than
---    one would expect. I think this may be caused by the way we select the next value
---    for the split. It looks like the available funds get exhausted quite fast, which
---    makes the function return before generating anything close to `mx` values.
+--   I noticed how for values of `mx` > 1000 the resulting lists are much smaller than
+--   one would expect. I think this may be caused by the way we select the next value
+--   for the split. It looks like the available funds get exhausted quite fast, which
+--   makes the function return before generating anything close to `mx` values.
 splitVal :: (MonadGen m, Integral n) => Int -> n -> m [n]
 splitVal _ 0 = pure []
 splitVal mx init' = go 0 0 []

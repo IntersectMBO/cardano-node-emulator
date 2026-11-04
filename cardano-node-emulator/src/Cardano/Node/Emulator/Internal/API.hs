@@ -39,7 +39,6 @@ import Cardano.Node.Emulator.Internal.Node.Chain
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as C
 import Cardano.Node.Emulator.Log (LogMessage (LogMessage), LogMsg (LogMsg))
 import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent))
-import Control.Lens (makeLenses, (&))
 import Data.Map (Map)
 import Data.Sequence (Seq)
 import GHC.Exception (Exception)
@@ -54,6 +53,8 @@ import Ledger
 import Ledger.AddressMap qualified as AM
 import Ledger.Blockchain (Block)
 import Ledger.Slot (Slot)
+import Optics.Core ((&))
+import Optics.TH (makeLenses)
 import Polysemy (InterpreterFor, Member, Members, Sem, insertAt, interpret, run)
 import Polysemy.Error (Error)
 import Polysemy.Reader (Reader, ask)

@@ -22,7 +22,6 @@ import Cardano.Api (SlotNo (SlotNo))
 import Cardano.Node.Emulator.Internal.Node.Params (EmulatorParams)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
 import Cardano.Node.Emulator.Log (LogMsg, logDebug, logInfo, logWarn)
-import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (traverse_)
 import Data.List ((\\))
@@ -39,6 +38,8 @@ import Ledger
     unOnChain,
   )
 import Ledger.Index qualified as Index
+import Optics.Core (over, view, (%), (%~), (&), (.~))
+import Optics.TH (makeLenses, makePrisms)
 import Polysemy
   ( Effect,
     InterpreterFor,
@@ -94,8 +95,10 @@ emptyChainState params = ChainState [] [] mempty (Validation.initialState params
 fromBlockchain :: EmulatorParams -> Blockchain -> ChainState
 fromBlockchain params bc =
   emptyChainState params
-    & chainNewestFirst .~ bc
-    & index .~ Index.initialise bc
+    & chainNewestFirst
+    .~ bc
+    & index
+    .~ Index.initialise bc
 
 data ChainControlEffect :: Effect where
   ProcessBlock :: ChainControlEffect m Block
@@ -133,7 +136,7 @@ handleControlChain params = interpret $ \case
   ModifySlot f -> do
     modify @ChainState
       ( over
-          (ledgerState . Validation.elsSlotL)
+          (ledgerState % Validation.elsSlotL)
           (\(SlotNo s) -> fromIntegral (f (fromIntegral s)))
       )
     gets (Validation.getSlot . view ledgerState)
@@ -172,7 +175,7 @@ data ValidationCtx = ValidationCtx
   }
 
 -- | Validate a block given the current slot and UTxO index, returning the valid
---  transactions, success/failure events and the updated UTxO set.
+-- transactions, success/failure events and the updated UTxO set.
 validateBlock ::
   EmulatorParams -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
 validateBlock params idx ls txns =
@@ -207,10 +210,12 @@ validateEm txn = do
 addBlock :: Block -> ChainState -> ChainState
 addBlock blk st =
   st
-    & chainNewestFirst %~ (blk :)
+    & chainNewestFirst
+    %~ (blk :)
     -- The block update may contain txs that are not in this client's
     -- `txPool` which will get ignored
-    & txPool %~ (\\ map unOnChain blk)
+    & txPool
+    %~ (\\ map unOnChain blk)
 
 addTxToPool :: CardanoTx -> ChainState -> ChainState
 addTxToPool tx = over txPool (tx :)

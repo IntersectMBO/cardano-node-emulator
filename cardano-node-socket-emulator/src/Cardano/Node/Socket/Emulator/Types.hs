@@ -40,7 +40,6 @@ import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
 import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
 import Control.Concurrent.STM
-import Control.Lens (makeLenses, to, view, (&), (.~), (^.))
 import Control.Monad (forever)
 import Control.Monad.Class.MonadST (MonadST)
 import Control.Monad.Class.MonadTimer (MonadDelay (threadDelay), MonadTimer)
@@ -71,6 +70,8 @@ import Ledger.Test (testNetworkMagic)
 import Network.Mux.Types
 import Network.TypedProtocol.Codec.CBOR (Codec)
 import Network.TypedProtocol.Stateful.Codec qualified as TP (Codec)
+import Optics.Core (to, view, (%), (&), (.~), (^.))
+import Optics.TH (makeLenses)
 import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, CodecConfig (..))
 import Ouroboros.Consensus.Cardano.Block qualified as OC
@@ -195,8 +196,8 @@ makeLenses 'AppState
 fromEmulatorChainState :: (MonadIO m) => EmulatorState -> m SocketEmulatorState
 fromEmulatorChainState state = do
   ch <- liftIO $ atomically newTChan
-  let chainNewestFirst = view (esChainState . EC.chainNewestFirst) state
-  let currentSlot = view (esChainState . EC.ledgerState . to getSlot) state
+  let chainNewestFirst = view (esChainState % EC.chainNewestFirst) state
+  let currentSlot = view (esChainState % EC.ledgerState % to getSlot) state
   void $
     liftIO $
       mapM_ (atomically . writeTChan ch) chainNewestFirst
@@ -210,24 +211,25 @@ fromEmulatorChainState state = do
       }
 
 -- | 'ChainState' with initial values
-initialChainState :: (MonadIO m) => EmulatorParams -> Map.Map CardanoAddress Value -> m SocketEmulatorState
+initialChainState ::
+  (MonadIO m) => EmulatorParams -> Map.Map CardanoAddress Value -> m SocketEmulatorState
 initialChainState params = fromEmulatorChainState . emptyEmulatorStateWithInitialDist params
 
 getChannel :: (MonadIO m) => MVar AppState -> m (TChan Block)
-getChannel mv = liftIO (readMVar mv) <&> view (socketEmulatorState . channel)
+getChannel mv = liftIO (readMVar mv) <&> view (socketEmulatorState % channel)
 
 -- Get the current tip.
 getTip :: (MonadIO m) => MVar AppState -> m Tip
-getTip mv = liftIO (readMVar mv) <&> view (socketEmulatorState . tip)
+getTip mv = liftIO (readMVar mv) <&> view (socketEmulatorState % tip)
 
 -- Set the new tip
 setTip :: (MonadIO m) => MVar AppState -> Block -> m ()
 setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
-  let slot = oldState ^. socketEmulatorState . emulatorState . esChainState . EC.ledgerState . to getSlot
+  let slot = oldState ^. (socketEmulatorState % emulatorState % esChainState % EC.ledgerState % to getSlot)
   pure $
     oldState
-      & socketEmulatorState . tip
-        .~ Ouroboros.Tip (fromInteger slot) (coerce $ blockId block) (fromInteger slot)
+      & (socketEmulatorState % tip)
+      .~ Ouroboros.Tip (fromInteger slot) (coerce $ blockId block) (fromInteger slot)
 
 -- | Run all chain effects in the IO Monad
 runChainEffects ::
@@ -243,8 +245,11 @@ runChainEffects ::
   IO (EmulatorLogs, Either EmulatorError a)
 runChainEffects stateVar comp = runFinal $ embedToFinal $ do
   AppState (SocketEmulatorState oldState chan tip') events params <- embed $ takeMVar stateVar
-  (newState, (newEvents, res)) <- raiseUnder $ runState oldState $ runWriter $ runReader params $ runError comp
-  embed $ putMVar stateVar $ AppState (SocketEmulatorState newState chan tip') (events <> newEvents) params
+  (newState, (newEvents, res)) <-
+    raiseUnder $ runState oldState $ runWriter $ runReader params $ runError comp
+  embed $
+    putMVar stateVar $
+      AppState (SocketEmulatorState newState chan tip') (events <> newEvents) params
   return (newEvents, res)
 
 -- Logging ------------------------------------------------------------------------------------------------------------

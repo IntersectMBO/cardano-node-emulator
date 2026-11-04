@@ -62,11 +62,11 @@ import Cardano.Node.Emulator.Internal.Node.TimeSlot
   )
 import Cardano.Slotting.EpochInfo (fixedEpochInfo)
 import Cardano.Slotting.Time (SlotLength, mkSlotLength)
-import Control.Lens (makeLensesFor, over, (%~), (&), (.~), (^.))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
 import Data.Default (Default (def))
+import Data.Functor.Const (Const (Const, getConst))
 import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import Data.SOP (K (K))
@@ -77,6 +77,9 @@ import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
 import Ledger.Test (testNetworkMagic, testnet)
+import Optics.Core (over, to, view, (%~), (&), (.~), (^.))
+import Optics.TH (makeLensesFor)
+import Optics.VL (lensVL)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
@@ -146,7 +149,7 @@ increaseTransactionLimits = increaseTransactionLimits' 2 10 10
 increaseTransactionLimits' :: Word32 -> Natural -> Natural -> EmulatorParams -> EmulatorParams
 increaseTransactionLimits' size steps mem =
   over emulatorPParamsL $
-    (C.ppMaxTxSizeL %~ (size *)) . (C.ppMaxTxExUnitsL %~ f)
+    (lensVL C.ppMaxTxSizeL %~ (size *)) . (lensVL C.ppMaxTxExUnitsL %~ f)
   where
     f :: ExUnits -> ExUnits
     f (ExUnits executionSteps executionMemory) =
@@ -169,10 +172,14 @@ emulatorShelleyGenesisDefaults =
       C.sgSystemStart = posixTimeToUTCTime $ POSIXTime beginningOfTime,
       C.sgProtocolParams =
         C.sgProtocolParams C.shelleyGenesisDefaults
-          & C.ppProtocolVersionL .~ ProtVer emulatorProtocolMajorVersion 0
-          & C.ppMinFeeBL .~ Coin 155_381
-          & C.ppMinFeeAL .~ Coin 44
-          & C.ppKeyDepositL .~ Coin 2_000_000
+          & lensVL C.ppProtocolVersionL
+          .~ ProtVer emulatorProtocolMajorVersion 0
+          & lensVL C.ppMinFeeBL
+          .~ Coin 155_381
+          & lensVL C.ppMinFeeAL
+          .~ Coin 44
+          & lensVL C.ppKeyDepositL
+          .~ Coin 2_000_000
     }
 
 instance MonadFail (Either String) where
@@ -198,20 +205,20 @@ paramsFromConfig tc =
             scSlotLength =
               getPOSIXTime $ nominalDiffTimeToPOSIXTime $ C.Ledger.fromNominalDiffTimeMicro $ C.sgSlotLength sg
           },
-      pEmulatorPParams = tc ^. C.tcInitialPParamsG,
+      pEmulatorPParams = view (to $ getConst . C.tcInitialPParamsG Const) tc,
       pNetworkId = C.Testnet (C.NetworkMagic $ C.sgNetworkMagic sg),
       pEpochSize = C.sgEpochLength sg,
       pConfig = tc
     }
   where
-    sg = tc ^. C.tcShelleyGenesisL
+    sg = tc ^. lensVL C.tcShelleyGenesisL
 
 -- | Calculate the cardano-ledger `SlotLength`
 slotLength :: EmulatorParams -> SlotLength
 slotLength EmulatorParams {pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
 
 keptBlocks :: EmulatorParams -> Integer
-keptBlocks EmulatorParams {pConfig} = fromIntegral $ unNonZero $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
+keptBlocks EmulatorParams {pConfig} = fromIntegral $ unNonZero $ C.sgSecurityParam (pConfig ^. lensVL C.tcShelleyGenesisL)
 
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize
@@ -221,7 +228,7 @@ emulatorEpochSize = EpochSize 432_000
 emulatorGlobals :: EmulatorParams -> Globals
 emulatorGlobals params@EmulatorParams {pEpochSize, pConfig} =
   mkShelleyGlobals
-    (pConfig ^. C.tcShelleyGenesisL)
+    (pConfig ^. lensVL C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))
 
 emulatorGenesisWindow :: GenesisWindow

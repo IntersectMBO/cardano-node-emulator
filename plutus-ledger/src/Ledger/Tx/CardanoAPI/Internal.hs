@@ -102,13 +102,13 @@ import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway (ConwayEra)
 import Cardano.Ledger.Conway.Scripts qualified as Conway
 import Cardano.Ledger.Core qualified as Ledger
-import Control.Lens ((<&>))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (Parser, parseFail, prependFailure, typeMismatch)
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.Functor ((<&>))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)

@@ -94,7 +94,6 @@ import Cardano.Node.Emulator.LogMessages
   ( EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
     TxBalanceMsg (SigningTx, SubmittingTx),
   )
-import Control.Lens (view, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
 import Data.Aeson (ToJSON (toJSON))
 import Data.Map (Map)
@@ -126,6 +125,7 @@ import Ledger.Tx.CardanoAPI
     fromPlutusIndex,
     toCardanoTxIn,
   )
+import Optics.Core (view, (%), (%~), (&), (.~), (^.))
 import Polysemy (Members, Sem)
 import Polysemy.Reader (ask, asks)
 import Polysemy.State (get, gets)
@@ -140,11 +140,16 @@ emptyEmulatorStateWithInitialDist params initialDist =
       vtx = unsafeMakeValid tx
       index = Index.insertBlock [vtx] mempty
    in emptyEmulatorState params
-        & esChainState . E.chainNewestFirst %~ ([vtx] :)
-        & esChainState . E.index .~ index
-        & esChainState . E.ledgerState . elsUtxoL .~ fromPlutusIndex index
-        & esAddressMap %~ AM.updateAllAddresses vtx
-        & esDatumMap <>~ getCardanoTxData tx
+        & (esChainState % E.chainNewestFirst)
+        %~ ([vtx] :)
+        & (esChainState % E.index)
+        .~ index
+        & (esChainState % E.ledgerState % elsUtxoL)
+        .~ fromPlutusIndex index
+        & esAddressMap
+        %~ AM.updateAllAddresses vtx
+        & esDatumMap
+        %~ (<> getCardanoTxData tx)
 
 getParams :: (Members ConcreteEmulatorEffs effs) => Sem effs EmulatorParams
 getParams = ask
@@ -193,26 +198,27 @@ awaitTime t = do
 utxosAt :: (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs UtxoIndex
 utxosAt addr = do
   es <- get
-  pure $ C.UTxO $ Map.map (toCtxUTxOTxOut . snd) $ es ^. esAddressMap . AM.fundsAt addr
+  pure $ C.UTxO $ Map.map (toCtxUTxOTxOut . snd) $ es ^. (esAddressMap % AM.fundsAt addr)
 
 -- | Query the unspent transaction outputs at the given address (using Plutus types).
-utxosAtPlutus :: (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs (Map TxOutRef DecoratedTxOut)
+utxosAtPlutus ::
+  (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs (Map TxOutRef DecoratedTxOut)
 utxosAtPlutus addr = do
   es <- get
   pure $
     Map.mapKeys fromCardanoTxIn $
       Map.mapMaybe (toDecoratedTxOut . snd) $
-        es ^. esAddressMap . AM.fundsAt addr
+        es ^. (esAddressMap % AM.fundsAt addr)
 
 -- | Query the unspent transaction outputs at the given transaction inputs.
 utxosAtTxIns :: (Members ConcreteEmulatorEffs effs, Foldable f) => f C.TxIn -> Sem effs UtxoIndex
 utxosAtTxIns txIns = do
-  idx <- gets $ view $ esChainState . E.index
+  idx <- gets $ view $ esChainState % E.index
   pure $ foldMap (\txIn -> maybe mempty (Index.singleton txIn) $ Index.lookupUTxO txIn idx) txIns
 
 -- | Resolve the transaction input.
 utxoAtTxIn :: (Members ConcreteEmulatorEffs effs) => C.TxIn -> Sem effs (Maybe TxOut)
-utxoAtTxIn txIn = gets $ Index.lookup txIn . view (esChainState . E.index)
+utxoAtTxIn txIn = gets $ Index.lookup txIn . view (esChainState % E.index)
 
 -- | Resolve the transaction output reference (using Plutus types).
 utxoAtTxOutRef :: (Members ConcreteEmulatorEffs effs) => TxOutRef -> Sem effs (Maybe DecoratedTxOut)
@@ -236,13 +242,13 @@ lookupDatum h = do
 getLedgerState :: (Members ConcreteEmulatorEffs effs) => Sem effs (LedgerState EmulatorEra)
 getLedgerState = do
   es <- get
-  pure $ es ^. esChainState . E.ledgerState . elsLedgerStateL
+  pure $ es ^. (esChainState % E.ledgerState % elsLedgerStateL)
 
 -- | Get the internal mempool environment.
 getMemPoolEnv :: (Members ConcreteEmulatorEffs effs) => Sem effs (MempoolEnv EmulatorEra)
 getMemPoolEnv = do
   es <- get
-  pure $ es ^. esChainState . E.ledgerState . elsLedgerEnvL
+  pure $ es ^. (esChainState % E.ledgerState % elsLedgerEnvL)
 
 -- | Sign a transaction with the given signatures.
 signTx ::

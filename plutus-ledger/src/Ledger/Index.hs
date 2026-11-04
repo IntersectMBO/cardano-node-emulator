@@ -54,8 +54,8 @@ import Cardano.Ledger.Coin (Coin (Coin))
 import Cardano.Ledger.Conway qualified as Conway
 import Cardano.Ledger.Core (PParams, getMinCoinTxOut)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
-import Control.Lens (alaf, (&), (.~), (<&>))
 import Data.Foldable (foldl')
+import Data.Functor ((<&>))
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Ap (..))
@@ -79,6 +79,7 @@ import Ledger.Tx
 import Ledger.Tx.CardanoAPI (fromPlutusTxOut, toCardanoTxOutValue)
 import Ledger.Tx.Internal qualified as Tx
 import Ledger.Value.CardanoAPI (Value, lovelaceToValue)
+import Optics.Core ((&), (.~))
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusTx.Lattice ((\/))
 import Prelude hiding (lookup)
@@ -129,7 +130,8 @@ getCollateral idx tx = case getCardanoTxTotalCollateral tx of
   Just v -> lovelaceToValue v
   Nothing ->
     fromMaybe (lovelaceToValue $ getCardanoTxFee tx) $
-      alaf Ap foldMap (fmap txOutValue . (`lookup` idx)) (getCardanoTxCollateralInputs tx)
+      getAp $
+        foldMap (Ap . fmap txOutValue . (`lookup` idx)) (getCardanoTxCollateralInputs tx)
 
 -- | Adjust a single transaction output so it contains at least the minimum amount of Ada
 -- and return the adjustment (if any) and the updated TxOut.
@@ -165,9 +167,9 @@ minAdaTxOut params txOut =
 
 -- | Provide a reasonable estimate of the mimimum of Ada required for a TxOut.
 --
---  An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
---    - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
---    - the size of the 'TxOut'.
+-- An exact estimate of the the mimimum of Ada in a TxOut is determined by two things:
+--   - the `PParams`, more precisely its 'coinPerUTxOWord' parameter.
+--   - the size of the 'TxOut'.
 -- In many situations though, we need to determine a plausible value for the minimum of Ada needed for a TxOut
 -- without knowing much of the 'TxOut'.
 -- This function provides a value big enough to balance UTxOs without
@@ -207,7 +209,8 @@ maxFee = PV1.Lovelace 1_000_000
 -- | cardano-ledger validation rules require the presence of inputs and
 -- we have to provide a stub TxIn for the genesis transaction.
 genesisTxIn :: C.TxIn
-genesisTxIn = C.TxIn (C.TxId "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53") (C.TxIx 40_214)
+genesisTxIn =
+  C.TxIn (C.TxId "01f4b788593d4f70de2a45c2e1e87088bfbdfa29577ae1b62aba60e095e3ab53") (C.TxIx 40_214)
 
 createGenesisTransaction :: Map.Map CardanoAddress Value -> CardanoTx
 createGenesisTransaction vals =

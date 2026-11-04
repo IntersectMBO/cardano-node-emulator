@@ -9,13 +9,13 @@ module Cardano.Node.Emulator.LogMessages where
 
 import Cardano.Api qualified as C
 import Cardano.Node.Emulator.Internal.Node.Chain (ChainEvent)
-import Control.Lens.TH (makePrisms)
 import Data.Aeson (Value)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Ledger (CardanoAddress, CardanoTx, getCardanoTxId, toPlutusAddress)
 import Ledger.Index (UtxoIndex, ValidationError, ValidationPhase)
 import Ledger.Tx.CardanoAPI (CardanoBuildTx)
+import Optics.TH (makePrisms)
 import Prettyprinter (Pretty (pretty), colon, hang, viaShow, vsep, (<+>))
 
 data EmulatorMsg

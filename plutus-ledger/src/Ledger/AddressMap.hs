@@ -25,19 +25,6 @@ module Ledger.AddressMap
 where
 
 import Cardano.Api qualified as C
-import Control.Lens
-  ( At (..),
-    Index,
-    IxValue,
-    Ixed (..),
-    Lens',
-    at,
-    lens,
-    non,
-    (&),
-    (.~),
-    (^.),
-  )
 import Control.Monad (join)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Foldable (fold)
@@ -49,6 +36,16 @@ import GHC.Generics (Generic)
 import Ledger.Address (CardanoAddress)
 import Ledger.Blockchain (Blockchain, OnChainTx, consumableInputs, outputsProduced, unOnChain)
 import Ledger.Tx (CardanoTx, TxOut (..), txOutAddress, txOutValue)
+import Optics.Core
+  ( At (..),
+    Index,
+    IxValue,
+    Ixed (..),
+    Lens',
+    non,
+    (%),
+  )
+import Optics.Core qualified as O
 
 type UtxoMap = Map C.TxIn (CardanoTx, TxOut)
 
@@ -75,20 +72,17 @@ type instance Index AddressMap = CardanoAddress
 type instance IxValue AddressMap = Map C.TxIn (CardanoTx, TxOut)
 
 instance Ixed AddressMap where
-  ix adr f (AddressMap mp) = AddressMap <$> ix adr f mp
+  ix adr = O.iso getAddressMap AddressMap O.% O.ix adr
 
 instance At AddressMap where
-  at idx = lens g s
-    where
-      g (AddressMap mp) = mp ^. at idx
-      s (AddressMap mp) utxo = AddressMap $ mp & at idx .~ utxo
+  at idx = O.iso getAddressMap AddressMap O.% O.at idx
 
 -- | Get the funds available at a particular address.
 fundsAt :: CardanoAddress -> Lens' AddressMap UtxoMap
-fundsAt addr = at addr . non mempty
+fundsAt addr = at addr % non mempty
 
 -- | Add an address with no unspent outputs to a map. If the address already
---  exists, do nothing.
+-- exists, do nothing.
 addAddress :: CardanoAddress -> AddressMap -> AddressMap
 addAddress adr (AddressMap mp) = AddressMap $ Map.alter upd adr mp
   where

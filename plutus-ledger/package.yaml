@@ -55,7 +55,9 @@ library:
     - cryptonite >=0.25
     - hashable
     - http-api-data
-    - lens
+    - optics-core
+    - optics-th
+    - optics-vl
     - memory
     - mtl
     - newtype-generics

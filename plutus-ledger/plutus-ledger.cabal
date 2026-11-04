@@ -84,10 +84,12 @@ library
     , hashable
     , http-api-data
     , iohk-monitoring
-    , lens
     , memory
     , mtl
     , newtype-generics
+    , optics-core
+    , optics-th
+    , optics-vl
     , ordered-containers
     , plutus-core
     , plutus-ledger-api

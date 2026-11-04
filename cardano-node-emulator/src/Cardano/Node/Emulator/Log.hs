@@ -56,14 +56,26 @@ module Cardano.Node.Emulator.Log
   )
 where
 
-import Control.Lens (AReview, Prism', makeLenses, prism', review)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (for_)
 import Data.Functor ((<&>))
 import Data.Text (Text)
 import Debug.Trace qualified as Trace
 import GHC.Generics (Generic)
-import Polysemy (Effect, InterpreterFor, Member, Sem, insertAt, interpret, makeSem, raise, reinterpret)
+import Optics.Core (Prism', prism')
+import Optics.Review (Review, review)
+import Optics.TH (makeLenses)
+import Polysemy
+  ( Effect,
+    InterpreterFor,
+    Member,
+    Sem,
+    insertAt,
+    interpret,
+    makeSem,
+    raise,
+    reinterpret,
+  )
 import Polysemy.State (State, get, put, runState)
 import Polysemy.Writer (Writer, tell)
 import Prettyprinter (Pretty (pretty), defaultLayoutOptions, hang, layoutPretty, (<+>))
@@ -71,7 +83,7 @@ import Prettyprinter.Render.String qualified as Render
 import Prettyprinter.Render.Text qualified as Render
 
 -- | The severity level of a log message
---  See https://en.wikipedia.org/wiki/Syslog#Severity_level
+-- See https://en.wikipedia.org/wiki/Syslog#Severity_level
 data LogLevel
   = Debug
   | Info
@@ -159,7 +171,7 @@ renderLogMessages =
 handleLogWriter ::
   forall a w effs.
   (Member (Writer w) effs) =>
-  AReview w (LogMessage a) ->
+  Review w (LogMessage a) ->
   InterpreterFor (LogMsg a) effs
 handleLogWriter p = interpret $ \(LogMsg msg) -> tell (review p msg)
 
@@ -180,7 +192,7 @@ handleLogTrace = interpret $ \(LogMsg msg) ->
     (pure ())
 
 -- | An abstract type used to tie the beginning and end of observations
---  together.
+-- together.
 newtype ObservationHandle = ObservationHandle Integer
 
 data LogObserve a :: Effect where
@@ -190,8 +202,8 @@ data LogObserve a :: Effect where
 makeSem ''LogObserve
 
 -- | Write a log message before and after an action. Consider using
---  'observeBefore' and 'observeAfter' directly if you need more control
---  over the values that are observed at the call site.
+-- 'observeBefore' and 'observeAfter' directly if you need more control
+-- over the values that are observed at the call site.
 surround ::
   forall v a effs.
   (Member (LogObserve v) effs) =>
@@ -253,8 +265,8 @@ initialState :: ObsState v s
 initialState = ObsState 0 []
 
 -- | Handle the 'LogObserve' effect by recording observations
---  @s@ before and after the observed action, and turning
---  them into 'LogMessage (Observation s)' values.
+-- @s@ before and after the observed action, and turning
+-- them into 'LogMessage (Observation s)' values.
 handleObserve ::
   forall v s effs.
   -- | How to get the current 's'
@@ -323,7 +335,7 @@ handleObserve getCurrent handleObs =
         put newState
 
 -- | Interpret the 'LogObserve' effect by logging a "start" message
---  before the action and an "end" message after the action.
+-- before the action and an "end" message after the action.
 handleObserveLog ::
   forall effs.
   (Member (LogMsg Text) effs) =>

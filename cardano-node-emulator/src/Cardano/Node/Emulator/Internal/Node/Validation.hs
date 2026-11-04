@@ -51,13 +51,15 @@ import Cardano.Node.Emulator.Internal.Node.Params
     emulatorPParams,
     ledgerProtocolParameters,
   )
-import Control.Lens (Lens', makeLensesFor, over, view, (^.))
 import Data.Bifunctor (bimap, first)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Ledger qualified as P.Ledger
 import Ledger.Tx.CardanoAPI qualified as P.Ledger
+import Optics.Core (Lens', over, view, (%), (^.))
+import Optics.TH (makeLensesFor)
+import Optics.VL (lensVL)
 import PlutusLedgerApi.V1 qualified as PV1
 
 {- Note [Emulated ledger]
@@ -110,13 +112,18 @@ makeLensesFor
   ]
   ''EmulatedLedgerState
 
-registerStakeCredential :: Cardano.StakeCredential -> Cardano.Coin -> Cardano.Coin -> EmulatedLedgerState -> EmulatedLedgerState
+registerStakeCredential ::
+  Cardano.StakeCredential ->
+  Cardano.Coin ->
+  Cardano.Coin ->
+  EmulatedLedgerState ->
+  EmulatedLedgerState
 registerStakeCredential sCred reward deposit =
   over
     ( elsLedgerStateL
-        . Shelley.lsCertStateL
-        . Shelley.certDStateL
-        . Shelley.dsUnifiedL
+        % lensVL Shelley.lsCertStateL
+        % lensVL Shelley.certDStateL
+        % lensVL Shelley.dsUnifiedL
     )
     ( UM.insert
         sCred
@@ -133,9 +140,9 @@ setReward :: Cardano.StakeCredential -> Cardano.Coin -> EmulatedLedgerState -> E
 setReward sCred reward =
   over
     ( elsLedgerStateL
-        . Shelley.lsCertStateL
-        . Shelley.certDStateL
-        . Shelley.dsUnifiedL
+        % lensVL Shelley.lsCertStateL
+        % lensVL Shelley.certDStateL
+        % lensVL Shelley.dsUnifiedL
     )
     ( \umap@(UM.RewDepUView -> uview) ->
         maybe
@@ -152,9 +159,9 @@ getDeposit sCred =
     . UM.RewDepUView
     . view
       ( elsLedgerStateL
-          . Shelley.lsCertStateL
-          . Shelley.certDStateL
-          . Shelley.dsUnifiedL
+          % lensVL Shelley.lsCertStateL
+          % lensVL Shelley.certDStateL
+          % lensVL Shelley.dsUnifiedL
       )
 
 -- | Gets the deposit for a stake credential
@@ -165,9 +172,9 @@ getReward sCred =
     . UM.RewDepUView
     . view
       ( elsLedgerStateL
-          . Shelley.lsCertStateL
-          . Shelley.certDStateL
-          . Shelley.dsUnifiedL
+          % lensVL Shelley.lsCertStateL
+          % lensVL Shelley.certDStateL
+          % lensVL Shelley.dsUnifiedL
       )
 
 -- | Sets the deposit for an existing stake credential, overriding the old one,
@@ -176,9 +183,9 @@ setDeposit :: Cardano.StakeCredential -> Cardano.Coin -> EmulatedLedgerState -> 
 setDeposit sCred deposit =
   over
     ( elsLedgerStateL
-        . Shelley.lsCertStateL
-        . Shelley.certDStateL
-        . Shelley.dsUnifiedL
+        % lensVL Shelley.lsCertStateL
+        % lensVL Shelley.certDStateL
+        % lensVL Shelley.dsUnifiedL
     )
     ( \umap@(UM.RewDepUView -> uview) ->
         maybe
@@ -189,7 +196,7 @@ setDeposit sCred deposit =
 
 -- | Tampers with the Slot number
 elsSlotL :: Lens' EmulatedLedgerState C.Api.SlotNo
-elsSlotL = elsLedgerEnvL . Shelley.ledgerSlotNoL
+elsSlotL = elsLedgerEnvL % lensVL Shelley.ledgerSlotNoL
 
 -- | Increases the slot number by one
 nextSlot :: EmulatedLedgerState -> EmulatedLedgerState
@@ -201,16 +208,16 @@ getSlot = fromIntegral . C.Api.unSlotNo . view elsSlotL
 
 -- | Tampers with the index
 elsUtxoL :: Lens' EmulatedLedgerState (Shelley.UTxO EmulatorEra)
-elsUtxoL = elsLedgerStateL . Shelley.utxoL
+elsUtxoL = elsLedgerStateL % lensVL Shelley.utxoL
 
 -- | Tampers with the constitution script
 elsConstitutionScriptL :: Lens' EmulatedLedgerState (Shelley.StrictMaybe Shelley.ScriptHash)
 elsConstitutionScriptL =
   elsLedgerStateL
-    . Shelley.lsUTxOStateL
-    . Shelley.utxosGovStateL
-    . Conway.constitutionGovStateL
-    . Conway.constitutionScriptL
+    % lensVL Shelley.lsUTxOStateL
+    % lensVL Shelley.utxosGovStateL
+    % lensVL Conway.constitutionGovStateL
+    % lensVL Conway.constitutionScriptL
 
 -- | Initial ledger state for a distribution
 initialState :: EmulatorParams -> EmulatedLedgerState
@@ -238,9 +245,12 @@ applyTx ::
   EmulatorParams ->
   EmulatedLedgerState ->
   Ledger.Tx EmulatorEra ->
-  Either (Shelley.ApplyTxError EmulatorEra) (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
+  Either
+    (Shelley.ApplyTxError EmulatorEra)
+    (EmulatedLedgerState, Shelley.Validated (Ledger.Tx EmulatorEra))
 applyTx params (EmulatedLedgerState ledgerEnv ledgerState) tx =
-  first (EmulatedLedgerState ledgerEnv) <$> Shelley.applyTx (emulatorGlobals params) ledgerEnv ledgerState tx
+  first (EmulatedLedgerState ledgerEnv)
+    <$> Shelley.applyTx (emulatorGlobals params) ledgerEnv ledgerState tx
 
 hasValidationErrors ::
   EmulatorParams ->
@@ -252,7 +262,12 @@ hasValidationErrors params ls tx =
     -- 'validateAndApplyTx' will only consider phase 1 failures as
     -- errors. Indeed, fail 2 failures will still lead to successes where the
     -- collaterals will be inserted into the index.
-    Left err -> (ls, P.Ledger.FailPhase1 (P.Ledger.CardanoEmulatorEraTx tx) (P.Ledger.CardanoLedgerValidationError . Text.pack . show $ err))
+    Left err ->
+      ( ls,
+        P.Ledger.FailPhase1
+          (P.Ledger.CardanoEmulatorEraTx tx)
+          (P.Ledger.CardanoLedgerValidationError . Text.pack . show $ err)
+      )
     -- We need to catch phase 2 failures, though, which is why we call
     -- 'getTxExUnitsWithLogs' which is going to throw all phase 2 failures,
     -- except for those revolving around execution units.
@@ -262,7 +277,11 @@ hasValidationErrors params ls tx =
       Left (P.Ledger.Phase1, err) -> (ls', P.Ledger.FailPhase1 (P.Ledger.CardanoEmulatorEraTx tx) err)
       -- This case corresponds to all Phase 2 failures except those revolving
       -- around execution units.
-      Left (P.Ledger.Phase2, err) -> (ls', P.Ledger.FailPhase2 vtx err $ P.Ledger.getCollateral (P.Ledger.toPlutusIndex $ ls ^. elsUtxoL) (P.Ledger.CardanoEmulatorEraTx tx))
+      Left (P.Ledger.Phase2, err) ->
+        ( ls',
+          P.Ledger.FailPhase2 vtx err $
+            P.Ledger.getCollateral (P.Ledger.toPlutusIndex $ ls ^. elsUtxoL) (P.Ledger.CardanoEmulatorEraTx tx)
+        )
       -- To handle the execution units failures, we inspect the validated
       -- transaction and check if we get a @IsValid False@.
       Right _
@@ -321,10 +340,10 @@ constructValidated (Shelley.Globals {..}) (Shelley.UtxoEnv _ pp _) st tx =
     )
     ( \sLst ->
         Alonzo.AlonzoTx
-          (view Ledger.bodyTxL tx)
-          (view Ledger.witsTxL tx)
+          (view (lensVL Ledger.bodyTxL) tx)
+          (view (lensVL Ledger.witsTxL) tx)
           (Alonzo.IsValid (lift $ Alonzo.evalPlutusScripts sLst))
-          (view Ledger.auxDataTxL tx)
+          (view (lensVL Ledger.auxDataTxL) tx)
     )
     (Alonzo.collectPlutusScriptsWithContext epochInfo systemStart pp tx (Shelley.utxosUtxo st))
   where
@@ -356,9 +375,18 @@ getTxExUnitsWithLogs params utxo (C.Api.ShelleyTx _ tx) =
   traverse (either toCardanoLedgerError Right) result
   where
     eg = emulatorGlobals params
-    result = Alonzo.evalTxExUnitsWithLogs (emulatorPParams params) tx utxo (Shelley.epochInfo eg) (Shelley.systemStart eg)
+    result =
+      Alonzo.evalTxExUnitsWithLogs
+        (emulatorPParams params)
+        tx
+        utxo
+        (Shelley.epochInfo eg)
+        (Shelley.systemStart eg)
     toCardanoLedgerError (Alonzo.ValidationFailure _ (PV1.CekError ce) logs _) =
-      Left (P.Ledger.Phase2, P.Ledger.ScriptFailure (PV1.EvaluationError logs ("CekEvaluationFailure: " ++ show ce)))
+      Left
+        ( P.Ledger.Phase2,
+          P.Ledger.ScriptFailure (PV1.EvaluationError logs ("CekEvaluationFailure: " ++ show ce))
+        )
     toCardanoLedgerError e = Left (P.Ledger.Phase2, P.Ledger.CardanoLedgerValidationError $ Text.pack $ show e)
 
 createTransactionBody ::

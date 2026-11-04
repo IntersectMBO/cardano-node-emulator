@@ -59,7 +59,9 @@ library
     , containers
     , data-default
     , hedgehog
-    , lens
+    , optics-core
+    , optics-th
+    , optics-vl
     , ouroboros-consensus
     , plutus-ledger
     , plutus-ledger-api

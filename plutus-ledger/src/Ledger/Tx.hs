@@ -96,25 +96,13 @@ import Cardano.Ledger.Alonzo.Tx (AlonzoTx (..))
 import Cardano.Ledger.Alonzo.TxWits (txwitsVKey)
 import Cardano.Ledger.Coin (Coin)
 import Codec.Serialise (Serialise)
-import Control.Lens
-  ( Getter,
-    Lens',
-    Traversal',
-    lens,
-    makeLenses,
-    makePrisms,
-    to,
-    view,
-    views,
-    (^.),
-    (^?),
-  )
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.List (genericLength)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Map.Ordered.Strict qualified as OMap
+import Data.Maybe (listToMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple (swap)
@@ -130,6 +118,19 @@ import Ledger.Tx.CardanoAPI
   )
 import Ledger.Tx.CardanoAPI qualified as CardanoAPI
 import Ledger.Tx.Internal as Export
+import Optics.Core
+  ( Getter,
+    Lens',
+    Traversal',
+    lens,
+    to,
+    view,
+    views,
+    (^.),
+  )
+import Optics.Fold (toListOf)
+import Optics.TH (makeLenses, makePrisms)
+import Optics.Traversal (traversalVL)
 import Plutus.Script.Utils.Scripts (Script, Validator, ValidatorHash (..), toScriptHash)
 import PlutusLedgerApi.V1 qualified as V1 hiding (TxOutRef (..))
 import PlutusLedgerApi.V1.Tx as Export hiding
@@ -157,9 +158,11 @@ data DatumFromQuery
 makePrisms ''DatumFromQuery
 
 datumInDatumFromQuery :: Traversal' DatumFromQuery V2.Datum
-datumInDatumFromQuery _ DatumUnknown = pure DatumUnknown
-datumInDatumFromQuery f (DatumInline d) = DatumInline <$> f d
-datumInDatumFromQuery f (DatumInBody d) = DatumInBody <$> f d
+datumInDatumFromQuery = traversalVL $ \f s ->
+  case s of
+    DatumUnknown -> pure DatumUnknown
+    DatumInline d -> DatumInline <$> f d
+    DatumInBody d -> DatumInBody <$> f d
 
 -- | Offchain view of a transaction output.
 data DecoratedTxOut
@@ -247,10 +250,12 @@ decoratedTxOutAddress :: Getter DecoratedTxOut Address
 decoratedTxOutAddress = to _decoratedTxOutAddress
 
 decoratedTxOutDatum :: Traversal' DecoratedTxOut (V2.DatumHash, DatumFromQuery)
-decoratedTxOutDatum f p@(PublicKeyDecoratedTxOut pkh sc v dat rs) =
-  maybe (pure p) (fmap (\dat' -> PublicKeyDecoratedTxOut pkh sc v (Just dat') rs) . f) dat
-decoratedTxOutDatum f (ScriptDecoratedTxOut vh sc v dat rs val) =
-  (\dat' -> ScriptDecoratedTxOut vh sc v dat' rs val) <$> f dat
+decoratedTxOutDatum = traversalVL $ \f s ->
+  case s of
+    p@(PublicKeyDecoratedTxOut pkh sc v dat rs) ->
+      maybe (pure p) (fmap (\dat' -> PublicKeyDecoratedTxOut pkh sc v (Just dat') rs) . f) dat
+    ScriptDecoratedTxOut vh sc v dat rs val ->
+      (\dat' -> ScriptDecoratedTxOut vh sc v dat' rs val) <$> f dat
 
 toDecoratedTxOut :: TxOut -> Maybe DecoratedTxOut
 toDecoratedTxOut (TxOut (C.TxOut addr' val dt rs)) =
@@ -282,7 +287,7 @@ toTxOut networkId p =
     <$> ( C.TxOut
             <$> CardanoAPI.toCardanoAddressInEra networkId (p ^. decoratedTxOutAddress)
             <*> pure (CardanoAPI.toCardanoTxOutValue (p ^. decoratedTxOutValue))
-            <*> toTxOutDatum (p ^? decoratedTxOutDatum)
+            <*> toTxOutDatum (listToMaybe $ toListOf decoratedTxOutDatum p)
             <*> pure (CardanoAPI.toCardanoReferenceScript (p ^. decoratedTxOutReferenceScript))
         )
 
@@ -301,7 +306,7 @@ toTxInfoTxOut p =
   V2.Tx.TxOut
     (p ^. decoratedTxOutAddress)
     (CardanoAPI.fromCardanoValue $ p ^. decoratedTxOutValue)
-    (toPlutusOutputDatum $ p ^? decoratedTxOutDatum)
+    (toPlutusOutputDatum $ listToMaybe $ toListOf decoratedTxOutDatum p)
     (views decoratedTxOutReferenceScript (fmap toScriptHash) p)
 
 toPlutusOutputDatum :: Maybe (V2.DatumHash, DatumFromQuery) -> V2.Tx.OutputDatum
@@ -421,8 +426,15 @@ getTxBodyContentReturnCollateral C.TxBodyContent {..} =
 
 getCardanoTxProducedReturnCollateral :: CardanoTx -> Map C.TxIn TxOut
 getCardanoTxProducedReturnCollateral tx@(CardanoEmulatorEraTx tx') =
-  maybe Map.empty (Map.singleton (C.TxIn (getCardanoTxId tx) (C.TxIx (genericLength $ C.txOuts $ C.getTxBodyContent $ C.getTxBody tx')))) $
-    getCardanoTxReturnCollateral tx
+  maybe
+    Map.empty
+    ( Map.singleton
+        ( C.TxIn
+            (getCardanoTxId tx)
+            (C.TxIx (genericLength $ C.txOuts $ C.getTxBodyContent $ C.getTxBody tx'))
+        )
+    )
+    $ getCardanoTxReturnCollateral tx
 
 getCardanoTxTotalCollateral :: CardanoTx -> Maybe Coin
 getCardanoTxTotalCollateral (CardanoEmulatorEraTx tx) =
@@ -440,7 +452,9 @@ getTxBodyContentMint C.TxBodyContent {..} = C.txMintValueToValue txMintValue
 getCardanoTxValidityRange :: CardanoTx -> SlotRange
 getCardanoTxValidityRange (CardanoTx tx _) =
   let bodyContent = C.getTxBodyContent $ C.getTxBody tx
-   in CardanoAPI.fromCardanoValidityRange (C.txValidityLowerBound bodyContent) (C.txValidityUpperBound bodyContent)
+   in CardanoAPI.fromCardanoValidityRange
+        (C.txValidityLowerBound bodyContent)
+        (C.txValidityUpperBound bodyContent)
 
 getCardanoTxData :: CardanoTx -> Map V1.DatumHash V1.Datum
 getCardanoTxData (CardanoEmulatorEraTx (C.Tx txBody _)) = fst $ CardanoAPI.scriptDataFromCardanoTxBody txBody

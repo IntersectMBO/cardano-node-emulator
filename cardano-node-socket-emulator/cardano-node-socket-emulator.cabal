@@ -62,9 +62,11 @@ library
     , exceptions
     , io-classes
     , iohk-monitoring
-    , lens
     , memory
     , network-mux
+    , optics-core
+    , optics-th
+    , optics-vl
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion

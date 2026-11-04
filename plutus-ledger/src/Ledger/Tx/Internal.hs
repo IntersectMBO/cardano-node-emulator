@@ -23,7 +23,6 @@ import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Cardano.Api qualified as C
 import Cardano.Ledger.Alonzo.Genesis ()
 import Codec.Serialise (Serialise, decode, encode)
-import Control.Lens qualified as L
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -34,6 +33,7 @@ import Ledger.DCert.Orphans ()
 import Ledger.Data.CardanoAPI (datumHash)
 import Ledger.Tx.Orphans ()
 import Ledger.Tx.Orphans.V2 ()
+import Optics.Core qualified as O
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts
@@ -49,15 +49,15 @@ cardanoTxOutValue (C.TxOut _aie tov _tod _rs) =
 txOutValue :: TxOut -> C.Value
 txOutValue = cardanoTxOutValue . getTxOut
 
-outValue :: L.Lens TxOut TxOut C.Value (C.TxOutValue C.ConwayEra)
+outValue :: O.Lens TxOut TxOut C.Value (C.TxOutValue C.ConwayEra)
 outValue =
-  L.lens
+  O.lens
     txOutValue
     (\(TxOut (C.TxOut aie _ tod rs)) tov -> TxOut (C.TxOut aie tov tod rs))
 
-outValue' :: L.Lens' TxOut (C.TxOutValue C.ConwayEra)
+outValue' :: O.Lens' TxOut (C.TxOutValue C.ConwayEra)
 outValue' =
-  L.lens
+  O.lens
     (\(TxOut (C.TxOut _aie tov _tod _rs)) -> tov)
     (\(TxOut (C.TxOut aie _ tod rs)) tov -> TxOut (C.TxOut aie tov tod rs))
 
@@ -148,15 +148,15 @@ txOutPubKey (TxOut (C.TxOut aie _ _ _)) = cardanoPubKeyHash aie
 txOutAddress :: TxOut -> CardanoAddress
 txOutAddress (TxOut (C.TxOut aie _tov _tod _rs)) = aie
 
-outAddress :: L.Lens' TxOut (C.AddressInEra C.ConwayEra)
+outAddress :: O.Lens' TxOut (C.AddressInEra C.ConwayEra)
 outAddress =
-  L.lens
+  O.lens
     txOutAddress
     (\(TxOut (C.TxOut _ tov tod rs)) aie -> TxOut (C.TxOut aie tov tod rs))
 
-outDatumHash :: L.Lens TxOut TxOut (Maybe DatumHash) (C.TxOutDatum C.CtxTx C.ConwayEra)
+outDatumHash :: O.Lens TxOut TxOut (Maybe DatumHash) (C.TxOutDatum C.CtxTx C.ConwayEra)
 outDatumHash =
-  L.lens
+  O.lens
     txOutDatumHash
     (\(TxOut (C.TxOut aie tov _ rs)) tod -> TxOut (C.TxOut aie tov tod rs))
 
@@ -165,9 +165,9 @@ type ReferenceScript = C.ReferenceScript C.ConwayEra
 txOutReferenceScript :: TxOut -> ReferenceScript
 txOutReferenceScript (TxOut (C.TxOut _aie _tov _tod rs)) = rs
 
-outReferenceScript :: L.Lens' TxOut ReferenceScript
+outReferenceScript :: O.Lens' TxOut ReferenceScript
 outReferenceScript =
-  L.lens
+  O.lens
     txOutReferenceScript
     (\(TxOut (C.TxOut aie tov tod _)) rs -> TxOut (C.TxOut aie tov tod rs))
 

@@ -61,7 +61,9 @@ library:
     - containers
     - data-default
     - hedgehog
-    - lens
+    - optics-core
+    - optics-th
+    - optics-vl
     - prettyprinter >=1.1.0.1
     - sop-core
     - text

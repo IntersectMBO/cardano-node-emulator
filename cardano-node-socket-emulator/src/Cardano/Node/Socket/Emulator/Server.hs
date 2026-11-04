@@ -73,7 +73,6 @@ import Control.Concurrent.STM
     writeTQueue,
   )
 import Control.Exception (throwIO)
-import Control.Lens (over, (.~), (^.))
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Tracer (nullTracer)
@@ -86,6 +85,7 @@ import Data.SOP.Strict (NS (S, Z))
 import Data.Void (Void)
 import Ledger (Block, CardanoTx (..), Slot (..))
 import Network.Mux.Types (Mode (ResponderMode))
+import Optics.Core (over, (%), (.~), (^.))
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
 import Ouroboros.Consensus.Cardano.Block qualified as Consensus
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
@@ -135,12 +135,12 @@ data CommandChannel = CommandChannel
   }
 
 -- | Clone the original channel for each connected client, then use
---     this wrapper to make sure that no data is consumed from the
---     original channel.
+--    this wrapper to make sure that no data is consumed from the
+--    original channel.
 newtype LocalChannel = LocalChannel (TChan Block)
 
 -- | A handler used to pass around the path to the server
---     and channels used for controlling the server.
+--    and channels used for controlling the server.
 data ServerHandler = ServerHandler
   { shSocketPath :: FilePath,
     -- The client will send a `ServerCommand` and the server will
@@ -149,8 +149,8 @@ data ServerHandler = ServerHandler
   }
 
 -- | The commands that control the server. This API is not part of the client
---     interface, and in order to call them directly you will need access to the
---     returned ServerHandler
+--    interface, and in order to call them directly you will need access to the
+--    returned ServerHandler
 data ServerCommand
   = -- This command will add a new block by processing
     -- transactions in the memory pool.
@@ -167,7 +167,7 @@ instance Show ServerCommand where
     AddTx t -> "AddTx " <> show t
 
 -- | The response from the server. Can be used for the information
---     passed back, or for synchronisation.
+--    passed back, or for synchronisation.
 data ServerResponse
   = -- A block was added. We are using this for synchronization.
     BlockAdded Block
@@ -258,7 +258,7 @@ handleCommand trace CommandChannel {ccCommand, ccResponse} mvAppState =
           writeTQueue ccResponse (BlockAdded block)
 
 -- | Start the server in a new thread, and return a server handler
---     used to control the server
+--    used to control the server
 runServerNode ::
   (MonadIO m) =>
   Trace IO E.EmulatorMsg ->
@@ -346,7 +346,7 @@ findIntersect ::
 findIntersect clientPoints = do
   mvState <- ask
   appState <- liftIO $ readMVar mvState
-  let chainState = appState ^. socketEmulatorState . emulatorState . E.esChainState
+  let chainState = appState ^. (socketEmulatorState % emulatorState % E.esChainState)
       blocks = Chain._chainNewestFirst chainState
       slot = Validation.getSlot (Chain._ledgerState chainState)
   serverPoints <- getChainPoints blocks slot
@@ -615,7 +615,8 @@ txSubmissionServer state =
     }
 
 -- Remove if Cardano.Api.Internal.InMode is exposed again
-fromConsensusGenTx :: () => (Consensus.CardanoBlock StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
+fromConsensusGenTx ::
+  () => (Consensus.CardanoBlock StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
 fromConsensusGenTx = \case
   Consensus.HardForkGenTx (Consensus.OneEraGenTx (Z tx')) ->
     C.TxInByronSpecial tx'
@@ -663,7 +664,7 @@ submitTx state tx = case fromConsensusGenTx tx of
           state
           ( pure
               . over
-                (socketEmulatorState . emulatorState . E.esChainState)
+                (socketEmulatorState % emulatorState % E.esChainState)
                 (Chain.addTxToPool ctx . (Chain.ledgerState .~ ls'))
           )
         pure TxSubmission.SubmitSuccess

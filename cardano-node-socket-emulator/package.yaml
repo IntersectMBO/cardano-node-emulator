@@ -27,12 +27,12 @@ ghc-options:
   -Wredundant-constraints
   -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
   -fplugin-opt PlutusTx.Plugin:defer-errors
-
+  -fplugin=Polysemy.Plugin
+  
 library:
   source-dirs: src
   dependencies:
     - cardano-node-emulator
-    - freer-extras
     - plutus-ledger
     - plutus-script-utils
     - cardano-api
@@ -60,6 +60,8 @@ library:
     - ouroboros-network-api
     - ouroboros-network-framework
     - ouroboros-network-protocols
+    - polysemy
+    - polysemy-plugin
     - serialise
     - strict-sop-core
     - typed-protocols
@@ -72,9 +74,7 @@ library:
     - containers
     - contra-tracer
     - data-default
-    - freer-simple
     - lens
-    - mtl
     - prettyprinter
     - sop-core
     - stm
@@ -92,6 +92,8 @@ executables:
     dependencies:
       - cardano-node-socket-emulator
       - iohk-monitoring
+      - polysemy
+      - polysemy-plugin
       - base >=4.9 && <5
       - data-default
       - prettyprinter

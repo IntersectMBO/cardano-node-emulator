@@ -13,7 +13,7 @@
 
 -- | The set of parameters, like protocol parameters and slot configuration.
 module Cardano.Node.Emulator.Internal.Node.Params
-  ( Params (..),
+  ( EmulatorParams (..),
     paramsFromConfig,
     C.mkLatestTransitionConfig,
     slotConfigL,
@@ -89,7 +89,7 @@ type PParams = C.PParams EmulatorEra
 
 type TransitionConfig = C.TransitionConfig EmulatorEra
 
-data Params = Params
+data EmulatorParams = EmulatorParams
   { pSlotConfig :: !SlotConfig,
     pEmulatorPParams :: !PParams,
     pNetworkId :: !C.NetworkId,
@@ -117,33 +117,33 @@ makeLensesFor
     ("pEmulatorPParams", "emulatorPParamsL"),
     ("pNetworkId", "networkIdL")
   ]
-  ''Params
+  ''EmulatorParams
 
-instance Default Params where
+instance Default EmulatorParams where
   def = paramsFromConfig defaultConfig
 
-instance Pretty Params where
-  pretty Params {..} =
+instance Pretty EmulatorParams where
+  pretty EmulatorParams {..} =
     vsep
       [ "Slot config:" <+> pretty pSlotConfig,
         "Network ID:" <+> viaShow pNetworkId,
         "Protocol Parameters:" <+> viaShow pEmulatorPParams
       ]
 
--- | Convert `Params` to cardano-ledger `PParams`
-emulatorPParams :: Params -> PParams
+-- | Convert `EmulatorParams` to cardano-ledger `PParams`
+emulatorPParams :: EmulatorParams -> PParams
 emulatorPParams = pEmulatorPParams
 
-ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
+ledgerProtocolParameters :: EmulatorParams -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
 
 -- | Set higher limits on transaction size and execution units.
 -- This can be used to work around @MaxTxSizeUTxO@ and @ExUnitsTooBigUTxO@ errors.
 -- Note that if you need this your Plutus script will probably not validate on Mainnet.
-increaseTransactionLimits :: Params -> Params
+increaseTransactionLimits :: EmulatorParams -> EmulatorParams
 increaseTransactionLimits = increaseTransactionLimits' 2 10 10
 
-increaseTransactionLimits' :: Word32 -> Natural -> Natural -> Params -> Params
+increaseTransactionLimits' :: Word32 -> Natural -> Natural -> EmulatorParams -> EmulatorParams
 increaseTransactionLimits' size steps mem =
   over emulatorPParamsL $
     (C.ppMaxTxSizeL %~ (size *)) . (C.ppMaxTxExUnitsL %~ f)
@@ -189,9 +189,9 @@ emulatorAlonzoGenesisDefaults =
 emulatorConwayGenesisDefaults :: C.ConwayGenesis
 emulatorConwayGenesisDefaults = C.conwayGenesisDefaults
 
-paramsFromConfig :: TransitionConfig -> Params
+paramsFromConfig :: TransitionConfig -> EmulatorParams
 paramsFromConfig tc =
-  Params
+  EmulatorParams
     { pSlotConfig =
         SlotConfig
           { scSlotZeroTime = utcTimeToPOSIXTime $ C.sgSystemStart sg,
@@ -207,19 +207,19 @@ paramsFromConfig tc =
     sg = tc ^. C.tcShelleyGenesisL
 
 -- | Calculate the cardano-ledger `SlotLength`
-slotLength :: Params -> SlotLength
-slotLength Params {pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
+slotLength :: EmulatorParams -> SlotLength
+slotLength EmulatorParams {pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
 
-keptBlocks :: Params -> Integer
-keptBlocks Params {pConfig} = fromIntegral $ unNonZero $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
+keptBlocks :: EmulatorParams -> Integer
+keptBlocks EmulatorParams {pConfig} = fromIntegral $ unNonZero $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
 
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize
 emulatorEpochSize = EpochSize 432_000
 
 -- | A sensible default 'Globals' value for the emulator
-emulatorGlobals :: Params -> Globals
-emulatorGlobals params@Params {pEpochSize, pConfig} =
+emulatorGlobals :: EmulatorParams -> Globals
+emulatorGlobals params@EmulatorParams {pEpochSize, pConfig} =
   mkShelleyGlobals
     (pConfig ^. C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))
@@ -232,7 +232,7 @@ emulatorGenesisWindow = GenesisWindow window
     window = (3 * 2160) `div` 20
 
 -- | A sensible default 'EraHistory' value for the emulator
-emulatorEraHistory :: Params -> C.EraHistory
+emulatorEraHistory :: EmulatorParams -> C.EraHistory
 emulatorEraHistory params = C.EraHistory (Ouroboros.mkInterpreter $ Ouroboros.summaryWithExactly list)
   where
     one =

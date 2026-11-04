@@ -19,7 +19,6 @@ packages: plutus-ledger
           plutus-script-utils
           cardano-node-emulator
           cardano-node-socket-emulator
-          freer-extras
 
 constraints:
   cardano-api == 10.18.1.0

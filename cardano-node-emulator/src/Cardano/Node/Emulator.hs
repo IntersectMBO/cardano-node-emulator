@@ -22,4 +22,4 @@ import Cardano.Node.Emulator.Generators as Gen
     knownPaymentPublicKeys,
     someTokenValue,
   )
-import Cardano.Node.Emulator.Internal.Node.Params as Params (Params)
+import Cardano.Node.Emulator.Internal.Node.Params as Params (EmulatorParams)

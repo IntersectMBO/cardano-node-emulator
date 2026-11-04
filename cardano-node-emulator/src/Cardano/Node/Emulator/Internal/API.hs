@@ -13,45 +13,50 @@ module Cardano.Node.Emulator.Internal.API
     esChainState,
     esAddressMap,
     esDatumMap,
+    ConcreteEmulatorEffs,
     EmulatorError (..),
     EmulatorLogs,
     EmulatorMsg (..),
-    MonadEmulator,
-    -- EmulatorT,
-    -- EmulatorM,
+    processBlock,
+    modifySlot,
 
     -- * Running Sem chain effects
+    handleChainLogs,
+    handleChainEffects,
   )
 where
 
--- handleChain,
--- processBlock,
--- modifySlot,
-
 import Cardano.Node.Emulator.Internal.Node (ChainState, EmulatorParams)
-import Cardano.Node.Emulator.Log (LogMessage, LogMsg)
-import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent, GenericMsg))
-import Control.Exception (Exception)
+import Cardano.Node.Emulator.Internal.Node.Chain
+  ( ChainControlEffect,
+    ChainEffect,
+    ChainEvent,
+    chainEventOnChainTx,
+    handleChain,
+    handleControlChain,
+  )
+import Cardano.Node.Emulator.Internal.Node.Chain qualified as C
+import Cardano.Node.Emulator.Log (LogMessage (LogMessage), LogMsg (LogMsg))
+import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent))
 import Control.Lens (makeLenses, (&))
-import Control.Monad (void)
 import Data.Map (Map)
 import Data.Sequence (Seq)
 import Ledger
-  ( Block,
-    Datum,
+  ( Datum,
     DatumHash,
-    Slot,
     ToCardanoError,
     ValidationErrorInPhase,
     eitherTx,
     getCardanoTxData,
   )
 import Ledger.AddressMap qualified as AM
-import Polysemy (Sem)
+import Ledger.Blockchain (Block)
+import Ledger.Slot (Slot)
+import Polysemy (InterpreterFor, Member, Members, Sem, insertAt, interpret, run)
 import Polysemy.Error (Error)
-import Polysemy.Reader (Reader)
-import Polysemy.State (State)
-import Polysemy.Writer (Writer)
+import Polysemy.Reader (Reader, ask)
+import Polysemy.State (State, get, modify, put, runState)
+import Polysemy.Writer (Writer, runWriter, tell)
 
 data EmulatorState = EmulatorState
   { _esChainState :: !ChainState,
@@ -70,51 +75,61 @@ data EmulatorError
 
 type EmulatorLogs = Seq (LogMessage EmulatorMsg)
 
-type EmulatorEffs =
+type ConcreteEmulatorEffs =
   '[ Reader EmulatorParams,
      Writer EmulatorLogs,
      State EmulatorState,
      Error EmulatorError
    ]
 
-type MonadEmulator = Sem EmulatorEffs
+handleChainLogs ::
+  ( Member (State AM.AddressMap) effs,
+    Member (State (Map DatumHash Datum)) effs,
+    Member (Writer EmulatorLogs) effs
+  ) =>
+  InterpreterFor (LogMsg ChainEvent) effs
+handleChainLogs = interpret $ \(LogMsg msg@(LogMessage _ e)) -> do
+  tell $ pure $ ChainEvent <$> msg
+  chainEventOnChainTx
+    e
+    & maybe
+      (pure ())
+      ( \tx -> do
+          modify $ AM.updateAllAddresses tx
+          modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
+      )
 
--- handleChain :: (MonadEmulator m) => Sem [E.ChainControlEffect, E.ChainEffect] a -> m a
--- handleChain eff = do
---   params <- ask
---   EmulatorState chainState am dm <- get
---   let ((((a, dm'), am'), newChainState), lg) =
---         raiseEnd eff
---           & interpret (E.handleControlChain params)
---           & interpret (E.handleChain params)
---           & interpret handleChainLogs
---           & runState dm
---           & runState am
---           & runState chainState
---           & F.runWriter
---           & run
---   tell lg
---   put $ EmulatorState newChainState am' dm'
---   pure a
---   where
---     handleChainLogs ::
---       ( Member (State AM.AddressMap) effs,
---         Member (State (Map DatumHash Datum)) effs,
---         Member (F.Writer EmulatorLogs) effs
---       ) =>
---       LogMsg E.ChainEvent ~> Sem effs
---     handleChainLogs (LMessage msg@(LogMessage _ e)) = do
---       F.tell @EmulatorLogs (pure $ ChainEvent <$> msg)
---       E.chainEventOnChainTx e
---         & maybe
---           (pure ())
---           ( \tx -> do
---               void $ modify $ AM.updateAllAddresses tx
---               void $ modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
---           )
+-- Handle both chain effects on top of an arbitray stack.
+handleChainEffects ::
+  (Members ConcreteEmulatorEffs effs) =>
+  Sem [ChainControlEffect, ChainEffect] a ->
+  Sem effs a
+handleChainEffects comp = do
+  params <- ask
+  EmulatorState chainState addressMap datumMap <- get
+  let (emulatorLogs, (chainState', (addressMap', (datumMap', v)))) =
+        comp
+          & insertAt @2
+            @[ LogMsg ChainEvent,
+               State (Map DatumHash Datum),
+               State AM.AddressMap,
+               State ChainState,
+               Writer EmulatorLogs
+             ]
+          & handleControlChain params
+          & handleChain params
+          & handleChainLogs
+          & runState datumMap
+          & runState addressMap
+          & runState chainState
+          & runWriter
+          & run
+  tell emulatorLogs
+  put $ EmulatorState chainState' addressMap' datumMap'
+  pure v
 
--- processBlock :: (MonadEmulator m) => m Block
--- processBlock = handleChain E.processBlock
+processBlock :: (Members ConcreteEmulatorEffs effs) => Sem effs Block
+processBlock = handleChainEffects C.processBlock
 
--- modifySlot :: (MonadEmulator m) => (Slot -> Slot) -> m Slot
--- modifySlot f = handleChain $ E.modifySlot f
+modifySlot :: (Members ConcreteEmulatorEffs effs) => (Slot -> Slot) -> Sem effs Slot
+modifySlot = handleChainEffects . C.modifySlot

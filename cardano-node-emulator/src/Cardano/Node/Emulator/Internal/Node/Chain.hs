@@ -110,10 +110,8 @@ data ChainEffect :: Effect where
 
 makeSem ''ChainEffect
 
-type ChainEffs = '[State ChainState, LogMsg ChainEvent]
-
 handleControlChain ::
-  (Members ChainEffs effs) =>
+  (Members [State ChainState, LogMsg ChainEvent] effs) =>
   EmulatorParams ->
   InterpreterFor ChainControlEffect effs
 handleControlChain params = interpret $ \case
@@ -147,7 +145,10 @@ logChainEvent e = case e of
   TxnValidation Index.FailPhase2 {} -> logWarn e
   TxnValidation Index.Success {} -> logInfo e
 
-handleChain :: (Members ChainEffs effs) => EmulatorParams -> InterpreterFor ChainEffect effs
+handleChain ::
+  (Members [State ChainState, LogMsg ChainEvent] effs) =>
+  EmulatorParams ->
+  InterpreterFor ChainEffect effs
 handleChain params = interpret $ \case
   QueueTx tx -> modify (addTxToPool tx)
   GetCurrentSlot -> gets (Validation.getSlot . view ledgerState)

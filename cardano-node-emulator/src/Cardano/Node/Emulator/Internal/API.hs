@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -41,6 +42,7 @@ import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent))
 import Control.Lens (makeLenses, (&))
 import Data.Map (Map)
 import Data.Sequence (Seq)
+import GHC.Exception (Exception)
 import Ledger
   ( Datum,
     DatumHash,
@@ -73,13 +75,15 @@ data EmulatorError
   | CustomError !String
   deriving (Show)
 
+deriving instance Exception EmulatorError
+
 type EmulatorLogs = Seq (LogMessage EmulatorMsg)
 
 type ConcreteEmulatorEffs =
-  '[ Reader EmulatorParams,
+  '[ Error EmulatorError,
+     Reader EmulatorParams,
      Writer EmulatorLogs,
-     State EmulatorState,
-     Error EmulatorError
+     State EmulatorState
    ]
 
 handleChainLogs ::

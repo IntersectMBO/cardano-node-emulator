@@ -10,7 +10,7 @@ import Data.ByteString.Lazy qualified as BSL
 
 type ShelleyConfigUpdater = ShelleyGenesis -> ShelleyGenesis
 
-fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO Params
+fromNodeServerConfig :: ShelleyConfigUpdater -> NodeServerConfig -> IO EmulatorParams
 fromNodeServerConfig updateShelley NodeServerConfig {nscShelleyGenesisPath, nscAlonzoGenesisPath, nscConwayGenesisPath} = do
   shelleyConfig <- readConfig emulatorShelleyGenesisDefaults nscShelleyGenesisPath
   alonzoConfig <- readConfig emulatorAlonzoGenesisDefaults nscAlonzoGenesisPath

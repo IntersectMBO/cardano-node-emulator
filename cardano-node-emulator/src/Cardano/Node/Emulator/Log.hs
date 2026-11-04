@@ -18,6 +18,7 @@ module Cardano.Node.Emulator.Log
     LogMsg (..),
     LogLevel (..),
     LogMessage (..),
+    logMsg,
     logLevel,
     logMessageContent,
     logMessage,

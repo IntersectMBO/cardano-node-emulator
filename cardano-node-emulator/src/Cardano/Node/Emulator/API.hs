@@ -44,13 +44,9 @@ module Cardano.Node.Emulator.API
     EmulatorError (..),
     EmulatorLogs,
     EmulatorMsg (..),
-    L.LogMessage (..),
-    MonadEmulator,
-    EmulatorT,
-    EmulatorM,
     emptyEmulatorState,
     emptyEmulatorStateWithInitialDist,
-    Params (..),
+    EmulatorParams (..),
     getParams,
   )
 where
@@ -61,21 +57,19 @@ import Cardano.Ledger.Shelley.API
     MempoolEnv,
   )
 import Cardano.Node.Emulator.Internal.API
-  ( EmulatorError (CustomError, ToCardanoError, ValidationError),
+  ( ConcreteEmulatorEffs,
+    EmulatorError (CustomError, ToCardanoError, ValidationError),
     EmulatorLogs,
-    EmulatorM,
     EmulatorState (EmulatorState),
-    EmulatorT,
-    MonadEmulator,
     esAddressMap,
     esChainState,
     esDatumMap,
-    handleChain,
+    handleChainEffects,
     modifySlot,
     processBlock,
   )
 import Cardano.Node.Emulator.Internal.Node
-  ( Params (pConfig, pSlotConfig),
+  ( EmulatorParams (pConfig, pSlotConfig),
     posixTimeToEnclosingSlot,
     slotToBeginPOSIXTime,
     slotToEndPOSIXTime,
@@ -88,7 +82,6 @@ import Cardano.Node.Emulator.Internal.Node.Chain qualified as E
     ledgerState,
     queueTx,
   )
-import Cardano.Node.Emulator.Internal.Node.Params qualified as E (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation
   ( EmulatedLedgerState (elsLedgerEnv, elsLedgerState),
     elsLedgerEnvL,
@@ -96,13 +89,13 @@ import Cardano.Node.Emulator.Internal.Node.Validation
     elsUtxoL,
     unsafeMakeValid,
   )
+import Cardano.Node.Emulator.Log (LogLevel (Debug, Error, Info, Warning), LogMessage (LogMessage))
 import Cardano.Node.Emulator.LogMessages
   ( EmulatorMsg (ChainEvent, GenericMsg, TxBalanceMsg),
     TxBalanceMsg (SigningTx, SubmittingTx),
   )
-import Control.Lens (use, (%~), (&), (.~), (<>~), (^.))
+import Control.Lens (view, (%~), (&), (.~), (<>~), (^.))
 import Control.Monad (void)
-import Control.Monad.RWS.Class (ask, asks, get, tell)
 import Data.Aeson (ToJSON (toJSON))
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -133,11 +126,15 @@ import Ledger.Tx.CardanoAPI
     fromPlutusIndex,
     toCardanoTxIn,
   )
+import Polysemy (Members, Sem)
+import Polysemy.Reader (ask, asks)
+import Polysemy.State (get, gets)
+import Polysemy.Writer (tell)
 
-emptyEmulatorState :: E.Params -> EmulatorState
+emptyEmulatorState :: EmulatorParams -> EmulatorState
 emptyEmulatorState params = EmulatorState (E.emptyChainState params) mempty mempty
 
-emptyEmulatorStateWithInitialDist :: E.Params -> Map CardanoAddress C.Value -> EmulatorState
+emptyEmulatorStateWithInitialDist :: EmulatorParams -> Map CardanoAddress C.Value -> EmulatorState
 emptyEmulatorStateWithInitialDist params initialDist =
   let tx = Index.createGenesisTransaction initialDist
       vtx = unsafeMakeValid tx
@@ -149,25 +146,25 @@ emptyEmulatorStateWithInitialDist params initialDist =
         & esAddressMap %~ AM.updateAllAddresses vtx
         & esDatumMap <>~ getCardanoTxData tx
 
-getParams :: (MonadEmulator m) => m E.Params
+getParams :: (Members ConcreteEmulatorEffs effs) => Sem effs EmulatorParams
 getParams = ask
 
 -- | Queue the transaction, it will be processed when @nextSlot@ is called.
-queueTx :: (MonadEmulator m) => CardanoTx -> m ()
+queueTx :: (Members ConcreteEmulatorEffs effs) => CardanoTx -> Sem effs ()
 queueTx tx = do
-  logMsg L.Info $ TxBalanceMsg $ SubmittingTx tx
-  handleChain (E.queueTx tx)
+  logMsg Info $ TxBalanceMsg $ SubmittingTx tx
+  handleChainEffects $ E.queueTx tx
 
 -- | Process the queued transactions and increase the slot number.
-nextSlot :: (MonadEmulator m) => m ()
+nextSlot :: (Members ConcreteEmulatorEffs effs) => Sem effs ()
 nextSlot = void $ processBlock >> modifySlot succ
 
 -- | Get the current slot number of the emulated node.
-currentSlot :: (MonadEmulator m) => m Slot
-currentSlot = handleChain E.getCurrentSlot
+currentSlot :: (Members ConcreteEmulatorEffs effs) => Sem effs Slot
+currentSlot = handleChainEffects E.getCurrentSlot
 
 -- | Get the time range of the current slot of the emulated node.
-currentTimeRange :: (MonadEmulator m) => m (POSIXTime, POSIXTime)
+currentTimeRange :: (Members ConcreteEmulatorEffs effs) => Sem effs (POSIXTime, POSIXTime)
 currentTimeRange = do
   slotConfig <- asks pSlotConfig
   slot <- currentSlot
@@ -177,7 +174,7 @@ currentTimeRange = do
     )
 
 -- | Call `nextSlot` until the current slot number equals or exceeds the given slot number.
-awaitSlot :: (MonadEmulator m) => Slot -> m ()
+awaitSlot :: (Members ConcreteEmulatorEffs effs) => Slot -> Sem effs ()
 awaitSlot s = do
   c <- currentSlot
   if s <= c
@@ -187,19 +184,19 @@ awaitSlot s = do
       awaitSlot s
 
 -- | Call `nextSlot` until the given time has been reached.
-awaitTime :: (MonadEmulator m) => POSIXTime -> m ()
+awaitTime :: (Members ConcreteEmulatorEffs effs) => POSIXTime -> Sem effs ()
 awaitTime t = do
   slotConfig <- asks pSlotConfig
   awaitSlot (posixTimeToEnclosingSlot slotConfig t + 1)
 
 -- | Query the unspent transaction outputs at the given address.
-utxosAt :: (MonadEmulator m) => CardanoAddress -> m UtxoIndex
+utxosAt :: (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs UtxoIndex
 utxosAt addr = do
   es <- get
   pure $ C.UTxO $ Map.map (toCtxUTxOTxOut . snd) $ es ^. esAddressMap . AM.fundsAt addr
 
 -- | Query the unspent transaction outputs at the given address (using Plutus types).
-utxosAtPlutus :: (MonadEmulator m) => CardanoAddress -> m (Map TxOutRef DecoratedTxOut)
+utxosAtPlutus :: (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs (Map TxOutRef DecoratedTxOut)
 utxosAtPlutus addr = do
   es <- get
   pure $
@@ -208,17 +205,17 @@ utxosAtPlutus addr = do
         es ^. esAddressMap . AM.fundsAt addr
 
 -- | Query the unspent transaction outputs at the given transaction inputs.
-utxosAtTxIns :: (MonadEmulator m, Foldable f) => f C.TxIn -> m UtxoIndex
+utxosAtTxIns :: (Members ConcreteEmulatorEffs effs, Foldable f) => f C.TxIn -> Sem effs UtxoIndex
 utxosAtTxIns txIns = do
-  idx <- use (esChainState . E.index)
+  idx <- gets $ view $ esChainState . E.index
   pure $ foldMap (\txIn -> maybe mempty (Index.singleton txIn) $ Index.lookupUTxO txIn idx) txIns
 
 -- | Resolve the transaction input.
-utxoAtTxIn :: (MonadEmulator m) => C.TxIn -> m (Maybe TxOut)
-utxoAtTxIn txIn = Index.lookup txIn <$> use (esChainState . E.index)
+utxoAtTxIn :: (Members ConcreteEmulatorEffs effs) => C.TxIn -> Sem effs (Maybe TxOut)
+utxoAtTxIn txIn = gets $ Index.lookup txIn . view (esChainState . E.index)
 
 -- | Resolve the transaction output reference (using Plutus types).
-utxoAtTxOutRef :: (MonadEmulator m) => TxOutRef -> m (Maybe DecoratedTxOut)
+utxoAtTxOutRef :: (Members ConcreteEmulatorEffs effs) => TxOutRef -> Sem effs (Maybe DecoratedTxOut)
 utxoAtTxOutRef ref = either (const $ pure Nothing) findTxOut (toCardanoTxIn ref)
   where
     findTxOut txIn = do
@@ -226,54 +223,54 @@ utxoAtTxOutRef ref = either (const $ pure Nothing) findTxOut (toCardanoTxIn ref)
       pure $ mTxOut >>= toDecoratedTxOut
 
 -- | Query the total value of the unspent transaction outputs at the given address.
-fundsAt :: (MonadEmulator m) => CardanoAddress -> m C.Value
+fundsAt :: (Members ConcreteEmulatorEffs effs) => CardanoAddress -> Sem effs C.Value
 fundsAt addr = foldMap cardanoTxOutValue . C.unUTxO <$> utxosAt addr
 
 -- | Resolve a datum hash to an actual datum, if known.
-lookupDatum :: (MonadEmulator m) => DatumHash -> m (Maybe Datum)
+lookupDatum :: (Members ConcreteEmulatorEffs effs) => DatumHash -> Sem effs (Maybe Datum)
 lookupDatum h = do
   es <- get
   pure $ Map.lookup h (es ^. esDatumMap)
 
 -- | Get the internal ledger state.
-getLedgerState :: (MonadEmulator m) => m (LedgerState EmulatorEra)
+getLedgerState :: (Members ConcreteEmulatorEffs effs) => Sem effs (LedgerState EmulatorEra)
 getLedgerState = do
   es <- get
   pure $ es ^. esChainState . E.ledgerState . elsLedgerStateL
 
 -- | Get the internal mempool environment.
-getMemPoolEnv :: (MonadEmulator m) => m (MempoolEnv EmulatorEra)
+getMemPoolEnv :: (Members ConcreteEmulatorEffs effs) => Sem effs (MempoolEnv EmulatorEra)
 getMemPoolEnv = do
   es <- get
   pure $ es ^. esChainState . E.ledgerState . elsLedgerEnvL
 
 -- | Sign a transaction with the given signatures.
 signTx ::
-  (MonadEmulator m, Foldable f) =>
+  (Members ConcreteEmulatorEffs effs, Foldable f) =>
   -- | Signatures
   f C.ShelleyWitnessSigningKey ->
   CardanoTx ->
-  m CardanoTx
+  Sem effs CardanoTx
 signTx witnesses tx = do
-  logMsg L.Info $ TxBalanceMsg $ SigningTx tx
+  logMsg Info $ TxBalanceMsg $ SigningTx tx
   pure $ foldr addCardanoTxWitness tx witnesses
 
 -- | Log any message
-logMsg :: (MonadEmulator m) => L.LogLevel -> EmulatorMsg -> m ()
-logMsg l = tell . pure . L.LogMessage l
+logMsg :: (Members ConcreteEmulatorEffs effs) => LogLevel -> EmulatorMsg -> Sem effs ()
+logMsg l = tell . pure . LogMessage l
 
 -- | Log a message at the 'Debug' level
-logDebug :: (ToJSON a, MonadEmulator m) => a -> m ()
-logDebug = logMsg L.Debug . GenericMsg . toJSON
+logDebug :: (Members ConcreteEmulatorEffs effs, ToJSON a) => a -> Sem effs ()
+logDebug = logMsg Debug . GenericMsg . toJSON
 
 -- | Log a message at the 'Info' level
-logInfo :: (ToJSON a, MonadEmulator m) => a -> m ()
-logInfo = logMsg L.Info . GenericMsg . toJSON
+logInfo :: (Members ConcreteEmulatorEffs effs, ToJSON a) => a -> Sem effs ()
+logInfo = logMsg Info . GenericMsg . toJSON
 
 -- | Log a message at the 'Warning' level
-logWarn :: (ToJSON a, MonadEmulator m) => a -> m ()
-logWarn = logMsg L.Warning . GenericMsg . toJSON
+logWarn :: (Members ConcreteEmulatorEffs effs, ToJSON a) => a -> Sem effs ()
+logWarn = logMsg Warning . GenericMsg . toJSON
 
 -- | Log a message at the 'Error' level
-logError :: (ToJSON a, MonadEmulator m) => a -> m ()
-logError = logMsg L.Error . GenericMsg . toJSON
+logError :: (Members ConcreteEmulatorEffs effs, ToJSON a) => a -> Sem effs ()
+logError = logMsg Error . GenericMsg . toJSON

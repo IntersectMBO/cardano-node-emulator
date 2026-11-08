@@ -6,12 +6,12 @@ import Data.Aeson qualified as JSON
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV1),
     Validator (getValidator),
+    ValidatorHash (ValidatorHash),
     Versioned (Versioned),
   )
 import Plutus.Script.Utils.V1.Generators
   ( alwaysSucceedPolicy,
     alwaysSucceedValidator,
-    alwaysSucceedValidatorHash,
     mkForwardingStakeValidator,
   )
 import Test.Tasty (TestTree, testGroup)
@@ -33,7 +33,7 @@ tests =
       testCase "MintingPolicy" $
         assertBool "roundtrip" (roundTrips alwaysSucceedPolicy),
       testCase "StakeValidator" $
-        assertBool "roundtrip" (roundTrips (mkForwardingStakeValidator alwaysSucceedValidatorHash)),
+        assertBool "roundtrip" (roundTrips (mkForwardingStakeValidator (ValidatorHash "dummy"))),
       testCase "Versioned Validator" $
         assertBool "roundtrip" (roundTrips (Versioned alwaysSucceedValidator PlutusV1))
     ]

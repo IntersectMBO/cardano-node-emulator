@@ -121,6 +121,7 @@ test-suite plutus-script-utils-test
   main-is:        Spec.hs
   other-modules:
     JSONSpec
+    ShowBSSpec
     V3.PurposeDispatcher
 
   build-depends:

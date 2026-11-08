@@ -133,7 +133,7 @@ data MockWallet = MockWallet
     mwStakeKey :: Maybe MockPrivateKey,
     mwPrintAs :: Maybe String
   }
-  deriving stock (Show, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 -- | Wrapper for config files and APIs

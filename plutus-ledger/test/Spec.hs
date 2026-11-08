@@ -17,6 +17,7 @@ import Hedgehog qualified
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Ledger (Slot (Slot))
+import Ledger.CardanoWallet qualified as CW
 import Ledger.Tx.CardanoAPI (CardanoBuildTx (CardanoBuildTx), CardanoTx (CardanoTx))
 import Ledger.Tx.CardanoAPI qualified as CardanoAPI
 import Ledger.Tx.CardanoAPISpec qualified
@@ -77,6 +78,13 @@ tests =
                 ++ byteStringJson "{\"getMintingPolicyHash\":\"74657374\"}" (MintingPolicyHash hashBytes)
                 ++ byteStringJson "{\"getStakeValidatorHash\":\"74657374\"}" (StakeValidatorHash hashBytes)
         ),
+      testGroup
+        "MockWallet"
+        [ testPropertyNamed
+            "ToJSON/FromJSON roundtrip for known mock wallets"
+            "mockWalletJsonRoundtrip"
+            (jsonRoundTrip (Gen.element CW.knownMockWallets))
+        ],
       testGroup
         "TxIn"
         [ testPropertyNamed

@@ -117,8 +117,12 @@ test-suite plutus-script-utils-test
   type:           exitcode-stdio-1.0
   hs-source-dirs: test
   main-is:        Spec.hs
-  other-modules:  V3.PurposeDispatcher
+  other-modules:
+    JSONSpec
+    V3.PurposeDispatcher
+
   build-depends:
+    , aeson
     , base
     , bytestring
     , plutus-core          >=1.45 && <1.46

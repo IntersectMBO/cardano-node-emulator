@@ -126,7 +126,8 @@ test-suite plutus-script-utils-test
   autogen-modules:
       Paths_plutus_script_utils
   build-depends:
-      base
+      aeson
+    , base
     , bytestring
     , plutus-core ==1.45.*
     , plutus-ledger-api ==1.45.*

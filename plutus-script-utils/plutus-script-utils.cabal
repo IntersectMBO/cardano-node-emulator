@@ -85,8 +85,6 @@ library
   -- Plutus dependencies --
   -------------------------
   build-depends:
-    , cardano-api
-    , cardano-ledger-core
     , plutus-core
     , plutus-ledger-api
     , plutus-tx

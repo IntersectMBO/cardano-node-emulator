@@ -44,7 +44,7 @@ import PlutusLedgerApi.V2
 import PlutusTx qualified
 import PlutusTx.Builtins.Internal qualified as PlutusTx
 import PlutusTx.List (any)
-import PlutusTx.Prelude (Bool (False), Integer, ($), (.), (==))
+import PlutusTx.Prelude (Bool (False), ($), (.), (==))
 
 alwaysSucceedValidator :: Validator
 alwaysSucceedValidator = toValidator $$(PlutusTx.compile [||trueVal||])

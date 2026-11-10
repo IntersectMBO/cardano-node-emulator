@@ -43,8 +43,8 @@
             hooks = {
               nixfmt.enable = true;
               ormolu.enable = true;
-              cabal-fmt.enable = true;
               hlint.enable = true;
+              hpack.enable = true;
             };
             tools = {
               ## This setting specifies which tools to use in the `pre-commit`

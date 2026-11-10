@@ -1,63 +1,67 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
--- | If you want to run the node emulator without using the `Contract` monad, this module provides a simple MTL-based interface.
+-- | If you want to run the node emulator without using the `Contract` monad,
+-- this module provides a simple polysemy-based interface.
 module Cardano.Node.Emulator.Internal.API
   ( -- * Types
     EmulatorState (EmulatorState),
     esChainState,
     esAddressMap,
     esDatumMap,
+    ConcreteEmulatorEffs,
     EmulatorError (..),
     EmulatorLogs,
     EmulatorMsg (..),
-    L.LogMessage (..),
-    MonadEmulator,
-    EmulatorT,
-    EmulatorM,
-
-    -- * Running Eff chain effects in MTL
-    handleChain,
     processBlock,
     modifySlot,
+
+    -- * Running Sem chain effects
+    handleChainLogs,
+    handleChainEffects,
   )
 where
 
-import Cardano.Node.Emulator.Internal.Node qualified as E
-import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent, GenericMsg))
-import Control.Exception (Exception)
+import Cardano.Node.Emulator.Internal.Node (ChainState, EmulatorParams)
+import Cardano.Node.Emulator.Internal.Node.Chain
+  ( ChainControlEffect,
+    ChainEffect,
+    ChainEvent,
+    chainEventOnChainTx,
+    handleChain,
+    handleControlChain,
+  )
+import Cardano.Node.Emulator.Internal.Node.Chain qualified as C
+import Cardano.Node.Emulator.Log (LogMessage (LogMessage), LogMsg (LogMsg))
+import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent))
 import Control.Lens (makeLenses, (&))
-import Control.Monad (void)
-import Control.Monad.Error.Class (MonadError)
-import Control.Monad.Except (ExceptT)
-import Control.Monad.Freer (Eff, Member, interpret, run, type (~>))
-import Control.Monad.Freer.Extras (raiseEnd)
-import Control.Monad.Freer.Extras.Log qualified as L
-import Control.Monad.Freer.State (State, modify, runState)
-import Control.Monad.Freer.Writer qualified as F (Writer, runWriter, tell)
-import Control.Monad.Identity (Identity)
-import Control.Monad.RWS.Class (MonadRWS, ask, get, put, tell)
-import Control.Monad.RWS.Strict (RWST)
 import Data.Map (Map)
 import Data.Sequence (Seq)
+import GHC.Exception (Exception)
 import Ledger
-  ( Block,
-    Datum,
+  ( Datum,
     DatumHash,
-    Slot,
     ToCardanoError,
     ValidationErrorInPhase,
     eitherTx,
     getCardanoTxData,
   )
 import Ledger.AddressMap qualified as AM
+import Ledger.Blockchain (Block)
+import Ledger.Slot (Slot)
+import Polysemy (InterpreterFor, Member, Members, Sem, insertAt, interpret, run)
+import Polysemy.Error (Error)
+import Polysemy.Reader (Reader, ask)
+import Polysemy.State (State, get, modify, put, runState)
+import Polysemy.Writer (Writer, runWriter, tell)
 
 data EmulatorState = EmulatorState
-  { _esChainState :: !E.ChainState,
+  { _esChainState :: !ChainState,
     _esAddressMap :: !AM.AddressMap,
     _esDatumMap :: !(Map DatumHash Datum)
   }
@@ -71,52 +75,65 @@ data EmulatorError
   | CustomError !String
   deriving (Show)
 
-instance Exception EmulatorError
+deriving instance Exception EmulatorError
 
-type EmulatorLogs = Seq (L.LogMessage EmulatorMsg)
+type EmulatorLogs = Seq (LogMessage EmulatorMsg)
 
-type MonadEmulator m = (MonadRWS E.Params EmulatorLogs EmulatorState m, MonadError EmulatorError m)
+type ConcreteEmulatorEffs =
+  '[ Error EmulatorError,
+     Reader EmulatorParams,
+     Writer EmulatorLogs,
+     State EmulatorState
+   ]
 
-type EmulatorT m = ExceptT EmulatorError (RWST E.Params EmulatorLogs EmulatorState m)
+handleChainLogs ::
+  ( Member (State AM.AddressMap) effs,
+    Member (State (Map DatumHash Datum)) effs,
+    Member (Writer EmulatorLogs) effs
+  ) =>
+  InterpreterFor (LogMsg ChainEvent) effs
+handleChainLogs = interpret $ \(LogMsg msg@(LogMessage _ e)) -> do
+  tell $ pure $ ChainEvent <$> msg
+  chainEventOnChainTx
+    e
+    & maybe
+      (pure ())
+      ( \tx -> do
+          modify $ AM.updateAllAddresses tx
+          modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
+      )
 
-type EmulatorM = EmulatorT Identity
-
-handleChain :: (MonadEmulator m) => Eff [E.ChainControlEffect, E.ChainEffect] a -> m a
-handleChain eff = do
+-- Handle both chain effects on top of an arbitray stack.
+handleChainEffects ::
+  (Members ConcreteEmulatorEffs effs) =>
+  Sem [ChainControlEffect, ChainEffect] a ->
+  Sem effs a
+handleChainEffects comp = do
   params <- ask
-  EmulatorState chainState am dm <- get
-  let ((((a, dm'), am'), newChainState), lg) =
-        raiseEnd eff
-          & interpret (E.handleControlChain params)
-          & interpret (E.handleChain params)
-          & interpret handleChainLogs
-          & runState dm
-          & runState am
+  EmulatorState chainState addressMap datumMap <- get
+  let (emulatorLogs, (chainState', (addressMap', (datumMap', v)))) =
+        comp
+          & insertAt @2
+            @[ LogMsg ChainEvent,
+               State (Map DatumHash Datum),
+               State AM.AddressMap,
+               State ChainState,
+               Writer EmulatorLogs
+             ]
+          & handleControlChain params
+          & handleChain params
+          & handleChainLogs
+          & runState datumMap
+          & runState addressMap
           & runState chainState
-          & F.runWriter
+          & runWriter
           & run
-  tell lg
-  put $ EmulatorState newChainState am' dm'
-  pure a
-  where
-    handleChainLogs ::
-      ( Member (State AM.AddressMap) effs,
-        Member (State (Map DatumHash Datum)) effs,
-        Member (F.Writer EmulatorLogs) effs
-      ) =>
-      L.LogMsg E.ChainEvent ~> Eff effs
-    handleChainLogs (L.LMessage msg@(L.LogMessage _ e)) = do
-      F.tell @EmulatorLogs (pure $ ChainEvent <$> msg)
-      E.chainEventOnChainTx e
-        & maybe
-          (pure ())
-          ( \tx -> do
-              void $ modify $ AM.updateAllAddresses tx
-              void $ modify $ ((<>) . eitherTx getCardanoTxData getCardanoTxData) tx
-          )
+  tell emulatorLogs
+  put $ EmulatorState chainState' addressMap' datumMap'
+  pure v
 
-processBlock :: (MonadEmulator m) => m Block
-processBlock = handleChain E.processBlock
+processBlock :: (Members ConcreteEmulatorEffs effs) => Sem effs Block
+processBlock = handleChainEffects C.processBlock
 
-modifySlot :: (MonadEmulator m) => (Slot -> Slot) -> m Slot
-modifySlot f = handleChain $ E.modifySlot f
+modifySlot :: (Members ConcreteEmulatorEffs effs) => (Slot -> Slot) -> Sem effs Slot
+modifySlot = handleChainEffects . C.modifySlot

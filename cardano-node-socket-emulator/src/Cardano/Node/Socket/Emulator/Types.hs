@@ -28,12 +28,11 @@ import Cardano.Node.Emulator.API
     EmulatorLogs,
     EmulatorMsg,
     EmulatorState,
-    EmulatorT,
     emptyEmulatorStateWithInitialDist,
     esChainState,
   )
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
-import Cardano.Node.Emulator.Internal.Node.Params (Params)
+import Cardano.Node.Emulator.Internal.Node.Params (EmulatorParams)
 import Cardano.Node.Emulator.Internal.Node.Validation (getSlot)
 import Cardano.Protocol.TPraos.BHeader
 import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
@@ -45,9 +44,7 @@ import Control.Lens (makeLenses, to, view, (&), (.~), (^.))
 import Control.Monad (forever)
 import Control.Monad.Class.MonadST (MonadST)
 import Control.Monad.Class.MonadTimer (MonadDelay (threadDelay), MonadTimer)
-import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.RWS.Strict (runRWST)
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Extras qualified as JSON
@@ -106,6 +103,13 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as StateQuery
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Util.ShowProxy
+import Polysemy (Sem, raiseUnder)
+import Polysemy.Embed
+import Polysemy.Error (Error, runError)
+import Polysemy.Final (embedToFinal, runFinal)
+import Polysemy.Reader (Reader, runReader)
+import Polysemy.State (State, runState)
+import Polysemy.Writer (Writer, runWriter)
 import Prettyprinter (Pretty, pretty, viaShow, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
 import Test.Cardano.Ledger.Common
@@ -182,7 +186,7 @@ data AppState = AppState
     _socketEmulatorState :: SocketEmulatorState,
     -- | history of all log messages
     _emulatorLogs :: EmulatorLogs,
-    _emulatorParams :: Params
+    _emulatorParams :: EmulatorParams
   }
   deriving (Show)
 
@@ -206,7 +210,7 @@ fromEmulatorChainState state = do
       }
 
 -- | 'ChainState' with initial values
-initialChainState :: (MonadIO m) => Params -> Map.Map CardanoAddress Value -> m SocketEmulatorState
+initialChainState :: (MonadIO m) => EmulatorParams -> Map.Map CardanoAddress Value -> m SocketEmulatorState
 initialChainState params = fromEmulatorChainState . emptyEmulatorStateWithInitialDist params
 
 getChannel :: (MonadIO m) => MVar AppState -> m (TChan Block)
@@ -228,14 +232,20 @@ setTip mv block = liftIO $ modifyMVar_ mv $ \oldState -> do
 -- | Run all chain effects in the IO Monad
 runChainEffects ::
   MVar AppState ->
-  EmulatorT IO a ->
+  Sem
+    '[ Error EmulatorError,
+       Reader EmulatorParams,
+       Writer EmulatorLogs,
+       State EmulatorState,
+       Embed IO
+     ]
+    a ->
   IO (EmulatorLogs, Either EmulatorError a)
-runChainEffects stateVar eff = do
-  AppState (SocketEmulatorState oldState chan tip') events params <- liftIO $ takeMVar stateVar
-  (a, newState, newEvents) <- runRWST (runExceptT eff) params oldState
-  putMVar stateVar $
-    AppState (SocketEmulatorState newState chan tip') (events <> newEvents) params
-  pure (newEvents, a)
+runChainEffects stateVar comp = runFinal $ embedToFinal $ do
+  AppState (SocketEmulatorState oldState chan tip') events params <- embed $ takeMVar stateVar
+  (newState, (newEvents, res)) <- raiseUnder $ runState oldState $ runWriter $ runReader params $ runError comp
+  embed $ putMVar stateVar $ AppState (SocketEmulatorState newState chan tip') (events <> newEvents) params
+  return (newEvents, res)
 
 -- Logging ------------------------------------------------------------------------------------------------------------
 

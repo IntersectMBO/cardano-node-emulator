@@ -14,6 +14,7 @@ import Cardano.Api (NetworkId, NetworkMagic (NetworkMagic), ShelleyGenesis (sgNe
 import Cardano.BM.Trace (Trace, stdoutTrace)
 import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
 import Cardano.Node.Emulator.Internal.Node.Params (keptBlocks, pSlotConfig)
+import Cardano.Node.Emulator.Log qualified as Log
 import Cardano.Node.Socket.Emulator.Mock (slotCoordinator)
 import Cardano.Node.Socket.Emulator.Params qualified as Params
 import Cardano.Node.Socket.Emulator.Server qualified as Server
@@ -25,7 +26,6 @@ import Cardano.Node.Socket.Emulator.Types
   )
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
-import Control.Monad.Freer.Extras.Log (logInfo)
 import Control.Monad.IO.Class (liftIO)
 import Data.Default (def)
 import Data.Map.Strict qualified as Map
@@ -66,13 +66,13 @@ core
             appState
 
       let SlotConfig {scSlotZeroTime, scSlotLength} = pSlotConfig params
-      logInfo $
+      Log.logInfo $
         StartingSlotCoordination
           (posixSecondsToUTCTime $ realToFrac scSlotZeroTime / 1_000)
           (fromInteger scSlotLength :: Millisecond)
       void $ liftIO $ forkIO $ slotCoordinator (pSlotConfig params) serverHandler
 
-      logInfo StartingCNSEServer
+      Log.logInfo StartingCNSEServer
 
 prettyTrace :: Trace IO CNSEServerLogMsg
 prettyTrace = LM.convertLog (renderStrict . layoutPretty defaultLayoutOptions . pretty) stdoutTrace

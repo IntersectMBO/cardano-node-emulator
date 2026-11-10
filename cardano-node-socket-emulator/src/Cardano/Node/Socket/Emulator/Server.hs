@@ -6,18 +6,27 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
+module Cardano.Node.Socket.Emulator.Server
+  ( ServerHandler,
+    runServerNode,
+    processBlock,
+    modifySlot,
+    addTx,
+    processChainEffects,
+  )
+where
 
 import Cardano.Api qualified as C
 import Cardano.BM.Data.Trace (Trace)
 import Cardano.Node.Emulator.API qualified as E
-import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
 import Cardano.Node.Emulator.Internal.API qualified as E
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
+import Cardano.Node.Emulator.Log qualified as E
 import Cardano.Node.Socket.Emulator.Query (handleQuery)
 import Cardano.Node.Socket.Emulator.Types
   ( AppState (..),
@@ -66,14 +75,7 @@ import Control.Concurrent.STM
 import Control.Exception (throwIO)
 import Control.Lens (over, (.~), (^.))
 import Control.Monad (forever, void)
-import Control.Monad.Freer (send)
-import Control.Monad.Freer.Extras.Log (LogMsg (LMessage))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader
-  ( MonadReader (ask),
-    ReaderT (runReaderT),
-    runReader,
-  )
 import Control.Tracer (nullTracer)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Coerce (coerce)
@@ -114,12 +116,18 @@ import Ouroboros.Network.Protocol.Handshake.Codec
 import Ouroboros.Network.Protocol.Handshake.Version
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (State (StateIdle))
+import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as LSQ (State (StateIdle))
 import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Snocket
 import Ouroboros.Network.Socket
 import Plutus.Monitoring.Util qualified as LM
+import Polysemy (Embed, Members, Sem, insertAt)
+import Polysemy.Error (Error)
+import Polysemy.Final (embedToFinal, runFinal)
+import Polysemy.Reader (Reader, ask, runReader)
+import Polysemy.State (State)
+import Polysemy.Writer (Writer)
 
 data CommandChannel = CommandChannel
   { ccCommand :: TQueue ServerCommand,
@@ -211,45 +219,49 @@ pruneChain k original = do
           go (k' - 1) localChannel
 
 processChainEffects ::
-  Trace IO EmulatorMsg ->
+  Trace IO E.EmulatorMsg ->
   MVar AppState ->
-  EmulatorT IO a ->
+  Sem
+    '[ Error E.EmulatorError,
+       Reader E.EmulatorParams,
+       Writer E.EmulatorLogs,
+       State E.EmulatorState,
+       Embed IO
+     ]
+    a ->
   IO a
 processChainEffects trace stateVar eff = do
   (events, result) <- runChainEffects stateVar eff
-  LM.runLogEffects trace $ traverse_ (send . LMessage) events
+  LM.runLogEffects trace $ traverse_ E.logMsg events
   either throwIO pure result
 
 handleCommand ::
   (MonadIO m) =>
-  Trace IO EmulatorMsg ->
+  Trace IO E.EmulatorMsg ->
   CommandChannel ->
   MVar AppState ->
   m ()
 handleCommand trace CommandChannel {ccCommand, ccResponse} mvAppState =
   liftIO $
     atomically (readTQueue ccCommand) >>= \case
-      AddTx tx -> process $ E.queueTx $ CardanoEmulatorEraTx tx
+      AddTx tx -> processChainEffects trace mvAppState $ E.queueTx $ CardanoEmulatorEraTx tx
       ModifySlot f -> do
-        s <- process $ E.modifySlot f
+        s <- processChainEffects trace mvAppState $ E.modifySlot f
         atomically $
           writeTQueue ccResponse (SlotChanged s)
       ProcessBlock -> do
-        block <- process E.processBlock
+        block <- processChainEffects trace mvAppState E.processBlock
         setTip mvAppState block
         ch <- getChannel mvAppState
         atomically $ do
           writeTChan ch block
           writeTQueue ccResponse (BlockAdded block)
-  where
-    process :: EmulatorT IO a -> IO a
-    process = processChainEffects trace mvAppState
 
 -- | Start the server in a new thread, and return a server handler
 --     used to control the server
 runServerNode ::
   (MonadIO m) =>
-  Trace IO EmulatorMsg ->
+  Trace IO E.EmulatorMsg ->
   FilePath ->
   Integer ->
   AppState ->
@@ -263,27 +275,27 @@ runServerNode trace shSocketPath k initialState = liftIO $ do
   void $ pruneChain k globalChannel
   pure $ ServerHandler {shSocketPath, shCommandChannel}
 
--- * ChainSync protocol
+-- -- * ChainSync protocol
 
-{- A monad for running all code executed when a state
-   transition is invoked. It makes the implementation of
-   state transitions easier to read. -}
+-- {- A monad for running all code executed when a state
+--    transition is invoked. It makes the implementation of
+--    state transitions easier to read. -}
 
-type ChainSyncMonad = ReaderT (MVar AppState) IO
+type ChainSyncMonad = Sem '[Reader (MVar AppState), Embed IO]
 
 runChainSync :: MVar AppState -> ChainSyncMonad a -> IO a
-runChainSync = flip runReaderT
+runChainSync mvar = runFinal . embedToFinal . runReader mvar . insertAt @2
 
 {- The initial state of the protocol. You can move into
    requesting the next block or reset state by searching for an
-   intersection. -}
+   intersection.
+-}
 idleState ::
-  ( MonadReader (MVar AppState) m,
-    MonadIO m,
+  ( Members '[Reader (MVar AppState), Embed IO] effs,
     block ~ CardanoBlock StandardCrypto
   ) =>
   LocalChannel ->
-  m (ServerStIdle block (Point block) Tip m ())
+  Sem effs (ServerStIdle block (Point block) Tip (Sem effs) ())
 idleState channel' = do
   pure
     ServerStIdle
@@ -294,17 +306,18 @@ idleState channel' = do
 
 {- Get the next block, either immediately (the Just/Left branch)
    or within a monad (IO, in our case) where you can wait for the
-   next block (Nothing/Right branch) -}
+   next block (Nothing/Right branch)
+-}
 nextState ::
-  ( MonadReader (MVar AppState) m,
-    MonadIO m,
+  ( Members '[Reader (MVar AppState), Embed IO] effs,
     block ~ CardanoBlock StandardCrypto
   ) =>
   LocalChannel ->
-  m
+  Sem
+    effs
     ( Either
-        (ServerStNext block (Point block) Tip m ())
-        (m (ServerStNext block (Point block) Tip m ()))
+        (ServerStNext block (Point block) Tip (Sem effs) ())
+        (Sem effs (ServerStNext block (Point block) Tip (Sem effs) ()))
     )
 nextState localChannel@(LocalChannel channel') = do
   chainState <- ask
@@ -322,14 +335,14 @@ nextState localChannel@(LocalChannel channel') = do
 {- This protocol state will search for a block intersection
    with some client provided blocks. When an intersection is found
    the client state is reset to the new offset (the Just branch)
-   or to the genesis block if no intersection was found. -}
+   or to the genesis block if no intersection was found.
+-}
 findIntersect ::
-  ( MonadReader (MVar AppState) m,
-    MonadIO m,
+  ( Members '[Reader (MVar AppState), Embed IO] effs,
     block ~ CardanoBlock StandardCrypto
   ) =>
   [Point block] ->
-  m (ServerStIntersect block (Point block) Tip m ())
+  Sem effs (ServerStIntersect block (Point block) Tip (Sem effs) ())
 findIntersect clientPoints = do
   mvState <- ask
   appState <- liftIO $ readMVar mvState
@@ -356,16 +369,16 @@ findIntersect clientPoints = do
         -- Resuming from point'.
         (ChainSyncServer $ cloneChainFrom (pointOffset point') >>= idleState)
 
-{- This is a wrapper around the creation of a `ServerStNext` -}
+{- This is a wrapper around the creation of a `ServerStNext`
+-}
 sendRollForward ::
-  ( MonadReader (MVar AppState) m,
-    MonadIO m,
+  ( Members '[Reader (MVar AppState), Embed IO] effs,
     block ~ CardanoBlock StandardCrypto
   ) =>
   LocalChannel ->
   Tip -> -- tip
   block -> -- current
-  m (ServerStNext block (Point block) Tip m ())
+  Sem effs (ServerStNext block (Point block) Tip (Sem effs) ())
 sendRollForward channel' tip' current =
   pure $
     SendMsgRollForward
@@ -375,28 +388,27 @@ sendRollForward channel' tip' current =
 
 {- This is the state for a new connection. For now we start with
    slot 0, and in idleState. This will probably change, since it
-   makes more sense to start in the `StIntersect` state. -}
+   makes more sense to start in the `StIntersect` state.
+-}
 chainSyncServer ::
-  ( MonadReader (MVar AppState) m,
-    MonadIO m,
+  ( Members '[Reader (MVar AppState), Embed IO] effs,
     block ~ CardanoBlock StandardCrypto
   ) =>
-  ChainSyncServer block (Point block) Tip m ()
+  ChainSyncServer block (Point block) Tip (Sem effs) ()
 chainSyncServer =
   ChainSyncServer (cloneChainFrom 0 >>= idleState)
 
 {- Use a `TChan` to model a broadcast channel of which we
-   clone (with potentially varying offsets) for clients. -}
+   clone (with potentially varying offsets) for clients.
+-}
 cloneChainFrom ::
-  forall m.
-  ( MonadReader (MVar AppState) m,
-    MonadIO m
-  ) =>
+  forall effs.
+  (Members '[Reader (MVar AppState), Embed IO] effs) =>
   Integer ->
-  m LocalChannel
+  Sem effs LocalChannel
 cloneChainFrom offset = LocalChannel <$> go
   where
-    go :: m (TChan Block)
+    go :: Sem effs (TChan Block)
     go = do
       globalChannel <- ask >>= getChannel
       liftIO $ atomically $ do
@@ -416,65 +428,66 @@ cloneChainFrom offset = LocalChannel <$> go
    different monad stack (mainly to be able to pass the internal state
    in a `MonadReader` and future proofing) so I wrote some hoisting
    functions for each of the states which transform the `ChainSyncMonad`
-   into IO. -}
+   into IO.
+-}
 
 hoistChainSync ::
-  (MonadReader (MVar AppState) m) =>
+  MVar AppState ->
   ChainSyncServer block (Point block) Tip ChainSyncMonad a ->
-  m (ChainSyncServer block (Point block) Tip IO a)
-hoistChainSync machine = do
-  internalState <- ask
-  pure
-    ChainSyncServer
-      { {- The basic idea is running the reader monad to remove it,
-           leaving only IO, which is what we need. We do the same for all
-           other states. -}
-        runChainSyncServer =
-          runChainSync internalState $
-            runChainSyncServer machine >>= hoistStIdle
-      }
+  ChainSyncServer block (Point block) Tip IO a
+hoistChainSync internalState machine =
+  ChainSyncServer
+    { {- The basic idea is running the reader monad to remove it,
+         leaving only IO, which is what we need. We do the same for all
+         other states. -}
+      runChainSyncServer =
+        hoistStIdle internalState
+          <$> runChainSync internalState (runChainSyncServer machine)
+    }
 
 hoistStIdle ::
-  (MonadReader (MVar AppState) m) =>
+  MVar AppState ->
   ServerStIdle block (Point block) Tip ChainSyncMonad a ->
-  m (ServerStIdle block (Point block) Tip IO a)
-hoistStIdle (ServerStIdle nextState' findIntersect' done) = do
-  internalState <- ask
-  pure
-    ServerStIdle
-      { recvMsgRequestNext =
-          runChainSync internalState $
-            nextState' >>= \case
-              Left stNext -> Left <$> hoistStNext stNext
-              Right mNext -> Right . pure <$> (hoistStNext =<< mNext),
-        recvMsgFindIntersect = \points ->
-          runChainSync
-            internalState
-            (findIntersect' points >>= hoistStIntersect),
-        recvMsgDoneClient = runChainSync internalState done
-      }
+  ServerStIdle block (Point block) Tip IO a
+hoistStIdle internalState (ServerStIdle nextState' findIntersect' done) =
+  ServerStIdle
+    { recvMsgRequestNext =
+        runChainSync internalState nextState' >>= \case
+          Left stNext ->
+            pure $ Left $ hoistStNext internalState stNext
+          Right mNext -> do
+            stNext <- runChainSync internalState mNext
+            pure $ Right $ pure $ hoistStNext internalState stNext,
+      recvMsgFindIntersect = \points ->
+        hoistStIntersect internalState
+          <$> runChainSync internalState (findIntersect' points),
+      recvMsgDoneClient = runChainSync internalState done
+    }
 
 hoistStIntersect ::
-  (MonadReader (MVar AppState) m) =>
+  MVar AppState ->
   ServerStIntersect block (Point block) Tip ChainSyncMonad a ->
-  m (ServerStIntersect block (Point block) Tip IO a)
-hoistStIntersect (SendMsgIntersectFound point tip' nextState') =
-  SendMsgIntersectFound point tip' <$> hoistChainSync nextState'
-hoistStIntersect (SendMsgIntersectNotFound tip' nextState') =
-  SendMsgIntersectNotFound tip' <$> hoistChainSync nextState'
+  ServerStIntersect block (Point block) Tip IO a
+hoistStIntersect internalState = \case
+  SendMsgIntersectFound point tip' nextState' ->
+    SendMsgIntersectFound point tip' (hoistChainSync internalState nextState')
+  SendMsgIntersectNotFound tip' nextState' ->
+    SendMsgIntersectNotFound tip' (hoistChainSync internalState nextState')
 
 hoistStNext ::
-  (MonadReader (MVar AppState) m) =>
+  MVar AppState ->
   ServerStNext block (Point block) Tip ChainSyncMonad a ->
-  m (ServerStNext block (Point block) Tip IO a)
-hoistStNext (SendMsgRollForward header tip' nextState') =
-  SendMsgRollForward header tip' <$> hoistChainSync nextState'
-hoistStNext (SendMsgRollBackward header tip' nextState') =
-  SendMsgRollBackward header tip' <$> hoistChainSync nextState'
+  ServerStNext block (Point block) Tip IO a
+hoistStNext internalState = \case
+  SendMsgRollForward header tip' nextState' ->
+    SendMsgRollForward header tip' (hoistChainSync internalState nextState')
+  SendMsgRollBackward header tip' nextState' ->
+    SendMsgRollBackward header tip' (hoistChainSync internalState nextState')
 
 {- This is boilerplate code that sets up the node protocols,
    you can find in:
-     ouroboros-network/ouroboros-network/demo/chain-sync.hs -}
+     ouroboros-network/ouroboros-network/demo/chain-sync.hs
+-}
 
 protocolLoop ::
   (MonadIO m) =>
@@ -525,11 +538,7 @@ chainSync mvChainState =
       const
         ( nullTracer,
           chainSyncCodec,
-          ChainSync.chainSyncServerPeer
-            ( runReader
-                (hoistChainSync chainSyncServer)
-                mvChainState
-            )
+          ChainSync.chainSyncServerPeer (hoistChainSync mvChainState chainSyncServer)
         )
 
 txSubmission ::
@@ -554,7 +563,7 @@ stateQuery mvChainState =
       const
         ( nullTracer,
           stateQueryCodec,
-          StateIdle,
+          LSQ.StateIdle,
           Query.localStateQueryServerPeer
             (stateQueryServer mvChainState)
         )
@@ -592,7 +601,8 @@ getChainPoints chain slot = do
 
 {- I did not use the same approach for this protocol as I did
    for the `ChainSync`. This protocol has only one state and
-   it is much simpler. -}
+   it is much simpler.
+-}
 
 txSubmissionServer ::
   (block ~ CardanoBlock StandardCrypto) =>

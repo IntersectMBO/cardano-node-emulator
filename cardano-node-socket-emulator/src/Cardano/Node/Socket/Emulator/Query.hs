@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -7,8 +8,9 @@ import Cardano.Api qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (epochInfo)
 import Cardano.Node.Emulator.API qualified as E
+import Cardano.Node.Emulator.Internal.API (ConcreteEmulatorEffs)
 import Cardano.Node.Emulator.Internal.Node.Params
-  ( Params (..),
+  ( EmulatorParams (..),
     emulatorEraHistory,
     emulatorGlobals,
     emulatorPParams,
@@ -38,6 +40,7 @@ import Ouroboros.Consensus.Shelley.Eras (ConwayEra, StandardCrypto)
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Consensus.Shelley.Ledger.Query (BlockQuery (..))
 import Ouroboros.Network.Block qualified as O
+import Polysemy (Embed, Member, Members, Sem)
 
 handleQuery ::
   (block ~ CardanoBlock StandardCrypto) =>
@@ -56,7 +59,7 @@ handleQuery state = \case
     pure $ Consensus.EraIndex (S (S (S (S (S (S (Z (K ())))))))) -- ConwayEra
   BlockQuery q -> printError $ "Unimplemented BlockQuery received: " ++ show q
   GetSystemStart -> do
-    AppState _ _ Params {pSlotConfig} <- readMVar state
+    AppState _ _ EmulatorParams {pSlotConfig} <- readMVar state
     pure $ C.SystemStart $ posixTimeToUTCTime $ scSlotZeroTime pSlotConfig
   GetChainBlockNo -> do
     tip <- getTip state
@@ -67,9 +70,12 @@ handleQuery state = \case
   DebugLedgerConfig -> printError "Unimplemented: DebugLedgerConfig"
 
 queryIfCurrentConway ::
-  (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra) =>
+  ( block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra,
+    Members ConcreteEmulatorEffs effs,
+    Member (Embed IO) effs
+  ) =>
   BlockQuery block a result ->
-  E.EmulatorT IO result
+  Sem effs result
 queryIfCurrentConway = \case
   GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams
   GetCurrentPParams -> emulatorPParams <$> E.getParams

@@ -37,7 +37,7 @@ library
       NamedFieldPuns
       ScopedTypeVariables
       StandaloneDeriving
-  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors -fplugin=Polysemy.Plugin
   build-depends:
       aeson >=2
     , async
@@ -60,13 +60,10 @@ library
     , cryptonite
     , data-default
     , exceptions
-    , freer-extras
-    , freer-simple
     , io-classes
     , iohk-monitoring
     , lens
     , memory
-    , mtl
     , network-mux
     , ouroboros-consensus
     , ouroboros-consensus-cardano
@@ -78,6 +75,8 @@ library
     , ouroboros-network-protocols
     , plutus-ledger
     , plutus-script-utils
+    , polysemy
+    , polysemy-plugin
     , prettyprinter
     , serialise
     , sop-core
@@ -115,12 +114,14 @@ executable cardano-node-socket-emulator
       NamedFieldPuns
       ScopedTypeVariables
       StandaloneDeriving
-  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+  ghc-options: -Wall -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -Wredundant-constraints -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors -fplugin=Polysemy.Plugin
   build-depends:
       base >=4.9 && <5
     , cardano-node-socket-emulator
     , data-default
     , iohk-monitoring
+    , polysemy
+    , polysemy-plugin
     , prettyprinter
   default-language: Haskell2010
   if impl(ghc <9.6) || impl(ghc >=9.7)

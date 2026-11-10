@@ -66,7 +66,7 @@ import Cardano.Api qualified as C
 import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Api.PParams (ppMaxCollateralInputsL)
 import Cardano.Ledger.Shelley.API (Coin (Coin))
-import Cardano.Node.Emulator.Internal.Node.Params (Params (pSlotConfig), testnet)
+import Cardano.Node.Emulator.Internal.Node.Params (EmulatorParams (pSlotConfig), testnet)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (SlotConfig)
 import Cardano.Node.Emulator.Internal.Node.TimeSlot qualified as TimeSlot
 import Cardano.Node.Emulator.Internal.Node.Validation
@@ -163,7 +163,7 @@ generatorModel =
 data Mockchain = Mockchain
   { mockchainInitialTxPool :: [CardanoTx],
     mockchainUtxo :: Map C.TxIn TxOut,
-    mockchainParams :: Params
+    mockchainParams :: EmulatorParams
   }
   deriving (Show)
 

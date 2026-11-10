@@ -1,3 +1,9 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Plutus.Script.Utils.Scripts
@@ -27,10 +33,18 @@ where
 
 import Cardano.Api qualified as C.Api
 import Cardano.Ledger.Plutus.Language (Language (PlutusV1, PlutusV2, PlutusV3))
-import Codec.Serialise (Serialise)
-import Data.Aeson (FromJSON, ToJSON)
+import Codec.CBOR.Extras (SerialiseViaFlat (SerialiseViaFlat))
+import Codec.CBOR.Write qualified as CBOR
+import Codec.Serialise (Serialise (encode), deserialiseOrFail)
+import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey, object, (.:), (.=))
+import Data.Aeson qualified as JSON
+import Data.Aeson.Types (Parser)
+import Data.ByteString.Base16 qualified as Base16
+import Data.ByteString.Lazy qualified as BSL
 import Data.Coerce (coerce)
+import Data.Hashable (Hashable)
 import Data.String (IsString)
+import Data.Text.Encoding qualified as TE
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Address (ToAddress (toAddress), ToCardanoAddress (toCardanoAddress), ToCredential (toCredential))
 import PlutusLedgerApi.Common (serialiseCompiledCode)
@@ -76,6 +90,31 @@ newtype Script = Script {unScript :: PV1.SerialisedScript}
 instance Show Script where
   showsPrec _ _ = showString "<Script>"
 
+-- Bypass the on-chain Serialise size checks for scripts sent in JSON events.
+instance ToJSON Script where
+  toJSON (Script p) =
+    JSON.String $
+      TE.decodeUtf8 $
+        Base16.encode $
+          CBOR.toStrictByteString $
+            encode (SerialiseViaFlat p)
+
+instance FromJSON Script where
+  parseJSON value = do
+    bytes <- JSON.withText "ByteString" (either fail pure . Base16.decode . TE.encodeUtf8) value
+    case deserialiseOrFail (BSL.fromStrict bytes) of
+      Left err -> fail $ show err
+      Right (SerialiseViaFlat p) -> pure $ Script p
+
+encodeBuiltinByteString :: Builtins.BuiltinByteString -> JSON.Value
+encodeBuiltinByteString =
+  JSON.String . TE.decodeUtf8 . Base16.encode . Builtins.fromBuiltin
+
+decodeBuiltinByteString :: JSON.Value -> Parser Builtins.BuiltinByteString
+decodeBuiltinByteString value =
+  Builtins.toBuiltin
+    <$> JSON.withText "ByteString" (either fail pure . Base16.decode . TE.encodeUtf8) value
+
 -- | Extracting scripts
 class ToScript a where
   toScript :: a -> Script
@@ -100,7 +139,7 @@ instance ToScript (CompiledCode (BuiltinData -> BuiltinUnit)) where
 
 -- * Scripts with a version attached
 
-deriving instance Serialise Language
+deriving anyclass instance Serialise Language
 
 instance Pretty Language where
   pretty PlutusV1 = "Plutus V1"
@@ -157,6 +196,7 @@ instance (ToScript a) => ToCardanoAddress (Versioned a) where
 newtype Validator = Validator {getValidator :: Script}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Serialise)
+  deriving anyclass (ToJSON, FromJSON)
   deriving (Pretty) via (PrettyShow Validator)
 
 instance Show Validator where
@@ -192,7 +232,15 @@ instance ToVersioned Validator (Versioned Script) where
 newtype ValidatorHash = ValidatorHash {getValidatorHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
+  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving anyclass (FromJSONKey, ToJSONKey)
+
+instance ToJSON ValidatorHash where
+  toJSON = object . pure . ("getValidatorHash" .=) . encodeBuiltinByteString . getValidatorHash
+
+instance FromJSON ValidatorHash where
+  parseJSON = JSON.withObject "ValidatorHash" $ \value ->
+    ValidatorHash <$> (value .: "getValidatorHash" >>= decodeBuiltinByteString)
 
 makeLift ''ValidatorHash
 
@@ -220,6 +268,7 @@ instance ToScriptHash ValidatorHash where
 newtype MintingPolicy = MintingPolicy {getMintingPolicy :: Script}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Serialise)
+  deriving anyclass (ToJSON, FromJSON)
   deriving (Pretty) via (PrettyShow MintingPolicy)
 
 instance Show MintingPolicy where
@@ -256,7 +305,15 @@ instance ToVersioned MintingPolicy (Versioned Script) where
 newtype MintingPolicyHash = MintingPolicyHash {getMintingPolicyHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
+  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving anyclass (FromJSONKey, ToJSONKey)
+
+instance ToJSON MintingPolicyHash where
+  toJSON = object . pure . ("getMintingPolicyHash" .=) . encodeBuiltinByteString . getMintingPolicyHash
+
+instance FromJSON MintingPolicyHash where
+  parseJSON = JSON.withObject "MintingPolicyHash" $ \value ->
+    MintingPolicyHash <$> (value .: "getMintingPolicyHash" >>= decodeBuiltinByteString)
 
 makeLift ''MintingPolicyHash
 
@@ -294,6 +351,7 @@ toCurrencySymbol = coerce . toMintingPolicyHash
 newtype StakeValidator = StakeValidator {getStakeValidator :: Script}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Serialise)
+  deriving anyclass (ToJSON, FromJSON)
   deriving (Pretty) via (PrettyShow MintingPolicy)
 
 instance Show StakeValidator where
@@ -329,7 +387,15 @@ instance ToVersioned StakeValidator (Versioned Script) where
 newtype StakeValidatorHash = StakeValidatorHash {getStakeValidatorHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
+  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving anyclass (FromJSONKey, ToJSONKey)
+
+instance ToJSON StakeValidatorHash where
+  toJSON = object . pure . ("getStakeValidatorHash" .=) . encodeBuiltinByteString . getStakeValidatorHash
+
+instance FromJSON StakeValidatorHash where
+  parseJSON = JSON.withObject "StakeValidatorHash" $ \value ->
+    StakeValidatorHash <$> (value .: "getStakeValidatorHash" >>= decodeBuiltinByteString)
 
 makeLift ''StakeValidatorHash
 

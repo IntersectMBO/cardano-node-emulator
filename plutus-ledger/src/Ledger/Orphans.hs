@@ -1,9 +1,12 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Ledger.Orphans where
@@ -47,11 +50,11 @@ instance BA.ByteArrayAccess TxId where
   length (TxId bis) = BA.length bis
   withByteArray (TxId bis) = BA.withByteArray bis
 
-deriving instance Data C.NetworkMagic
+deriving stock instance Data C.NetworkMagic
 
-deriving instance Data C.NetworkId
+deriving stock instance Data C.NetworkId
 
-deriving instance Generic C.NetworkId
+deriving stock instance Generic C.NetworkId
 
 instance Serialise (C.AddressInEra C.ConwayEra) where
   encode = encode . C.serialiseToRawBytes
@@ -62,9 +65,9 @@ instance Serialise (C.AddressInEra C.ConwayEra) where
       pure
       $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsConwayEra) bs
 
-deriving instance Generic C.PolicyId
+deriving stock instance Generic C.PolicyId
 
-deriving instance Generic C.Quantity
+deriving stock instance Generic C.Quantity
 
 -- 'POSIXTime' instances
 

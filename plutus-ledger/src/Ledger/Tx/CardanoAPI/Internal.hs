@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -7,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -132,7 +134,7 @@ import Prettyprinter (Pretty (pretty), colon, viaShow, (<+>))
 type EmulatorEra = ConwayEra
 
 newtype CardanoBuildTx = CardanoBuildTx {getCardanoBuildTx :: C.TxBodyContent C.BuildTx C.ConwayEra}
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
 
 -- | Cardano tx from any era.
 data CardanoTx where
@@ -158,7 +160,7 @@ instance Eq CardanoTx where
   (CardanoTx tx1 C.ShelleyBasedEraConway) == (CardanoTx tx2 C.ShelleyBasedEraConway) = tx1 == tx2
   _ == _ = False
 
-deriving instance Show CardanoTx
+deriving stock instance Show CardanoTx
 
 instance ToJSON CardanoTx where
   toJSON (CardanoTx tx sbe) =

@@ -1,7 +1,7 @@
 -- | Copied from plutus-ledger-api because not exported
 module Codec.CBOR.Extras where
 
-import Codec.CBOR.Decoding as CBOR
+import Codec.CBOR.Decoding (Decoder, decodeBytes)
 import Codec.Serialise (Serialise, decode, encode)
 import Flat qualified
 import Flat.Decoder qualified as Flat
@@ -14,7 +14,7 @@ instance (Flat.Flat a) => Serialise (SerialiseViaFlat a) where
   encode (SerialiseViaFlat a) = encode $ Flat.flat a
   decode = SerialiseViaFlat <$> decodeViaFlat Flat.decode
 
-decodeViaFlat :: Flat.Get a -> CBOR.Decoder s a
+decodeViaFlat :: Flat.Get a -> Decoder s a
 decodeViaFlat decoder = do
   bs <- decodeBytes
   case Flat.unflatWith decoder bs of

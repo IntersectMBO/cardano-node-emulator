@@ -1,14 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-{- Cardano wallet implementation for the emulator.
--}
+{- Cardano wallet implementation for the emulator.-}
 module Ledger.CardanoWallet
   ( MockWallet (..),
 
@@ -40,8 +41,9 @@ where
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise (serialise)
 import Crypto.Hash qualified as Crypto
-import Data.Aeson (FromJSON, ToJSON)
-import Data.Aeson.Extras (encodeByteString)
+import Data.Aeson (FromJSON, ToJSON (toJSON), parseJSON)
+import Data.Aeson.Extras (decodeByteString, encodeByteString)
+import Data.ByteArray (convert)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Coerce (coerce)
@@ -74,7 +76,12 @@ import PlutusLedgerApi.V1
 import PlutusLedgerApi.V1.Bytes (LedgerBytes (getLedgerBytes))
 import Servant.API (FromHttpApiData, ToHttpApiData)
 
+-- * Mock private keys
+
+-- | A mock private key for the emulator. This is a wrapper around 'Crypto.XPrv'
+-- to provide custom instances for various typeclasses.
 newtype MockPrivateKey = MockPrivateKey {unMockPrivateKey :: Crypto.XPrv}
+  deriving stock (Generic)
 
 instance Show MockPrivateKey where
   show = T.unpack . encodeByteString . Crypto.unXPrv . unMockPrivateKey
@@ -88,14 +95,46 @@ instance Ord MockPrivateKey where
 instance Hashable MockPrivateKey where
   hashWithSalt i = hashWithSalt i . Crypto.unXPrv . unMockPrivateKey
 
+instance ToJSON MockPrivateKey where
+  toJSON = toJSON . encodeByteString . Crypto.unXPrv . unMockPrivateKey
+
+instance FromJSON MockPrivateKey where
+  parseJSON v = do
+    bs <- decodeByteString v
+    either
+      fail
+      (pure . MockPrivateKey)
+      (Crypto.xprv bs)
+
+-- * Wallet digests
+
+-- | A wallet digest is a hash of the public key of the wallet. It is used to
+-- identify wallets in the emulator.
+newtype WalletDigest = WalletDigest {unWalletDigest :: Crypto.Digest Crypto.Blake2b_160}
+  deriving stock (Show, Eq, Ord, Generic)
+
+instance ToJSON WalletDigest where
+  toJSON = toJSON . encodeByteString . convert . unWalletDigest
+
+instance FromJSON WalletDigest where
+  parseJSON value = do
+    bytes <- decodeByteString value
+    maybe
+      (fail "Invalid digest length")
+      (pure . WalletDigest)
+      (Crypto.digestFromByteString bytes)
+
+-- * Mock wallets
+
 -- | Emulated wallet with a key and a passphrase
 data MockWallet = MockWallet
-  { mwWalletId :: Crypto.Digest Crypto.Blake2b_160,
+  { mwWalletId :: WalletDigest,
     mwPaymentKey :: MockPrivateKey,
     mwStakeKey :: Maybe MockPrivateKey,
     mwPrintAs :: Maybe String
   }
-  deriving (Show)
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | Wrapper for config files and APIs
 newtype WalletNumber = WalletNumber {getWallet :: Integer}
@@ -127,12 +166,13 @@ fromSeedInternal seedGen bs = MockWallet {mwWalletId, mwPaymentKey, mwStakeKey, 
     bs' = bs <> BS.replicate missing 0
     k = seedGen bs'
     mwWalletId =
-      fromMaybe (error "Ledger.CardanoWallet.fromSeed: digestFromByteString") $
-        Crypto.digestFromByteString $
-          Crypto.hashWith Crypto.Blake2b_160 $
-            getLedgerBytes $
-              getPubKey $
-                Crypto.toPublicKey k
+      WalletDigest $
+        fromMaybe (error "Ledger.CardanoWallet.fromSeed: digestFromByteString") $
+          Crypto.digestFromByteString $
+            Crypto.hashWith Crypto.Blake2b_160 $
+              getLedgerBytes $
+                getPubKey $
+                  Crypto.toPublicKey k
     mwPaymentKey = MockPrivateKey k
     mwStakeKey = Nothing
 

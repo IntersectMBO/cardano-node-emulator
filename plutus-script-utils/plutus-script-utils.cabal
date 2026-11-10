@@ -58,19 +58,23 @@ library
     Plutus.Script.Utils.Address
     Plutus.Script.Utils.Data
     Plutus.Script.Utils.Scripts
+    Plutus.Script.Utils.ShowBS
     Plutus.Script.Utils.V1
     Plutus.Script.Utils.V1.Contexts
     Plutus.Script.Utils.V1.Generators
     Plutus.Script.Utils.V1.Scripts
+    Plutus.Script.Utils.V1.ShowBS
     Plutus.Script.Utils.V1.Typed
     Plutus.Script.Utils.V2
     Plutus.Script.Utils.V2.Contexts
     Plutus.Script.Utils.V2.Generators
     Plutus.Script.Utils.V2.Scripts
+    Plutus.Script.Utils.V2.ShowBS
     Plutus.Script.Utils.V2.Typed
     Plutus.Script.Utils.V3
     Plutus.Script.Utils.V3.Contexts
     Plutus.Script.Utils.V3.Generators
+    Plutus.Script.Utils.V3.ShowBS
     Plutus.Script.Utils.V3.Typed
     Plutus.Script.Utils.Value
     Prettyprinter.Extras
@@ -117,6 +121,7 @@ test-suite plutus-script-utils-test
   main-is:        Spec.hs
   other-modules:
     JSONSpec
+    ShowBSSpec
     V3.PurposeDispatcher
 
   build-depends:

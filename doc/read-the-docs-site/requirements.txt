@@ -18,7 +18,7 @@ sphinxcontrib-bibtex==2.2.0
 CommonMark==0.9.1
 docutils==0.16
 future==0.18.3
-idna==2.9
+idna==3.15
 imagesize==1.2.0
 Jinja2==2.11.3
 jsonpointer==2.0

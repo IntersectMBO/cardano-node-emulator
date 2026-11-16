@@ -23,6 +23,7 @@ library
       Ledger.Builtins.Orphans
       Ledger.CardanoPool
       Ledger.CardanoWallet
+      Ledger.Common
       Ledger.Credential.Orphans
       Ledger.Crypto
       Ledger.Crypto.Orphans
@@ -36,6 +37,7 @@ library
       Ledger.Scripts.V1
       Ledger.Scripts.V2
       Ledger.Scripts.V3
+      Ledger.Scripts.V4
       Ledger.Slot
       Ledger.Test
       Ledger.Tx
@@ -65,7 +67,7 @@ library
       ImportQualifiedPost
       MultiParamTypeClasses
       ScopedTypeVariables
-  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors -fprint-potential-instances
+  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt Plinth.Plugin:target-version=1.1.0 -fplugin-opt Plinth.Plugin:defer-errors -fprint-potential-instances
   build-depends:
       aeson
     , base >=4.9 && <5
@@ -79,6 +81,7 @@ library
     , cardano-ledger-byron
     , cardano-ledger-conway
     , cardano-ledger-core
+    , cardano-ledger-dijkstra
     , cardano-ledger-shelley
     , cborg
     , containers
@@ -86,7 +89,6 @@ library
     , data-default
     , hashable
     , http-api-data
-    , iohk-monitoring
     , lens
     , memory
     , mtl
@@ -106,7 +108,7 @@ library
     , time-units
     , vector
   default-language: Haskell2010
-  if impl(ghc <9.6) || impl(ghc >=9.7)
+  if impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)
     buildable: False
 
 test-suite plutus-ledger-test
@@ -126,7 +128,7 @@ test-suite plutus-ledger-test
       MultiParamTypeClasses
       ScopedTypeVariables
       ImportQualifiedPost
-  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 -fplugin-opt PlutusTx.Plugin:defer-errors
+  ghc-options: -Wall -Wnoncanonical-monad-instances -Wno-unused-packages -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Widentities -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fplugin-opt Plinth.Plugin:target-version=1.1.0 -fplugin-opt Plinth.Plugin:defer-errors
   build-depends:
       aeson
     , base >=4.9 && <5
@@ -142,5 +144,5 @@ test-suite plutus-ledger-test
     , tasty-hedgehog
     , tasty-hunit
   default-language: Haskell2010
-  if impl(ghc <9.6) || impl(ghc >=9.7)
+  if impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)
     buildable: False

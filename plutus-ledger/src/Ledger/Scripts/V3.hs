@@ -1,27 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.Scripts.V3
-  ( toCardanoScript,
-  )
-where
+module Ledger.Scripts.V3 (toCardanoScript) where
 
-import Cardano.Api qualified as C
-import Ledger.Scripts (ToCardanoAddress (toCardanoAddress))
-import Plutus.Script.Utils.Address (ToAddress (toAddress))
-import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV3),
-    MintingPolicy,
-    Script,
-    StakeValidator,
-    ToMintingPolicyHash (toMintingPolicyHash),
-    ToScriptHash (toScriptHash),
-    ToStakeValidatorHash (toStakeValidatorHash),
-    ToValidatorHash (toValidatorHash),
-    Validator,
-    Versioned (Versioned),
-  )
-import Plutus.Script.Utils.Scripts qualified as PSU
+import Cardano.Api qualified as C.Api
+import Ledger.Address (ToCardanoAddress (toCardanoAddress))
+import Ledger.Scripts (ToCardanoScript (toCardanoScript), ToCardanoScriptHash (toCardanoScriptHash))
+import Plutus.Script.Utils.V3
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV3))
+import PlutusLedgerApi.V1.Address (Address (Address))
+
+instance (ToScript a) => ToAddress (Versioned a) where
+  toAddress = (`Address` Nothing) . toCredential
 
 instance ToScriptHash Script where
   toScriptHash = toScriptHash . (`Versioned` PlutusV3)
@@ -50,8 +41,8 @@ instance ToCardanoAddress StakeValidator where
 instance ToCardanoAddress MintingPolicy where
   toCardanoAddress networkId = toCardanoAddress networkId . (`Versioned` PlutusV3)
 
-toCardanoScript :: Script -> C.Script C.PlutusScriptV3
-toCardanoScript =
-  C.PlutusScript C.PlutusScriptV3
-    . C.PlutusScriptSerialised
-    . PSU.unScript
+instance ToCardanoScript C.Api.PlutusScriptV3 Script where
+  toCardanoScript = C.Api.PlutusScript C.Api.PlutusScriptV3 . C.Api.PlutusScriptSerialised . unScript
+
+instance ToCardanoScriptHash Script where
+  toCardanoScriptHash = C.Api.hashScript . toCardanoScript @C.Api.PlutusScriptV3

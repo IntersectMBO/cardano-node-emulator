@@ -26,9 +26,9 @@ import PlutusTx.Builtins (BuiltinByteString)
 import PlutusTx.Prelude qualified as P
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase)
-import UntypedPlutusCore (Program (Program))
+import UntypedPlutusCore.Core.Type qualified as Cek
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as Cek
-import Prelude (Bool (False, True), Either (Left, Right), IO, Integer, Maybe, ($))
+import Prelude (Bool (False, True), IO, Integer, Maybe, ($), (.))
 
 tests :: TestTree
 tests =
@@ -215,17 +215,11 @@ succeeds code input =
   assertBool "expected ShowBS output to match" (evaluateCode code input)
 
 evaluateCode :: CompiledCode (BuiltinData -> P.BuiltinUnit) -> BuiltinData -> Bool
-evaluateCode code input =
-  let Program _ _ term =
-        getPlcNoAnn $
-          unsafeApplyCode code $
-            liftCode plcVersion110 input
-      (result, _, _) =
-        Cek.runCekDeBruijn
-          defaultCekParametersForTesting
-          Cek.counting
-          Cek.noEmitter
-          term
-   in case result of
-        Left _ -> False
-        Right _ -> True
+evaluateCode code =
+  \case Cek.CekFailure _ -> False; _ -> True
+    . Cek._cekReportResult
+    . Cek.runCekDeBruijn defaultCekParametersForTesting Cek.counting Cek.noEmitter
+    . Cek._progTerm
+    . getPlcNoAnn
+    . unsafeApplyCode code
+    . liftCode plcVersion110

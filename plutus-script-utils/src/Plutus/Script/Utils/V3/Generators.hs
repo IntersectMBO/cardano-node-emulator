@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -g -fplugin-opt Plinth.Plugin:target-version=1.1.0 #-}
 
 module Plutus.Script.Utils.V3.Generators
   ( trueCertifyingPurpose,
@@ -21,8 +22,7 @@ where
 
 import Data.Maybe (Maybe (Just, Nothing))
 import Plutus.Script.Utils.Scripts
-  ( ScriptHash (ScriptHash),
-    ToScript (toScript),
+  ( ToScript (toScript),
     ToScriptHash (toScriptHash),
   )
 import Plutus.Script.Utils.V3.Typed
@@ -45,6 +45,7 @@ import PlutusLedgerApi.V3
   ( Credential (ScriptCredential),
     CurrencySymbol (CurrencySymbol),
     MintValue,
+    ScriptHash (ScriptHash),
     TxInInfo (TxInInfo),
     TxOut (TxOut),
     TxOutRef,

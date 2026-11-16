@@ -21,7 +21,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          hpkgs = pkgs.haskell.packages.ghc96;
+          hpkgs = pkgs.haskell.packages.ghc912;
 
           ## We change the way 'blst' is built so that it takes into
           ## account the current architecture of the processor. This
@@ -74,6 +74,7 @@
                 pkgs.libsodium
                 pkgs.secp256k1
                 pkgs.lmdb
+                pkgs.liburing
                 hpkgs.ghc
                 hpkgs.cabal-install
                 pkgs.scriv

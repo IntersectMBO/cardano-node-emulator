@@ -16,7 +16,6 @@ default-extensions:
   - DataKinds
   - FlexibleContexts
   - FlexibleInstances
-  - GADTs
   - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
@@ -24,7 +23,6 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedStrings
-  - PolyKinds
   - RankNTypes
   - RecordWildCards
   - ScopedTypeVariables
@@ -52,9 +50,8 @@ ghc-options:
   -fno-ignore-interface-pragmas
   -fignore-hpc-changes
   -fno-omit-interface-pragmas
-  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
-  -fplugin-opt PlutusTx.Plugin:defer-errors
-  -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+  -fplugin-opt Plinth.Plugin:defer-errors
+  -fplugin-opt Plinth.Plugin:conservative-optimisation
 
 library:
   source-dirs: src
@@ -79,7 +76,7 @@ library:
   ghc-options:
     -fprint-potential-instances
   when:
-    - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+    - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
       buildable: false
 
 tests:
@@ -90,13 +87,13 @@ tests:
       - aeson
       - base
       - bytestring
-      - plutus-core >=1.45 && <1.46
-      - plutus-ledger-api >=1.45 && <1.46
+      - plutus-core
+      - plutus-ledger-api
       - plutus-script-utils
       - plutus-tx
       - plutus-tx-plugin
       - tasty
       - tasty-hunit
     when:
-      - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+      - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
         buildable: false

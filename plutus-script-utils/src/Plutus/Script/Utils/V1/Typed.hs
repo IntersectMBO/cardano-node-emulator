@@ -44,8 +44,7 @@ import Data.Kind (Type)
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Scripts
-  ( Language,
-    MintingPolicy,
+  ( MintingPolicy,
     MintingPolicyHash,
     Script,
     ToScript (toScript),
@@ -55,6 +54,7 @@ import Plutus.Script.Utils.Scripts
     ValidatorHash (ValidatorHash, getValidatorHash),
     Versioned (Versioned),
   )
+import PlutusLedgerApi.Common (PlutusLedgerLanguage)
 import PlutusLedgerApi.V1
   ( Address (Address),
     BuiltinData,
@@ -114,7 +114,7 @@ data TypedValidator (a :: Type) = TypedValidator
     -- | The hash of the forwarding minting policy associated to this validator
     tvForwardingMintingPolicyHash :: MintingPolicyHash,
     -- | The language of the validator and forwarding minting policy
-    tvLanguage :: Language
+    tvLanguage :: PlutusLedgerLanguage
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)

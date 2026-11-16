@@ -1,12 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -Wno-missing-import-lists #-}
-{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
-{-# OPTIONS_GHC -fno-specialise #-}
-{-# OPTIONS_GHC -fno-strictness #-}
 
 module Plutus.Script.Utils.V2.Contexts
-  ( module Contexts,
-    findTxInByTxOutRef,
+  ( findTxInByTxOutRef,
     findTxRefInByTxOutRef,
     outputsAt,
     scriptOutputsAt,
@@ -17,12 +12,37 @@ module Plutus.Script.Utils.V2.Contexts
   )
 where
 
-import Plutus.Script.Utils.Address (ToAddress (toAddress))
-import Plutus.Script.Utils.Scripts (ToValidatorHash, ValidatorHash (..), toScriptHash, toValidatorHash)
-import PlutusLedgerApi.V2 (Address (Address), Credential (ScriptCredential), OutputDatum, ScriptHash (ScriptHash), Value)
-import PlutusLedgerApi.V2.Contexts as Contexts hiding (findTxInByTxOutRef, valuePaidTo)
+import Plutus.Script.Utils.Scripts
+  ( ToValidatorHash,
+    ValidatorHash (ValidatorHash),
+    toScriptHash,
+    toValidatorHash,
+  )
+import Plutus.Script.Utils.V2.Address (ToAddress (toAddress))
+import PlutusLedgerApi.V2
+  ( Address (Address),
+    Credential (ScriptCredential),
+    OutputDatum,
+    ScriptContext,
+    ScriptHash (ScriptHash),
+    TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
+    TxInfo (txInfoInputs, txInfoOutputs, txInfoReferenceInputs),
+    TxOut (TxOut),
+    TxOutRef,
+    Value,
+  )
+import PlutusLedgerApi.V2.Contexts (findOwnInput)
 import PlutusTx.List (find)
-import PlutusTx.Prelude (Maybe (Just, Nothing), fst, mapMaybe, mconcat, traceError, (.), (<$>), (==))
+import PlutusTx.Prelude
+  ( Maybe (Just, Nothing),
+    fst,
+    mapMaybe,
+    mconcat,
+    traceError,
+    (.),
+    (<$>),
+    (==),
+  )
 
 {-# INLINEABLE findInput #-}
 findInput :: TxOutRef -> [TxInInfo] -> Maybe TxOut

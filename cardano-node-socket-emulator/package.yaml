@@ -25,8 +25,8 @@ ghc-options:
   -Wincomplete-uni-patterns
   -Wnoncanonical-monad-instances
   -Wredundant-constraints
-  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
-  -fplugin-opt PlutusTx.Plugin:defer-errors
+  -fplugin-opt Plinth.Plugin:target-version=1.1.0
+  -fplugin-opt Plinth.Plugin:defer-errors
   -fplugin=Polysemy.Plugin
   
 library:
@@ -65,7 +65,6 @@ library:
     - serialise
     - strict-sop-core
     - typed-protocols
-    - typed-protocols-cborg
     - typed-protocols-stateful
     - aeson >=2
     - async
@@ -82,7 +81,7 @@ library:
     - time
     - time-units
   when:
-    - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+    - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
       buildable: false
 
 executables:
@@ -98,5 +97,5 @@ executables:
       - data-default
       - prettyprinter
     when:
-      - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+      - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
         buildable: false

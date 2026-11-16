@@ -4,7 +4,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ledger.Tx.Orphans.V1 where
+module Ledger.V1.Tx.Orphans where
 
 import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey)

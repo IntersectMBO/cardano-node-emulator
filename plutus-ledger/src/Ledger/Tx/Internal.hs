@@ -33,7 +33,7 @@ import Ledger.Crypto
 import Ledger.DCert.Orphans ()
 import Ledger.Data.CardanoAPI (datumHash)
 import Ledger.Tx.Orphans ()
-import Ledger.Tx.Orphans.V2 ()
+import Ledger.V2.Tx.Orphans ()
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts

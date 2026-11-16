@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.Scripts.V1 (toCardanoScript) where
+module Ledger.V1.Scripts (toCardanoScript) where
 
 import Cardano.Api qualified as C.Api
 import Ledger.Address (ToCardanoAddress (toCardanoAddress))

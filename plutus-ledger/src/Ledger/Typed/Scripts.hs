@@ -1,5 +1,5 @@
-module Ledger.Typed.Scripts (module Ledger.Typed.Scripts.V1) where
+module Ledger.Typed.Scripts (module Ledger.V1.Typed.Scripts) where
 
-import Ledger.Typed.Scripts.V1
-import Ledger.Typed.Scripts.V2 ()
-import Ledger.Typed.Scripts.V3 ()
+import Ledger.V1.Typed.Scripts
+import Ledger.V2.Typed.Scripts ()
+import Ledger.V3.Typed.Scripts ()

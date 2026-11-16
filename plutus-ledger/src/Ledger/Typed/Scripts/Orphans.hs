@@ -7,7 +7,7 @@ module Ledger.Typed.Scripts.Orphans where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Ledger.Tx.Orphans ()
-import Ledger.Typed.Scripts.V1 qualified as V1
+import Ledger.V1.Typed.Scripts qualified as V1
 
 deriving anyclass instance ToJSON V1.ConnectionError
 

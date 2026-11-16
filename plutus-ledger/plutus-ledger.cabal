@@ -34,10 +34,6 @@ library
       Ledger.Orphans
       Ledger.Scripts
       Ledger.Scripts.Orphans
-      Ledger.Scripts.V1
-      Ledger.Scripts.V2
-      Ledger.Scripts.V3
-      Ledger.Scripts.V4
       Ledger.Slot
       Ledger.Test
       Ledger.Tx
@@ -45,14 +41,18 @@ library
       Ledger.Tx.CardanoAPI.Internal
       Ledger.Tx.Internal
       Ledger.Tx.Orphans
-      Ledger.Tx.Orphans.V1
-      Ledger.Tx.Orphans.V2
       Ledger.Tx.Orphans.V3
       Ledger.Typed.Scripts
       Ledger.Typed.Scripts.Orphans
-      Ledger.Typed.Scripts.V1
-      Ledger.Typed.Scripts.V2
-      Ledger.Typed.Scripts.V3
+      Ledger.V1.Scripts
+      Ledger.V1.Tx.Orphans
+      Ledger.V1.Typed.Scripts
+      Ledger.V2.Scripts
+      Ledger.V2.Tx.Orphans
+      Ledger.V2.Typed.Scripts
+      Ledger.V3.Scripts
+      Ledger.V3.Typed.Scripts
+      Ledger.V4.Scripts
       Ledger.Value.CardanoAPI
       Ledger.Value.Orphans
   other-modules:

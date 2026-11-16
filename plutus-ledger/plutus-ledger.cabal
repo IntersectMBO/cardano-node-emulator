@@ -44,14 +44,14 @@ library
       Ledger.Tx.Orphans.V3
       Ledger.Typed.Scripts
       Ledger.Typed.Scripts.Orphans
+      Ledger.V1.Orphans
       Ledger.V1.Scripts
-      Ledger.V1.Tx.Orphans
-      Ledger.V1.Typed.Scripts
+      Ledger.V1.Typed
+      Ledger.V2.Orphans
       Ledger.V2.Scripts
-      Ledger.V2.Tx.Orphans
-      Ledger.V2.Typed.Scripts
+      Ledger.V2.Typed
       Ledger.V3.Scripts
-      Ledger.V3.Typed.Scripts
+      Ledger.V3.Typed
       Ledger.V4.Scripts
       Ledger.Value.CardanoAPI
       Ledger.Value.Orphans

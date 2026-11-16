@@ -40,7 +40,7 @@ import Data.ByteString qualified as BS
 import Data.Hashable (Hashable)
 import Data.String
 import GHC.Generics (Generic)
-import Ledger.V1.Tx.Orphans ()
+import Ledger.V1.Orphans ()
 import PlutusLedgerApi.V1 (LedgerBytes (LedgerBytes), TxId (TxId), fromBuiltin, toBuiltin)
 import PlutusLedgerApi.V1.Bytes qualified as KB
 import PlutusLedgerApi.V1.Crypto as Export

@@ -12,7 +12,7 @@ import Ledger.Address (ToCardanoAddress (toCardanoAddress))
 import Ledger.Address qualified as Ledger
 import Ledger.Typed.Scripts (Any)
 import Ledger.Typed.Scripts qualified as Typed
-import Ledger.V2.Typed.Scripts qualified as TypedV2
+import Ledger.V2.Typed qualified as TypedV2
 import Ledger.Value.CardanoAPI (policyId)
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV1, PlutusV2, PlutusV3),

@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.V3.Typed.Scripts () where
+module Ledger.V3.Typed () where
 
 import Ledger.Scripts ()
 import Plutus.Script.Utils.Address (ToAddress (toAddress), ToCredential (toCredential))

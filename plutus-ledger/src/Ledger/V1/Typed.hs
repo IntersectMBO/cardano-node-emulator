@@ -1,8 +1,10 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.V2.Typed.Scripts
-  ( module Typed,
-    validatorToTypedValidator,
+module Ledger.V1.Typed
+  ( validatorToTypedValidator,
     alwaysSucceedTypedValidator,
     alwaysFailTypedValidator,
     mkTypedValidator,
@@ -14,33 +16,45 @@ module Ledger.V2.Typed.Scripts
   )
 where
 
+import Cardano.Api qualified as C.Api
 import Control.Monad.Except (MonadError, throwError)
+import Ledger.Address (ToCardanoAddress (toCardanoAddress))
 import Ledger.Data.CardanoAPI (datumHash)
-import Ledger.Scripts ()
-import Ledger.V1.Typed.Scripts (toCardanoAddressAny)
-import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV2),
+import Ledger.V1.Scripts ()
+import Plutus.Script.Utils.V1
+  ( ConnectionError (NoDatum, WrongCredentialType),
+    DatumType,
+    IsDataDatum,
+    Script,
+    ToAddress (toAddress),
+    ToCredential (toCredential),
     ToMintingPolicyHash (toMintingPolicyHash),
     ToScriptHash (toScriptHash),
     ToValidator (toValidator),
     ToValidatorHash (toValidatorHash),
+    ToVersioned (toVersioned),
+    TypedScriptTxOut (TypedScriptTxOut),
+    TypedScriptTxOutRef (TypedScriptTxOutRef),
+    TypedValidator (TypedValidator),
+    UntypedValidator,
     Validator,
+    ValidatorType,
     Versioned (Versioned),
-  )
-import Plutus.Script.Utils.V2.Generators
-  ( alwaysFailValidator,
+    WrongOutTypeError (ExpectedScriptGotPubkey),
+    alwaysFailValidator,
     alwaysSucceedValidator,
+    checkDatum,
+    checkValidatorAddress,
     mkForwardingMintingPolicy,
+    tvValidatorHash,
   )
-import Plutus.Script.Utils.V2.Scripts (UntypedValidator)
-import Plutus.Script.Utils.V2.Typed as Typed
-import PlutusCore.Core (plcVersion100)
 import PlutusCore.Default (DefaultUni)
-import PlutusLedgerApi.V2
+import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV1))
+import PlutusLedgerApi.V1
   ( Address (Address, addressCredential),
     Credential (PubKeyCredential, ScriptCredential),
     Datum (Datum),
-    OutputDatum (OutputDatum, OutputDatumHash),
     ToData (toBuiltinData),
     TxOut (TxOut),
     TxOutRef,
@@ -48,11 +62,32 @@ import PlutusLedgerApi.V2
   )
 import PlutusTx (CompiledCode, Lift, liftCode, unsafeApplyCode)
 
+instance ToScriptHash (TypedValidator a) where
+  toScriptHash = toScriptHash . toVersioned @Script
+
+instance ToValidatorHash (TypedValidator a) where
+  toValidatorHash = toValidatorHash . toVersioned @Validator
+
+instance ToCredential (TypedValidator a) where
+  toCredential = toCredential . toVersioned @Script
+
+instance ToAddress (TypedValidator a) where
+  toAddress = toAddress . toVersioned @Script
+
+instance ToCardanoAddress (TypedValidator a) where
+  toCardanoAddress networkId = toCardanoAddress networkId . toVersioned @Script
+
+toCardanoAddressAny :: C.Api.NetworkId -> TypedValidator a -> C.Api.AddressAny
+toCardanoAddressAny nid tv =
+  case toCardanoAddress nid tv of
+    C.Api.AddressInEra C.Api.ShelleyAddressInEra {} addr -> C.Api.AddressShelley addr
+    C.Api.AddressInEra C.Api.ByronAddressInAnyEra {} addr -> C.Api.AddressByron addr
+
 validatorToTypedValidator :: Validator -> TypedValidator a
 validatorToTypedValidator val =
   TypedValidator val hsh fmp fmph lang
   where
-    lang = PlutusV2
+    lang = PlutusV1
     hsh = toValidatorHash (Versioned val lang)
     fmp = mkForwardingMintingPolicy hsh
     fmph = toMintingPolicyHash (Versioned fmp lang)
@@ -91,8 +126,7 @@ makeTypedScriptTxOut (TypedValidator {tvValidatorHash}) dat val =
     ( TxOut
         (Address (ScriptCredential (toScriptHash tvValidatorHash)) Nothing)
         val
-        (OutputDatumHash $ datumHash $ Datum $ toBuiltinData dat)
-        Nothing
+        (Just (datumHash $ Datum $ toBuiltinData dat))
     )
     dat
 
@@ -103,17 +137,13 @@ typeScriptTxOut ::
   TxOut ->
   Datum ->
   m (TypedScriptTxOut out)
-typeScriptTxOut tv txOutRef txOut@(TxOut addr _ dat _) datum =
+typeScriptTxOut tv txOutRef txOut@(TxOut addr _ dHash) datum =
   case addressCredential addr of
     PubKeyCredential _ ->
       throwError $ WrongCredentialType ExpectedScriptGotPubkey
     ScriptCredential _vh ->
-      case dat of
-        OutputDatum d
-          | datumHash datum == datumHash d ->
-              checkValidatorAddress tv addr
-                >> TypedScriptTxOut txOut <$> checkDatum tv datum
-        OutputDatumHash dh
+      case dHash of
+        Just dh
           | datumHash datum == dh ->
               checkValidatorAddress tv addr
                 >> TypedScriptTxOut txOut <$> checkDatum tv datum

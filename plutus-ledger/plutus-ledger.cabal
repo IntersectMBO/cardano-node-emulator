@@ -15,7 +15,6 @@ library
   exposed-modules:
       Data.Aeson.Extras
       Data.Time.Units.Extra
-      Ledger
       Ledger.Address
       Ledger.Address.Orphans
       Ledger.AddressMap
@@ -35,21 +34,21 @@ library
       Ledger.Scripts
       Ledger.Scripts.Orphans
       Ledger.Slot
-      Ledger.Test
       Ledger.Tx
       Ledger.Tx.CardanoAPI
       Ledger.Tx.CardanoAPI.Internal
       Ledger.Tx.Internal
       Ledger.Tx.Orphans
       Ledger.Tx.Orphans.V3
-      Ledger.Typed.Scripts
-      Ledger.Typed.Scripts.Orphans
+      Ledger.V1
       Ledger.V1.Orphans
       Ledger.V1.Scripts
       Ledger.V1.Typed
+      Ledger.V2
       Ledger.V2.Orphans
       Ledger.V2.Scripts
       Ledger.V2.Typed
+      Ledger.V3
       Ledger.V3.Scripts
       Ledger.V3.Typed
       Ledger.V4.Scripts

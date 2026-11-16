@@ -11,6 +11,7 @@ import Ledger.Address.Orphans ()
 import Ledger.Builtins.Orphans ()
 import Ledger.Credential.Orphans ()
 import Ledger.Scripts.Orphans ()
+import Ledger.V1.Orphans ()
 import Ledger.Value.Orphans ()
 import PlutusLedgerApi.V2
 

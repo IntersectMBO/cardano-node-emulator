@@ -76,7 +76,7 @@ import Data.SOP.Strict (NP (Nil, (:*)))
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
-import Ledger.Test (testNetworkMagic, testnet)
+import Ledger.Common (testNetworkMagic, testnet)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))

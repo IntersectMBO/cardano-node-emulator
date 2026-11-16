@@ -15,6 +15,7 @@ import Ledger.Builtins.Orphans ()
 import Ledger.Credential.Orphans ()
 import Ledger.Scripts.Orphans ()
 import Ledger.Value.Orphans ()
+import Plutus.Script.Utils.V1 qualified as V1
 import PlutusLedgerApi.V1
 import PlutusLedgerApi.V1.Bytes qualified as Bytes
 import PlutusLedgerApi.V1.Tx
@@ -72,3 +73,7 @@ deriving anyclass instance ToJSONKey TxId
 deriving anyclass instance FromJSONKey TxId
 
 deriving anyclass instance Serialise TxId
+
+deriving anyclass instance ToJSON V1.ConnectionError
+
+deriving anyclass instance FromJSON V1.ConnectionError

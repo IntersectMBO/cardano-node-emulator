@@ -4,6 +4,8 @@
 module Ledger.Common
   ( LedgerEra,
     LedgerAddress,
+    testNetworkMagic,
+    testnet,
   )
 where
 
@@ -19,3 +21,9 @@ type LedgerAddress = C.AddressInEra LedgerEra
 instance ToJSONKey LedgerAddress
 
 instance FromJSONKey LedgerAddress
+
+testNetworkMagic :: C.NetworkMagic
+testNetworkMagic = C.NetworkMagic 1097911063
+
+testnet :: C.NetworkId
+testnet = C.Testnet testNetworkMagic

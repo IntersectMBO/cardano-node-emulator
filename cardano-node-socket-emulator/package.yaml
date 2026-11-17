@@ -35,7 +35,7 @@ library:
     - cardano-node-emulator
     - plutus-ledger
     - plutus-script-utils
-    - cardano-api
+    - cardano-api == 10.18.1.0
     - cardano-ledger-api
     - cardano-ledger-byron
     - cardano-ledger-core

@@ -20,9 +20,6 @@ packages: plutus-ledger
           cardano-node-emulator
           cardano-node-socket-emulator
 
-constraints:
-  cardano-api == 10.18.1.0
-          
 -- We never, ever, want this.
 write-ghc-environment-files: never
 

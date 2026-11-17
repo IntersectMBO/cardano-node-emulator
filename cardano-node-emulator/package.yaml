@@ -38,7 +38,7 @@ library:
   source-dirs: src
   dependencies:
     - plutus-ledger
-    - cardano-api
+    - cardano-api == 10.18.1.0
     - cardano-api:gen
     - cardano-crypto
     - cardano-ledger-alonzo

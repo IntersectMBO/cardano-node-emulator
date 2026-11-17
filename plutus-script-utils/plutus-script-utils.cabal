@@ -78,7 +78,7 @@ library
     , hashable
     , mtl
     , plutus-core
-    , plutus-ledger-api
+    , plutus-ledger-api ==1.45.*
     , plutus-tx
     , plutus-tx-plugin
     , prettyprinter

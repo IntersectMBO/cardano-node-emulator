@@ -4,13 +4,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Ledger.Address
-  ( module Export,
-    CardanoAddress,
-    ToCardanoAddress (..),
+  ( LedgerAddress,
     PaymentPrivateKey (..),
     PaymentPubKey (..),
     PaymentPubKeyHash (..),
@@ -18,11 +18,12 @@ module Ledger.Address
     StakePubKey (..),
     StakePubKeyHash (..),
     ToWitness (..),
-    toPlutusAddress,
-    toPlutusPubKeyHash,
-    cardanoAddressCredential,
-    cardanoPubKeyHash,
-    cardanoStakingCredential,
+    ToCardanoAddress (..),
+    fromCardanoAddress,
+    fromKeyHash,
+    fromScriptHash,
+    fromByronAddress,
+    fromCardanoStakeCredential,
     paymentPubKeyHash,
     pubKeyHashAddress,
     pubKeyAddress,
@@ -31,13 +32,15 @@ module Ledger.Address
     stakeValidatorHashCredential,
     xprvToPaymentPubKey,
     xprvToPaymentPubKeyHash,
-    xprvToStakingCredential,
+    xprvToAccountId,
     xprvToStakePubKey,
     xprvToStakePubKeyHash,
   )
 where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Byron qualified as Byron
+import Cardano.Api.Ledger qualified as C
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise (Serialise)
@@ -45,84 +48,52 @@ import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
 import Ledger.Address.Orphans as Export ()
+import Ledger.Common (LedgerAddress)
 import Ledger.Crypto (PubKey (PubKey), PubKeyHash (PubKeyHash), pubKeyHash, toPublicKey)
 import Ledger.Orphans ()
-import Ledger.Scripts
-  ( ScriptHash (..),
-    StakeValidatorHash (..),
-    ToCardanoAddress (..),
-    ValidatorHash (..),
-  )
-import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress, toScriptHash)
-import PlutusLedgerApi.V1.Credential
-  ( Credential (PubKeyCredential, ScriptCredential),
-    StakingCredential (StakingHash),
-  )
+import Ledger.Scripts (toCardanoScriptHash)
+import Plutus.Script.Utils.Scripts qualified as PSU
+import PlutusLedgerApi.V4 qualified as Api
 import PlutusTx qualified
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude qualified as PlutusTx
 import Prettyprinter (Pretty)
 
-type CardanoAddress = C.AddressInEra C.ConwayEra
+fromByronAddress :: Byron.Address -> Api.Credential
+fromByronAddress = Api.PubKeyCredential . PubKeyHash . PlutusTx.toBuiltin . addrToBase58
 
-instance ToJSONKey (C.AddressInEra C.ConwayEra)
+fromKeyHash :: (C.SerialiseAsRawBytes (C.Hash key)) => C.Hash key -> PubKeyHash
+fromKeyHash = PubKeyHash . PlutusTx.toBuiltin . C.serialiseToRawBytes
 
-instance FromJSONKey (C.AddressInEra C.ConwayEra)
+fromScriptHash :: C.ScriptHash -> Api.ScriptHash
+fromScriptHash = Api.ScriptHash . PlutusTx.toBuiltin . C.serialiseToRawBytes
 
-cardanoAddressCredential :: C.AddressInEra era -> Credential
-cardanoAddressCredential (C.AddressInEra C.ByronAddressInAnyEra (C.ByronAddress address)) =
-  PubKeyCredential $
-    PubKeyHash $
-      PlutusTx.toBuiltin $
-        addrToBase58 address
-cardanoAddressCredential (C.AddressInEra _ (C.ShelleyAddress _ paymentCredential _)) =
-  case C.fromShelleyPaymentCredential paymentCredential of
-    C.PaymentCredentialByKey paymentKeyHash ->
-      PubKeyCredential $
-        PubKeyHash $
-          PlutusTx.toBuiltin $
-            C.serialiseToRawBytes paymentKeyHash
-    C.PaymentCredentialByScript scriptHash ->
-      ScriptCredential $ scriptToScriptHash scriptHash
+fromShelleyCredential :: C.Credential C.Payment -> Api.Credential
+fromShelleyCredential =
+  ( \case
+      C.PaymentCredentialByKey paymentKeyHash -> Api.PubKeyCredential $ fromKeyHash paymentKeyHash
+      C.PaymentCredentialByScript scriptHash -> Api.ScriptCredential $ fromScriptHash scriptHash
+  )
+    . C.fromShelleyPaymentCredential
 
-cardanoStakingCredential :: C.AddressInEra era -> Maybe StakingCredential
-cardanoStakingCredential (C.AddressInEra C.ByronAddressInAnyEra _) = Nothing
-cardanoStakingCredential (C.AddressInEra _ (C.ShelleyAddress _ _ stakeAddressReference)) =
-  case C.fromShelleyStakeReference stakeAddressReference of
-    C.NoStakeAddress -> Nothing
-    (C.StakeAddressByValue stakeCredential) ->
-      Just (StakingHash $ fromCardanoStakeCredential stakeCredential)
-    C.StakeAddressByPointer {} -> Nothing -- Not supported
-  where
-    fromCardanoStakeCredential :: C.StakeCredential -> Credential
-    fromCardanoStakeCredential (C.StakeCredentialByKey stakeKeyHash) =
-      PubKeyCredential $
-        PubKeyHash $
-          PlutusTx.toBuiltin $
-            C.serialiseToRawBytes stakeKeyHash
-    fromCardanoStakeCredential (C.StakeCredentialByScript scriptHash) = ScriptCredential (scriptToScriptHash scriptHash)
+fromCardanoStakeCredential :: C.StakeCredential -> Api.Credential
+fromCardanoStakeCredential (C.StakeCredentialByKey stakeKeyHash) = Api.PubKeyCredential $ fromKeyHash stakeKeyHash
+fromCardanoStakeCredential (C.StakeCredentialByScript scriptHash) = Api.ScriptCredential $ fromScriptHash scriptHash
 
-cardanoPubKeyHash :: C.AddressInEra era -> Maybe PubKeyHash
-cardanoPubKeyHash addr = case cardanoAddressCredential addr of
-  PubKeyCredential x -> Just x
-  _ -> Nothing
-
-toPlutusAddress :: C.AddressInEra era -> Address
-toPlutusAddress address = Address (cardanoAddressCredential address) (cardanoStakingCredential address)
-
-toPlutusPubKeyHash :: C.Hash C.PaymentKey -> PubKeyHash
-toPlutusPubKeyHash paymentKeyHash = PubKeyHash $ PlutusTx.toBuiltin $ C.serialiseToRawBytes paymentKeyHash
-
-scriptToScriptHash :: C.ScriptHash -> ScriptHash
-scriptToScriptHash = ScriptHash . PlutusTx.toBuiltin . C.serialiseToRawBytes
+fromCardanoAddress :: LedgerAddress -> Api.Address
+fromCardanoAddress (C.AddressInEra C.ByronAddressInAnyEra (C.ByronAddress address)) =
+  Api.Address (fromByronAddress address) Nothing
+fromCardanoAddress (C.AddressInEra _ (C.ShelleyAddress _ paymentCredential (C.fromShelleyStakeReference -> C.StakeAddressByValue stakeCredential))) =
+  Api.Address (fromShelleyCredential paymentCredential) (Just (Api.AccountId $ fromCardanoStakeCredential stakeCredential))
+fromCardanoAddress (C.AddressInEra _ (C.ShelleyAddress _ paymentCredential _)) =
+  Api.Address (fromShelleyCredential paymentCredential) Nothing
 
 newtype PaymentPrivateKey = PaymentPrivateKey {unPaymentPrivateKey :: Crypto.XPrv}
 
 newtype PaymentPubKey = PaymentPubKey {unPaymentPubKey :: PubKey}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-  deriving newtype
-    (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
+  deriving newtype (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKey
 
 makeLift ''PaymentPubKey
@@ -133,15 +104,7 @@ xprvToPaymentPubKey = PaymentPubKey . toPublicKey
 newtype PaymentPubKeyHash = PaymentPubKeyHash {unPaymentPubKeyHash :: PubKeyHash}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-  deriving newtype
-    ( PlutusTx.Eq,
-      PlutusTx.Ord,
-      Serialise,
-      Hashable,
-      PlutusTx.ToData,
-      PlutusTx.FromData,
-      PlutusTx.UnsafeFromData
-    )
+  deriving newtype (PlutusTx.Eq, PlutusTx.Ord, Serialise, Hashable, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKeyHash
 
 makeLift ''PaymentPubKeyHash
@@ -154,8 +117,7 @@ newtype StakePrivateKey = StakePrivateKey {unStakePrivateKey :: Crypto.XPrv}
 newtype StakePubKey = StakePubKey {unStakePubKey :: PubKey}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-  deriving newtype
-    (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
+  deriving newtype (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKey
 
 makeLift ''StakePubKey
@@ -166,15 +128,7 @@ xprvToStakePubKey = StakePubKey . toPublicKey
 newtype StakePubKeyHash = StakePubKeyHash {unStakePubKeyHash :: PubKeyHash}
   deriving stock (Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-  deriving newtype
-    ( PlutusTx.Eq,
-      PlutusTx.Ord,
-      Serialise,
-      Hashable,
-      PlutusTx.ToData,
-      PlutusTx.FromData,
-      PlutusTx.UnsafeFromData
-    )
+  deriving newtype (PlutusTx.Eq, PlutusTx.Ord, Serialise, Hashable, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKeyHash
 
 makeLift ''StakePubKeyHash
@@ -182,51 +136,55 @@ makeLift ''StakePubKeyHash
 xprvToStakePubKeyHash :: Crypto.XPrv -> StakePubKeyHash
 xprvToStakePubKeyHash = StakePubKeyHash . pubKeyHash . toPublicKey
 
-xprvToStakingCredential :: Crypto.XPrv -> StakingCredential
-xprvToStakingCredential = stakePubKeyHashCredential . xprvToStakePubKeyHash
+xprvToAccountId :: Crypto.XPrv -> Api.AccountId
+xprvToAccountId = stakePubKeyHashCredential . xprvToStakePubKeyHash
 
 {-# INLINEABLE paymentPubKeyHash #-}
 paymentPubKeyHash :: PaymentPubKey -> PaymentPubKeyHash
-paymentPubKeyHash (PaymentPubKey pk) = PaymentPubKeyHash (pubKeyHash pk)
-
-{-# INLINEABLE pubKeyHashAddress #-}
+paymentPubKeyHash = PaymentPubKeyHash . pubKeyHash . unPaymentPubKey
 
 -- | The address that should be targeted by a transaction output locked by the
 -- given public payment key (with its staking credentials).
-pubKeyHashAddress :: PaymentPubKeyHash -> Maybe StakingCredential -> Address
-pubKeyHashAddress (PaymentPubKeyHash pkh) = Address (PubKeyCredential pkh)
+{-# INLINEABLE pubKeyHashAddress #-}
+pubKeyHashAddress :: PaymentPubKeyHash -> Maybe Api.AccountId -> Api.Address
+pubKeyHashAddress = Api.Address . Api.PubKeyCredential . unPaymentPubKeyHash
 
+-- | The address that should be targeted by a transaction output locked by the
+-- given public key.  (with its staking credentials).
 {-# INLINEABLE pubKeyAddress #-}
+pubKeyAddress :: PaymentPubKey -> Maybe Api.AccountId -> Api.Address
+pubKeyAddress = Api.Address . Api.PubKeyCredential . pubKeyHash . unPaymentPubKey
 
--- | The address that should be targeted by a transaction output locked by the given public key.
--- (with its staking credentials).
-pubKeyAddress :: PaymentPubKey -> Maybe StakingCredential -> Address
-pubKeyAddress (PaymentPubKey pk) = Address (PubKeyCredential (pubKeyHash pk))
-
+-- | The address that should be used by a transaction output locked by the given
+-- validator script (with its staking credentials).
 {-# INLINEABLE scriptValidatorHashAddress #-}
+scriptValidatorHashAddress :: PSU.ValidatorHash -> Maybe Api.AccountId -> Api.Address
+scriptValidatorHashAddress = Api.Address . Api.ScriptCredential . Api.ScriptHash . PSU.getValidatorHash
 
--- | The address that should be used by a transaction output locked by the given validator script
--- (with its staking credentials).
-scriptValidatorHashAddress :: ValidatorHash -> Maybe StakingCredential -> Address
-scriptValidatorHashAddress (ValidatorHash vh) = Address (ScriptCredential (ScriptHash vh))
-
+-- | Construct a `AccountId` from a public key hash.
 {-# INLINEABLE stakePubKeyHashCredential #-}
+stakePubKeyHashCredential :: StakePubKeyHash -> Api.AccountId
+stakePubKeyHashCredential = Api.AccountId . Api.PubKeyCredential . unStakePubKeyHash
 
--- | Construct a `StakingCredential` from a public key hash.
-stakePubKeyHashCredential :: StakePubKeyHash -> StakingCredential
-stakePubKeyHashCredential = StakingHash . PubKeyCredential . unStakePubKeyHash
-
+-- | Construct a `AccountId` from a validator script hash.
 {-# INLINEABLE stakeValidatorHashCredential #-}
-
--- | Construct a `StakingCredential` from a validator script hash.
-stakeValidatorHashCredential :: StakeValidatorHash -> StakingCredential
-stakeValidatorHashCredential (StakeValidatorHash h) = StakingHash . ScriptCredential . ScriptHash $ h
+stakeValidatorHashCredential :: PSU.StakeValidatorHash -> Api.AccountId
+stakeValidatorHashCredential = Api.AccountId . Api.ScriptCredential . Api.ScriptHash . PSU.getStakeValidatorHash
 
 class ToWitness a where
   toWitness :: a -> C.ShelleyWitnessSigningKey
 
 instance ToWitness PaymentPrivateKey where
-  toWitness (PaymentPrivateKey xprv) = C.WitnessPaymentExtendedKey (C.PaymentExtendedSigningKey xprv)
+  toWitness = C.WitnessPaymentExtendedKey . C.PaymentExtendedSigningKey . unPaymentPrivateKey
 
 instance ToWitness StakePrivateKey where
-  toWitness (StakePrivateKey xprv) = C.WitnessStakeExtendedKey (C.StakeExtendedSigningKey xprv)
+  toWitness = C.WitnessStakeExtendedKey . C.StakeExtendedSigningKey . unStakePrivateKey
+
+class ToCardanoAddress a where
+  toCardanoAddress :: C.NetworkId -> a -> LedgerAddress
+
+instance (PSU.ToScript a) => ToCardanoAddress (PSU.Versioned a) where
+  toCardanoAddress networkId =
+    flip (C.makeShelleyAddressInEra C.shelleyBasedEra networkId) C.NoStakeAddress
+      . C.PaymentCredentialByScript
+      . toCardanoScriptHash

@@ -8,10 +8,8 @@
 
 module Plutus.Script.Utils.Scripts
   ( Script (..),
-    PV1.ScriptHash (..),
     ToScript (..),
     ToScriptHash (..),
-    Language (..),
     Versioned (..),
     ToVersioned (..),
     Validator (..),
@@ -51,7 +49,7 @@ import Data.Hashable (Hashable)
 import Data.String (IsString)
 import Data.Text.Encoding qualified as TE
 import GHC.Generics (Generic)
-import PlutusLedgerApi.Common (serialiseCompiledCode)
+import PlutusLedgerApi.Common (PlutusLedgerLanguage, serialiseCompiledCode)
 import PlutusLedgerApi.V1 qualified as PV1
 import PlutusLedgerApi.V1.Bytes (LedgerBytes (LedgerBytes))
 import PlutusTx (CompiledCode, makeLift)
@@ -133,20 +131,14 @@ instance ToScript (CompiledCode (BuiltinData -> BuiltinUnit)) where
 
 -- * Scripts with a version attached
 
--- | Plutus script language tags independent of Cardano ledger types.
-data Language = PlutusV1 | PlutusV2 | PlutusV3
-  deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (FromJSON, ToJSON, Serialise)
+deriving instance ToJSON PlutusLedgerLanguage
 
-instance Pretty Language where
-  pretty PlutusV1 = "Plutus V1"
-  pretty PlutusV2 = "Plutus V2"
-  pretty PlutusV3 = "Plutus V3"
+deriving instance FromJSON PlutusLedgerLanguage
 
 -- | A script of some kind with its Plutus language version
 data Versioned script = Versioned
   { unversioned :: script,
-    version :: Language
+    version :: PlutusLedgerLanguage
   }
   deriving stock (Show, Eq, Ord, Functor, Generic)
   deriving anyclass (ToJSON, FromJSON, Serialise)
@@ -272,8 +264,7 @@ instance ToVersioned MintingPolicy (Versioned Script) where
 newtype MintingPolicyHash = MintingPolicyHash {getMintingPolicyHash :: Builtins.BuiltinByteString}
   deriving (IsString, Show, Pretty) via LedgerBytes
   deriving stock (Generic)
-  deriving newtype
-    (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
+  deriving newtype (Eq, Ord, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData, Hashable, Serialise)
   deriving anyclass (FromJSONKey, ToJSONKey)
 
 instance ToJSON MintingPolicyHash where

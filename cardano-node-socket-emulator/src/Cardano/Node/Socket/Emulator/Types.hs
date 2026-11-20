@@ -67,7 +67,7 @@ import GHC.Generics (Generic)
 import Ledger (Block, CardanoTx, OnChainTx (..))
 import Ledger.Address (CardanoAddress)
 import Ledger.CardanoWallet
-import Ledger.Test (testNetworkMagic)
+import Ledger.Common (testNetworkMagic)
 import Network.Mux.Types
 import Network.TypedProtocol.Codec.CBOR (Codec)
 import Network.TypedProtocol.Stateful.Codec qualified as TP (Codec)

@@ -30,8 +30,8 @@ import Ledger.Address.Orphans ()
 import Ledger.Builtins.Orphans ()
 import Ledger.Credential.Orphans ()
 import Ledger.Scripts.Orphans ()
-import Ledger.Tx.Orphans.V1 ()
-import Ledger.Tx.Orphans.V2 ()
+import Ledger.V1.Orphans ()
+import Ledger.V2.Orphans ()
 import Ledger.Value.Orphans ()
 import Prettyprinter (Pretty (pretty), hang, viaShow, vsep, (<+>))
 
@@ -67,13 +67,13 @@ instance (Pretty (C.TxOutDatum ctx era)) => Pretty (C.TxOut ctx era) where
 instance Pretty (C.TxOutDatum C.CtxTx era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
-  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
+  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . drop 1 $ show dh)
   pretty (C.TxOutSupplementalDatum _ dv) = "with supplemental datum" <+> viaShow dv
 
 instance Pretty (C.TxOutDatum C.CtxUTxO era) where
   pretty C.TxOutDatumNone = "no datum"
   pretty (C.TxOutDatumInline _ dv) = "with inline datum" <+> viaShow dv
-  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . tail $ show dh)
+  pretty (C.TxOutDatumHash _ dh) = "with datum hash" <+> fromString (init . drop 1 $ show dh)
 
 instance Serialise C.TxId where
   encode = encode . C.serialiseToRawBytes

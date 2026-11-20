@@ -1,30 +1,7 @@
-module Plutus.Script.Utils.Address
-  ( ToCredential (..),
-    ToAddress (..),
-    ToPubKeyHash (..),
-    ToMaybeStakingCredential (..),
-  )
-where
+module Plutus.Script.Utils.V1.Address where
 
+import Plutus.Script.Utils.Credential (ToCredential (toCredential))
 import PlutusLedgerApi.V1 qualified as Api
-
-class ToCredential a where
-  toCredential :: a -> Api.Credential
-
-instance ToCredential Api.Credential where
-  toCredential = id
-
-instance ToCredential Api.ScriptHash where
-  toCredential = Api.ScriptCredential
-
-instance ToCredential Api.PubKeyHash where
-  toCredential = Api.PubKeyCredential
-
-instance ToCredential Api.Address where
-  toCredential = Api.addressCredential
-
-instance (ToCredential a, ToCredential b) => ToCredential (Either a b) where
-  toCredential = either toCredential toCredential
 
 -- | 'ToAddress' is more contentious than other similar type classes and should
 -- be used with caution because most of the instances will just ignore the
@@ -45,12 +22,6 @@ instance ToAddress Api.Credential where
 
 instance ToAddress Api.Address where
   toAddress = id
-
-class ToPubKeyHash a where
-  toPubKeyHash :: a -> Api.PubKeyHash
-
-instance ToPubKeyHash Api.PubKeyHash where
-  toPubKeyHash = id
 
 -- | Addresses contain an optional staking credential, so it makes more sense to
 -- have a class which returns it.

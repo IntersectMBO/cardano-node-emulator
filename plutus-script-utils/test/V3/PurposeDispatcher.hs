@@ -4,7 +4,6 @@
 module V3.PurposeDispatcher (tests) where
 
 import Data.ByteString qualified as BS
-import Plutus.Script.Utils.Scripts (ScriptHash (ScriptHash))
 import Plutus.Script.Utils.V3.Generators
   ( falseTypedMultiPurposeScript,
     forwardingMintingPurpose,
@@ -35,6 +34,7 @@ import PlutusLedgerApi.V3
     Datum (Datum),
     MintValue,
     OutputDatum (NoOutputDatum),
+    ScriptHash (ScriptHash),
     ScriptInfo (MintingScript, SpendingScript),
     TokenName (TokenName),
     TxId (TxId),
@@ -60,9 +60,9 @@ import PlutusTx.Builtins qualified as Builtins
 import PlutusTx.Prelude qualified as P
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
-import UntypedPlutusCore (Program (Program))
+import UntypedPlutusCore.Core.Type qualified as Cek
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as Cek
-import Prelude (Bool (False, True), Either (Left, Right), Maybe (Just), not, ($))
+import Prelude (Bool (False, True), Maybe (Just), not, ($), (.))
 
 tests :: TestTree
 tests =
@@ -455,17 +455,11 @@ fails code input =
 -- Apply the context as a compiled UPLC constant and run the resulting term
 -- directly through CEK, avoiding ledger-level evaluation and cost models.
 evaluateCode :: CompiledCode (BuiltinData -> P.BuiltinUnit) -> BuiltinData -> Bool
-evaluateCode code input =
-  let Program _ _ term =
-        getPlcNoAnn $
-          unsafeApplyCode code $
-            liftCode plcVersion110 input
-      (result, _, _) =
-        Cek.runCekDeBruijn
-          defaultCekParametersForTesting
-          Cek.counting
-          Cek.noEmitter
-          term
-   in case result of
-        Left _ -> False
-        Right _ -> True
+evaluateCode code =
+  \case Cek.CekFailure _ -> False; _ -> True
+    . Cek._cekReportResult
+    . Cek.runCekDeBruijn defaultCekParametersForTesting Cek.counting Cek.noEmitter
+    . Cek._progTerm
+    . getPlcNoAnn
+    . unsafeApplyCode code
+    . liftCode plcVersion110

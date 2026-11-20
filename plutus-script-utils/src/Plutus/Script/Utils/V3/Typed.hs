@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
@@ -20,8 +21,7 @@ import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV3),
-    MintingPolicy (MintingPolicy),
+  ( MintingPolicy (MintingPolicy),
     Script,
     StakeValidator (StakeValidator),
     ToMintingPolicy (toMintingPolicy),
@@ -32,6 +32,7 @@ import Plutus.Script.Utils.Scripts
     Validator (Validator),
     Versioned (Versioned),
   )
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV3))
 import PlutusLedgerApi.V3
   ( BuiltinData,
     FromData,
@@ -151,11 +152,9 @@ data
       FromData votingTxInfo
     ) =>
   TypedMultiPurposeScript
-  { certifyingPurpose ::
-      Maybe (CertifyingPurposeType certifyingIndex certifyingCert certifyingRed certifyingTxInfo),
+  { certifyingPurpose :: Maybe (CertifyingPurposeType certifyingIndex certifyingCert certifyingRed certifyingTxInfo),
     mintingPurpose :: Maybe (MintingPurposeType mintingCurrencySymbol mintingRed mintingTxInfo),
-    proposingPurpose ::
-      Maybe (ProposingPurposeType proposingIndex proposingProposal proposingRed proposingTxInfo),
+    proposingPurpose :: Maybe (ProposingPurposeType proposingIndex proposingProposal proposingRed proposingTxInfo),
     rewardingPurpose :: Maybe (RewardingPurposeType rewardingCredential rewardingRed rewardingTxInfo),
     spendingPurpose :: Maybe (SpendingPurposeType spendingOutRef spendingDat spendingRed spendingTxInfo),
     votingPurpose :: Maybe (VotingPurposeType votingVoter votingRed votingTxInfo)
@@ -261,14 +260,6 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
     ScriptContextResolvedScriptInfo scTxInfo scRedeemer (purpose, args) <-
       fromBuiltinDataEither "script info" dat
     case args of
-      [i, cert]
-        | purpose == 3,
-          Just cPurpose <- certifyingPurpose -> do
-            index <- fromBuiltinDataEither "certifying index" i
-            certificate <- fromBuiltinDataEither "certifying certificate" cert
-            red <- fromBuiltinDataEither "certifying redeemer" scRedeemer
-            txInfo <- fromBuiltinDataEither "certifying tx info" scTxInfo
-            return $ traceRunning "Certifying" $ cPurpose index certificate red txInfo
       [cur]
         | purpose == 0,
           Just mPurpose <- mintingPurpose -> do
@@ -276,21 +267,6 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
             red <- fromBuiltinDataEither "minting redeemer" scRedeemer
             txInfo <- fromBuiltinDataEither "minting tx info" scTxInfo
             return $ traceRunning "Minting" $ mPurpose currencySymbol red txInfo
-      [i, prop]
-        | purpose == 5,
-          Just pPurpose <- proposingPurpose -> do
-            index <- fromBuiltinDataEither "proposing index" i
-            proposal <- fromBuiltinDataEither "proposing proposal" prop
-            red <- fromBuiltinDataEither "proposing redeemer" scRedeemer
-            txInfo <- fromBuiltinDataEither "proposing tx info" scTxInfo
-            return $ traceRunning "Proposing" $ pPurpose index proposal red txInfo
-      [cred]
-        | purpose == 2,
-          Just rPurpose <- rewardingPurpose -> do
-            credential <- fromBuiltinDataEither "rewarding credential" cred
-            red <- fromBuiltinDataEither "rewarding redeemer" scRedeemer
-            txInfo <- fromBuiltinDataEither "rewarding tx info" scTxInfo
-            return $ traceRunning "Rewarding" $ rPurpose credential red txInfo
       [oRef, mDat]
         | purpose == 1,
           Just sPurpose <- spendingPurpose -> do
@@ -305,6 +281,21 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
                       _ -> Left "Error when deserializing the spending datum"
                     else return Nothing
             return $ traceRunning "Spending" $ sPurpose outRef mResolvedDat red txInfo
+      [cred]
+        | purpose == 2,
+          Just rPurpose <- rewardingPurpose -> do
+            credential <- fromBuiltinDataEither "rewarding credential" cred
+            red <- fromBuiltinDataEither "rewarding redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "rewarding tx info" scTxInfo
+            return $ traceRunning "Rewarding" $ rPurpose credential red txInfo
+      [i, cert]
+        | purpose == 3,
+          Just cPurpose <- certifyingPurpose -> do
+            index <- fromBuiltinDataEither "certifying index" i
+            certificate <- fromBuiltinDataEither "certifying certificate" cert
+            red <- fromBuiltinDataEither "certifying redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "certifying tx info" scTxInfo
+            return $ traceRunning "Certifying" $ cPurpose index certificate red txInfo
       [voter]
         | purpose == 4,
           Just vPurpose <- votingPurpose -> do
@@ -312,6 +303,14 @@ mkMultiPurposeScript TypedMultiPurposeScript {..} dat =
             red <- fromBuiltinDataEither "voting redeemer" scRedeemer
             txInfo <- fromBuiltinDataEither "voting tx info" scTxInfo
             return $ traceRunning "Voting" $ vPurpose resolvedVoter red txInfo
+      [i, prop]
+        | purpose == 5,
+          Just pPurpose <- proposingPurpose -> do
+            index <- fromBuiltinDataEither "proposing index" i
+            proposal <- fromBuiltinDataEither "proposing proposal" prop
+            red <- fromBuiltinDataEither "proposing redeemer" scRedeemer
+            txInfo <- fromBuiltinDataEither "proposing tx info" scTxInfo
+            return $ traceRunning "Proposing" $ pPurpose index proposal red txInfo
       _ -> traceError "Script used with an unsupported purpose."
   where
     fromBuiltinDataEither :: (FromData a) => BuiltinString -> BuiltinData -> Either BuiltinString a

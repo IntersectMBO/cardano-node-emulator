@@ -64,9 +64,9 @@ import Ledger.Address
     StakePubKeyHash (StakePubKeyHash, unStakePubKeyHash),
     stakePubKeyHashCredential,
   )
+import Ledger.Common (testnet)
 import Ledger.Crypto (PubKey (..))
 import Ledger.Crypto qualified as Crypto
-import Ledger.Test (testnet)
 import Ledger.Tx.CardanoAPI.Internal qualified as Tx
 import PlutusLedgerApi.V1
   ( Address (Address),

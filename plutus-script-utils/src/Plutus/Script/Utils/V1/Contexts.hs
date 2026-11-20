@@ -1,16 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -Wno-missing-import-lists #-}
 
 module Plutus.Script.Utils.V1.Contexts
-  ( module Contexts,
-    outputsAt,
+  ( outputsAt,
     valuePaidTo,
   )
 where
 
-import Plutus.Script.Utils.Address (ToAddress (toAddress))
-import PlutusLedgerApi.V1 (Value)
-import PlutusLedgerApi.V1.Contexts as Contexts hiding (valuePaidTo)
+import Plutus.Script.Utils.V1.Address (ToAddress (toAddress))
+import PlutusLedgerApi.V1 (TxInfo (txInfoOutputs), TxOut (TxOut), Value)
 import PlutusTx.Prelude (Maybe (Just, Nothing), mapMaybe, mconcat, (.), (==))
 
 -- | Get the list of values paid to an address within a 'TxInfo'

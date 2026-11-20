@@ -25,8 +25,8 @@ ghc-options:
   -fobject-code
   -fno-ignore-interface-pragmas
   -fno-omit-interface-pragmas
-  -fplugin-opt PlutusTx.Plugin:target-version=1.1.0
-  -fplugin-opt PlutusTx.Plugin:defer-errors
+  -fplugin-opt Plinth.Plugin:target-version=1.1.0
+  -fplugin-opt Plinth.Plugin:defer-errors
 
 library:
   source-dirs: src
@@ -35,13 +35,14 @@ library:
     - cardano-api == 10.18.1.0
     - cardano-binary
     - cardano-crypto
+    - cardano-crypto-class
     - cardano-ledger-alonzo
     - cardano-ledger-byron
     - cardano-ledger-conway
     - cardano-ledger-core
     - cardano-ledger-shelley
+    - cardano-ledger-dijkstra
     - data-default
-    - iohk-monitoring
     - plutus-core
     - plutus-ledger-api
     - plutus-tx
@@ -61,6 +62,7 @@ library:
     - newtype-generics
     - ordered-containers
     - prettyprinter
+    - random
     - scientific
     - serialise
     - servant
@@ -70,7 +72,7 @@ library:
   ghc-options:
     -fprint-potential-instances
   when:
-    - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+    - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
       buildable: false
 
 tests:
@@ -94,5 +96,5 @@ tests:
       - tasty-hedgehog
       - tasty-hunit
     when:
-      - condition: "impl(ghc <9.6) || impl(ghc >=9.7)"
+      - condition: "impl(ghc <9.6) || (impl(ghc >=9.7) && impl(ghc <9.12)) || impl(ghc >=9.13)"
         buildable: false

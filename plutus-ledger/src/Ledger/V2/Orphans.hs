@@ -3,7 +3,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ledger.Tx.Orphans.V2 where
+module Ledger.V2.Orphans where
 
 import Codec.Serialise (Serialise)
 import Data.Aeson (FromJSON, ToJSON)
@@ -11,6 +11,7 @@ import Ledger.Address.Orphans ()
 import Ledger.Builtins.Orphans ()
 import Ledger.Credential.Orphans ()
 import Ledger.Scripts.Orphans ()
+import Ledger.V1.Orphans ()
 import Ledger.Value.Orphans ()
 import PlutusLedgerApi.V2
 

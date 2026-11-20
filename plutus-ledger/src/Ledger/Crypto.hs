@@ -8,8 +8,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ledger.Crypto
-  ( module Export,
-    PubKey (..),
+  ( PubKey (..),
     PrivateKey (..),
     Signature (..),
     Passphrase (..),
@@ -40,10 +39,10 @@ import Data.ByteString qualified as BS
 import Data.Hashable (Hashable)
 import Data.String
 import GHC.Generics (Generic)
-import Ledger.Tx.Orphans.V1 ()
+import Ledger.V1.Orphans ()
 import PlutusLedgerApi.V1 (LedgerBytes (LedgerBytes), TxId (TxId), fromBuiltin, toBuiltin)
 import PlutusLedgerApi.V1.Bytes qualified as KB
-import PlutusLedgerApi.V1.Crypto as Export
+import PlutusLedgerApi.V1.Crypto
 import PlutusTx qualified
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude qualified as PlutusTx

@@ -4,8 +4,7 @@ module JSONSpec (tests) where
 
 import Data.Aeson qualified as JSON
 import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV1),
-    Validator (getValidator),
+  ( Validator (getValidator),
     ValidatorHash (ValidatorHash),
     Versioned (Versioned),
   )
@@ -14,6 +13,7 @@ import Plutus.Script.Utils.V1.Generators
     alwaysSucceedValidator,
     mkForwardingStakeValidator,
   )
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV1))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase)
 

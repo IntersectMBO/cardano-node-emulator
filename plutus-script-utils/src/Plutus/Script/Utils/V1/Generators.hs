@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -g -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+{-# OPTIONS_GHC -g -fplugin-opt Plinth.Plugin:target-version=1.0.0 #-}
 
 module Plutus.Script.Utils.V1.Generators
   ( alwaysSucceedValidator,
@@ -16,8 +16,7 @@ module Plutus.Script.Utils.V1.Generators
 where
 
 import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV1),
-    MintingPolicy,
+  ( MintingPolicy,
     StakeValidator,
     Validator,
     ValidatorHash (ValidatorHash),
@@ -31,6 +30,7 @@ import Plutus.Script.Utils.V1.Scripts
     mkUntypedStakeValidator,
   )
 import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV1))
 import PlutusLedgerApi.V1
   ( Address (Address),
     Credential (ScriptCredential),

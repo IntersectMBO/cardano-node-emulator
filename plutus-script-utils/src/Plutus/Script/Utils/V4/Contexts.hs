@@ -1,0 +1,76 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
+module Plutus.Script.Utils.V4.Contexts where
+
+import Plutus.Script.Utils.Scripts
+  ( ToScriptHash (toScriptHash),
+    ToValidatorHash (toValidatorHash),
+    ValidatorHash (ValidatorHash),
+  )
+import Plutus.Script.Utils.V4.Address (ToAddress (toAddress))
+import PlutusLedgerApi.V4
+  ( Address (Address),
+    Credential (ScriptCredential),
+    OutputDatum,
+    ScriptContext,
+    ScriptHash (ScriptHash),
+    TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
+    TxInfo (txInfoInputs, txInfoOutputs, txInfoReferenceInputs),
+    TxOut (TxOut),
+    TxOutRef,
+    Value,
+  )
+import PlutusLedgerApi.V4.Contexts (findOwnInput)
+import PlutusTx.List (find)
+import PlutusTx.Prelude
+  ( Maybe (Just, Nothing),
+    fst,
+    mapMaybe,
+    mconcat,
+    traceError,
+    (.),
+    (<$>),
+    (==),
+  )
+
+{-# INLINEABLE findInput #-}
+findInput :: TxOutRef -> [TxInInfo] -> Maybe TxOut
+findInput outRef = (txInInfoResolved <$>) . find ((== outRef) . txInInfoOutRef)
+
+{-# INLINEABLE findTxInByTxOutRef #-}
+findTxInByTxOutRef :: TxOutRef -> TxInfo -> Maybe TxOut
+findTxInByTxOutRef outRef = findInput outRef . txInfoInputs
+
+{-# INLINEABLE findTxRefInByTxOutRef #-}
+findTxRefInByTxOutRef :: TxOutRef -> TxInfo -> Maybe TxOut
+findTxRefInByTxOutRef outRef = findInput outRef . txInfoReferenceInputs
+
+-- | Get the datums and values paid to an address by a pending transaction.
+{-# INLINEABLE outputsAt #-}
+outputsAt :: (ToAddress a) => TxInfo -> a -> [(Value, OutputDatum)]
+outputsAt txInfo (toAddress -> addr) =
+  mapMaybe
+    (\(TxOut addr' val dat _) -> if addr == addr' then Just (val, dat) else Nothing)
+    (txInfoOutputs txInfo)
+
+-- | Get the datums and values paid to an address of a validator by a pending transaction.
+{-# INLINEABLE scriptOutputsAt #-}
+scriptOutputsAt :: (ToValidatorHash a) => TxInfo -> a -> [(Value, OutputDatum)]
+scriptOutputsAt txInfo = outputsAt txInfo . toScriptHash . toValidatorHash
+
+-- | Get the total value paid to a public key address by a pending transaction.
+{-# INLINEABLE valuePaidTo #-}
+valuePaidTo :: (ToAddress a) => TxInfo -> a -> Value
+valuePaidTo txInfo = mconcat . (fst <$>) . outputsAt txInfo
+
+-- | Get the validator hash, datum and value of the output that is curently
+-- being validated
+{-# INLINEABLE ownHashValueAndDatum #-}
+ownHashValueAndDatum :: ScriptContext -> (ValidatorHash, Value, OutputDatum)
+ownHashValueAndDatum (findOwnInput -> Just (TxInInfo _ (TxOut (Address (ScriptCredential (ScriptHash s)) _) val dat _))) = (ValidatorHash s, val, dat)
+ownHashValueAndDatum _ = traceError "Unable to find the own script's input"
+
+-- | Get the hash of the validator script that is currently being validated.
+{-# INLINEABLE ownHash #-}
+ownHash :: ScriptContext -> ValidatorHash
+ownHash (ownHashValueAndDatum -> (vHash, _, _)) = vHash

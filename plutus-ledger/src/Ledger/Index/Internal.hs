@@ -19,8 +19,8 @@ module Ledger.Index.Internal where
 import Cardano.Api qualified as C
 import Cardano.Binary qualified as CBOR
 import Cardano.Ledger.Alonzo.Scripts (AsIx, ExUnits, PlutusPurpose)
-import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx), IsValid (IsValid))
-import Cardano.Ledger.Core (Tx)
+import Cardano.Ledger.Alonzo.Tx (AlonzoTx (AlonzoTx))
+import Cardano.Ledger.Core (TopTx, Tx)
 import Cardano.Ledger.Shelley.API (Validated, extractTx)
 import Codec.Serialise (Serialise (..))
 import Control.Lens (makePrisms)
@@ -38,7 +38,7 @@ import Prelude hiding (lookup)
 
 -- | A transaction on the blockchain.
 -- Invalid transactions are still put on the chain to be able to collect fees.
-newtype OnChainTx = OnChainTx {getOnChainTx :: Validated (Tx EmulatorEra)}
+newtype OnChainTx = OnChainTx {getOnChainTx :: Validated (Tx TopTx EmulatorEra)}
   deriving stock (Eq, Show, Generic)
 
 instance Serialise OnChainTx where
@@ -46,7 +46,7 @@ instance Serialise OnChainTx where
   decode = fail "Not allowed to use `decode` on `OnChainTx`" -- Unused
 
 eitherTx :: (CardanoTx -> r) -> (CardanoTx -> r) -> OnChainTx -> r
-eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(AlonzoTx _ _ (IsValid isValid) _)) =
+eitherTx ifInvalid ifValid (extractTx . getOnChainTx -> tx@(AlonzoTx _ _ isValid _)) =
   let ctx = CardanoEmulatorEraTx (C.ShelleyTx C.ShelleyBasedEraConway tx)
    in if isValid then ifValid ctx else ifInvalid ctx
 

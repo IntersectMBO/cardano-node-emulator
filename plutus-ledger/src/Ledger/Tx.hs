@@ -17,7 +17,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ledger.Tx
-  ( module Export,
+  ( module Internal,
     C.TxId (..),
     C.TxIn (..),
     C.TxIx (..),
@@ -129,21 +129,12 @@ import Ledger.Tx.CardanoAPI
     pattern CardanoEmulatorEraTx,
   )
 import Ledger.Tx.CardanoAPI qualified as CardanoAPI
-import Ledger.Tx.Internal as Export
+import Ledger.Tx.Internal as Internal
 import Plutus.Script.Utils.Scripts (Script, Validator, ValidatorHash (..), toScriptHash)
-import PlutusLedgerApi.V1 qualified as V1 hiding (TxOutRef (..))
-import PlutusLedgerApi.V1.Tx as Export hiding
-  ( TxId (..),
-    TxOut (..),
-    TxOutRef (..),
-    outAddress,
-    outValue,
-    txOutDatum,
-    txOutPubKey,
-  )
+import PlutusLedgerApi.V1 qualified as V1
 import PlutusLedgerApi.V1.Value (Value)
 import PlutusLedgerApi.V2 qualified as V2
-import PlutusLedgerApi.V2.Tx qualified as V2.Tx hiding (TxId (..))
+import PlutusLedgerApi.V2.Tx qualified as V2
 import Prettyprinter (Pretty (pretty), colon, hang, nest, viaShow, vsep, (<+>))
 
 -- | A datum in a transaction output that comes from a chain index query.

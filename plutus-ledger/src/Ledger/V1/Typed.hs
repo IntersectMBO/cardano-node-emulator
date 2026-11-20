@@ -1,13 +1,10 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Ledger.Typed.Scripts.V1
-  ( module Typed,
-    validatorToTypedValidator,
+module Ledger.V1.Typed
+  ( validatorToTypedValidator,
     alwaysSucceedTypedValidator,
     alwaysFailTypedValidator,
     mkTypedValidator,
@@ -21,29 +18,39 @@ where
 
 import Cardano.Api qualified as C.Api
 import Control.Monad.Except (MonadError, throwError)
+import Ledger.Address (ToCardanoAddress (toCardanoAddress))
 import Ledger.Data.CardanoAPI (datumHash)
-import Ledger.Scripts (ToCardanoAddress (toCardanoAddress))
-import Plutus.Script.Utils.Address (ToAddress (toAddress), ToCredential (toCredential))
-import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV1),
+import Ledger.V1.Scripts ()
+import Plutus.Script.Utils.V1
+  ( ConnectionError (NoDatum, WrongCredentialType),
+    DatumType,
+    IsDataDatum,
     Script,
+    ToAddress (toAddress),
+    ToCredential (toCredential),
     ToMintingPolicyHash (toMintingPolicyHash),
     ToScriptHash (toScriptHash),
     ToValidator (toValidator),
     ToValidatorHash (toValidatorHash),
     ToVersioned (toVersioned),
+    TypedScriptTxOut (TypedScriptTxOut),
+    TypedScriptTxOutRef (TypedScriptTxOutRef),
+    TypedValidator (TypedValidator),
+    UntypedValidator,
     Validator,
+    ValidatorType,
     Versioned (Versioned),
-  )
-import Plutus.Script.Utils.V1.Generators
-  ( alwaysFailValidator,
+    WrongOutTypeError (ExpectedScriptGotPubkey),
+    alwaysFailValidator,
     alwaysSucceedValidator,
+    checkDatum,
+    checkValidatorAddress,
     mkForwardingMintingPolicy,
+    tvValidatorHash,
   )
-import Plutus.Script.Utils.V1.Scripts (UntypedValidator)
-import Plutus.Script.Utils.V1.Typed as Typed
 import PlutusCore.Default (DefaultUni)
 import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV1))
 import PlutusLedgerApi.V1
   ( Address (Address, addressCredential),
     Credential (PubKeyCredential, ScriptCredential),

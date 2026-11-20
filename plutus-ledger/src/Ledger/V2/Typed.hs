@@ -1,8 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Ledger.Typed.Scripts.V2
-  ( module Typed,
-    validatorToTypedValidator,
+module Ledger.V2.Typed
+  ( validatorToTypedValidator,
     alwaysSucceedTypedValidator,
     alwaysFailTypedValidator,
     mkTypedValidator,
@@ -16,26 +15,33 @@ where
 
 import Control.Monad.Except (MonadError, throwError)
 import Ledger.Data.CardanoAPI (datumHash)
-import Ledger.Scripts ()
-import Ledger.Typed.Scripts.V1 (toCardanoAddressAny)
-import Plutus.Script.Utils.Scripts
-  ( Language (PlutusV2),
+import Ledger.V1.Typed (toCardanoAddressAny)
+import Plutus.Script.Utils.V2
+  ( ConnectionError (NoDatum, WrongCredentialType),
+    DatumType,
+    IsDataDatum,
     ToMintingPolicyHash (toMintingPolicyHash),
     ToScriptHash (toScriptHash),
     ToValidator (toValidator),
     ToValidatorHash (toValidatorHash),
+    TypedScriptTxOut (TypedScriptTxOut),
+    TypedScriptTxOutRef (TypedScriptTxOutRef),
+    TypedValidator (TypedValidator),
+    UntypedValidator,
     Validator,
+    ValidatorType,
     Versioned (Versioned),
-  )
-import Plutus.Script.Utils.V2.Generators
-  ( alwaysFailValidator,
+    WrongOutTypeError (ExpectedScriptGotPubkey),
+    alwaysFailValidator,
     alwaysSucceedValidator,
+    checkDatum,
+    checkValidatorAddress,
     mkForwardingMintingPolicy,
+    tvValidatorHash,
   )
-import Plutus.Script.Utils.V2.Scripts (UntypedValidator)
-import Plutus.Script.Utils.V2.Typed as Typed
 import PlutusCore.Core (plcVersion100)
 import PlutusCore.Default (DefaultUni)
+import PlutusLedgerApi.Common (PlutusLedgerLanguage (PlutusV2))
 import PlutusLedgerApi.V2
   ( Address (Address, addressCredential),
     Credential (PubKeyCredential, ScriptCredential),

@@ -3,9 +3,10 @@
 
 module Plutus.Script.Utils.V3 (module X) where
 
-import Plutus.Script.Utils.Address as X
+import Plutus.Script.Utils.Credential as X
 import Plutus.Script.Utils.Data as X
 import Plutus.Script.Utils.Scripts as X
+import Plutus.Script.Utils.V3.Address as X
 import Plutus.Script.Utils.V3.Contexts as X
 import Plutus.Script.Utils.V3.Generators as X
 import Plutus.Script.Utils.V3.Typed as X

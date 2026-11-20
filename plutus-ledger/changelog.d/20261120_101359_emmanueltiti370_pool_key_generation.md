@@ -6,5 +6,3 @@
   seed, with no `IO` dependency. Adds `MockPool`, `MockPoolKeys`,
   `PoolNumber`, `genPool`, `genPoolKeys`, `knownMockPools`, `knownMockPool`,
   and `poolIdBech32`.
-- `random` and `cardano-crypto-class` added to `plutus-ledger`'s
-  `build-depends`, required by the above.

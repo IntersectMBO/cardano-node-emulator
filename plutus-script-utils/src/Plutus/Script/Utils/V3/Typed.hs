@@ -17,6 +17,7 @@ module Plutus.Script.Utils.V3.Typed
 where
 
 import Codec.Serialise (Serialise)
+import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
 import Plutus.Script.Utils.Scripts
   ( Language (PlutusV3),
@@ -165,7 +166,7 @@ data
 -- | A 'MultiPurposeScript' wraps a Plutus V3 'Script'.
 newtype MultiPurposeScript = MultiPurposeScript {getMultiPurposeScript :: Script}
   deriving stock (Generic)
-  deriving newtype (H.Eq, H.Ord, Serialise)
+  deriving newtype (H.Eq, H.Ord, Serialise, ToJSON, FromJSON)
 
 instance ToScript MultiPurposeScript where
   toScript = getMultiPurposeScript

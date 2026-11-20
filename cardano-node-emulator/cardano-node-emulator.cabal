@@ -46,7 +46,7 @@ library
       aeson >=2
     , base >=4.9 && <5
     , bytestring
-    , cardano-api
+    , cardano-api ==10.18.1.0
     , cardano-api:gen
     , cardano-crypto
     , cardano-ledger-alonzo

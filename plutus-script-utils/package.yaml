@@ -60,7 +60,7 @@ library:
   source-dirs: src
   dependencies:
     - plutus-core
-    - plutus-ledger-api
+    - plutus-ledger-api >=1.45 && <1.46
     - plutus-tx
     - plutus-tx-plugin
     - aeson

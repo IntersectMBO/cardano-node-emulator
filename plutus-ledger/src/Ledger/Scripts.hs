@@ -7,7 +7,7 @@
 module Ledger.Scripts
   ( module Export,
     ToCardanoAddress (..),
-    ToCardanoScriptHash (..),
+    hashVersionedScript,
     unitDatum,
     unitRedeemer,
     examplePlutusScriptAlwaysSucceeds,
@@ -38,26 +38,17 @@ import PlutusTx (toBuiltinData)
 import PlutusTx.Builtins (BuiltinByteString, toBuiltin)
 import PlutusTx.Builtins qualified as Builtins
 
-class ToCardanoAddress a where
-  toCardanoAddress :: C.NetworkId -> a -> C.AddressInEra C.ConwayEra
-
-class ToCardanoScriptHash a where
-  toCardanoScriptHash :: a -> C.ScriptHash
+hashVersionedScript :: (PSU.ToScript a) => Versioned a -> C.ScriptHash
+hashVersionedScript (Versioned (PSU.toScript -> PSU.Script script) lang) = case lang of
+  PlutusV1 -> C.hashScript $ C.PlutusScript C.PlutusScriptV1 $ C.PlutusScriptSerialised script
+  PlutusV2 -> C.hashScript $ C.PlutusScript C.PlutusScriptV2 $ C.PlutusScriptSerialised script
+  PlutusV3 -> C.hashScript $ C.PlutusScript C.PlutusScriptV3 $ C.PlutusScriptSerialised script
 
 instance ToScriptHash C.ScriptHash where
   toScriptHash = PV1.ScriptHash . Builtins.toBuiltin . C.serialiseToRawBytes
 
-instance ToCardanoScriptHash C.ScriptHash where
-  toCardanoScriptHash = id
-
-instance (PSU.ToScript a) => ToCardanoScriptHash (Versioned a) where
-  toCardanoScriptHash (Versioned (PSU.toScript -> PSU.Script script) lang) = case lang of
-    PlutusV1 -> C.hashScript $ C.PlutusScript C.PlutusScriptV1 $ C.PlutusScriptSerialised script
-    PlutusV2 -> C.hashScript $ C.PlutusScript C.PlutusScriptV2 $ C.PlutusScriptSerialised script
-    PlutusV3 -> C.hashScript $ C.PlutusScript C.PlutusScriptV3 $ C.PlutusScriptSerialised script
-
 instance (PSU.ToScript a) => ToScriptHash (Versioned a) where
-  toScriptHash = toScriptHash . toCardanoScriptHash
+  toScriptHash = toScriptHash . hashVersionedScript
 
 instance (PSU.ToScript a) => ToCredential (Versioned a) where
   toCredential = PV1.ScriptCredential . toScriptHash
@@ -65,11 +56,14 @@ instance (PSU.ToScript a) => ToCredential (Versioned a) where
 instance (PSU.ToScript a) => ToAddress (Versioned a) where
   toAddress = (`PV1.Address` Nothing) . toCredential
 
+class ToCardanoAddress a where
+  toCardanoAddress :: C.NetworkId -> a -> C.AddressInEra C.ConwayEra
+
 instance (PSU.ToScript a) => ToCardanoAddress (Versioned a) where
   toCardanoAddress networkId =
     flip (C.makeShelleyAddressInEra C.shelleyBasedEra networkId) C.NoStakeAddress
       . C.PaymentCredentialByScript
-      . toCardanoScriptHash
+      . hashVersionedScript
 
 instance ToValidatorHash (Versioned PSU.Validator) where
   toValidatorHash = toValidatorHash . toScriptHash . fmap PSU.toScript
